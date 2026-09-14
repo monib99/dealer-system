@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forecourt — Dealership Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root{
+    --ink:#181B1F;
+    --ink-soft:#454B52;
+    --paper:#EEF0EE;
+    --card:#FFFFFF;
+    --line:#DADFDC;
+    --brand:#0F5257;
+    --brand-dim:#0F525714;
+    --amber:#E07A1F;
+    --amber-dim:#E07A1F1a;
+    --green:#2E7D5B;
+    --green-dim:#2E7D5B14;
+    --red:#B23A24;
+    --red-dim:#B23A2414;
+    --blue:#33628A;
+    --blue-dim:#33628A14;
+    --grey:#7A7F84;
+    --grey-dim:#7A7F8414;
+    --radius:10px;
+    --shadow: 0 1px 2px rgba(24,27,31,.06), 0 6px 16px rgba(24,27,31,.05);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'IBM Plex Sans', -apple-system, sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.num{ font-family:'Barlow Condensed', sans-serif; font-weight:700; letter-spacing:.2px; }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+  #app{ display:flex; min-height:100vh; }
+
+  /* ---------- Sidebar ---------- */
+  #sidebar{
+    width:220px; flex:0 0 220px; background:var(--ink); color:#EDEFEE;
+    display:flex; flex-direction:column; padding:20px 0;
+  }
+  .brand-row{ padding:0 20px 18px 20px; border-bottom:1px solid #ffffff17; margin-bottom:10px;}
+  .brand-row input{
+    background:none;border:none;color:#fff;font-family:'Barlow Condensed';font-weight:700;
+    font-size:22px; width:100%; padding:0; outline:none;
+  }
+  .brand-row .sub{ color:#B7BDC4; font-size:11.5px; margin-top:2px;}
+  .nav-item{
+    display:flex; align-items:center; gap:10px; padding:11px 20px; cursor:pointer;
+    color:#C7CCD1; font-size:14.5px; font-weight:500; border-left:3px solid transparent;
+  }
+  .nav-item:hover{ background:#ffffff0a; color:#fff; }
+  .nav-item.active{ background:#ffffff12; color:#fff; border-left-color:var(--amber); }
+  .nav-item .dot{ width:7px;height:7px;border-radius:50%; background:var(--amber); display:none;}
+  .nav-item.has-alert .dot{ display:inline-block; }
+  #sidebar .foot{ margin-top:auto; padding:14px 20px 4px; color:#7D848B; font-size:11px; }
+
+  /* ---------- Main ---------- */
+  #main{ flex:1; min-width:0; padding:26px 32px 60px; }
+  .topbar{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:22px; }
+  .topbar h1{ font-size:30px; margin:0; }
+  .topbar .date{ color:var(--ink-soft); font-size:13px; }
+  .btn{
+    border:none; border-radius:8px; padding:9px 16px; font-weight:600; font-size:13.5px;
+    cursor:pointer; font-family:'IBM Plex Sans'; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn-brand{ background:var(--brand); color:#fff; }
+  .btn-brand:hover{ background:#0c4145; }
+  .btn-amber{ background:var(--amber); color:#fff; }
+  .btn-ghost{ background:none; border:1px solid var(--line); color:var(--ink); }
+  .btn-ghost:hover{ background:#ffffffa0; }
+  .btn-danger{ background:none; color:var(--red); border:1px solid var(--red-dim); }
+  .btn-sm{ padding:5px 10px; font-size:12px; border-radius:6px; }
+
+  .grid{ display:grid; gap:16px; }
+  .kpi-grid{ grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:20px;}
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); }
+  .kpi .label{ font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.6px; font-weight:600;}
+  .kpi .value{ font-size:30px; margin-top:6px; }
+  .kpi .value.small{ font-size:22px; }
+  .kpi .sub{ font-size:12px; color:var(--grey); margin-top:2px;}
+
+  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--grey); padding:8px 10px; border-bottom:1px solid var(--line); }
+  td{ padding:10px; border-bottom:1px solid #EEEFED; vertical-align:middle; }
+  tr:hover td{ background:#FAFAF9; }
+  .tag{ display:inline-block; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:600; white-space:nowrap;}
+  .tag-green{ background:var(--green-dim); color:var(--green); }
+  .tag-amber{ background:var(--amber-dim); color:var(--amber); }
+  .tag-red{ background:var(--red-dim); color:var(--red); }
+  .tag-blue{ background:var(--blue-dim); color:var(--blue); }
+  .tag-grey{ background:var(--grey-dim); color:var(--grey); }
+  .tag-brand{ background:var(--brand-dim); color:var(--brand); }
+
+  .section-title{ display:flex; justify-content:space-between; align-items:center; margin:26px 0 12px; }
+  .section-title h2{ font-size:20px; margin:0; }
+  .toolbar{ display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;}
+  input, select, textarea{
+    font-family:'IBM Plex Sans'; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13.5px; background:#fff; color:var(--ink);
+  }
+  textarea{ resize:vertical; }
+  label{ font-size:12px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:4px; }
+  .field{ margin-bottom:12px; }
+  .field-row{ display:flex; gap:12px; flex-wrap:wrap; }
+  .field-row .field{ flex:1; min-width:140px; }
+
+  /* modal */
+  .overlay{ position:fixed; inset:0; background:#181B1Fa8; display:none; align-items:flex-start; justify-content:center; z-index:100; overflow:auto; padding:40px 20px;}
+  .overlay.open{ display:flex; }
+  .modal{ background:#fff; border-radius:12px; width:100%; max-width:640px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+  .modal h3{ margin:0 0 16px; font-size:22px; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; border-top:1px solid var(--line); padding-top:16px;}
+  .close-x{ float:right; cursor:pointer; color:var(--grey); font-size:20px; background:none; border:none;}
+
+  .empty{ text-align:center; padding:40px 20px; color:var(--grey); }
+  .empty .big{ font-size:15px; color:var(--ink-soft); font-weight:600; margin-bottom:4px;}
+
+  .badge-count{ background:var(--red); color:#fff; border-radius:20px; font-size:10.5px; padding:1px 6px; margin-left:6px; }
+
+  .photo-thumb{ width:74px;height:74px; object-fit:cover; border-radius:7px; border:1px solid var(--line); cursor:pointer;}
+  .photo-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .photo-cell{ position:relative; }
+  .photo-cell .rm{ position:absolute; top:-6px; right:-6px; background:var(--red); color:#fff; border:none; border-radius:50%; width:18px;height:18px; font-size:11px; cursor:pointer; line-height:1;}
+
+  .issue-row{ display:flex; justify-content:space-between; align-items:flex-start; padding:10px 0; border-bottom:1px solid #EEEFED; gap:10px;}
+  .issue-row:last-child{ border-bottom:none; }
+  .issue-main{ flex:1; }
+  .issue-main .t{ font-weight:600; font-size:13.5px; }
+  .issue-main .m{ font-size:12px; color:var(--grey); margin-top:2px;}
+  .overdue-banner{ background:var(--red-dim); border:1px solid #B23A2433; color:var(--red); padding:12px 16px; border-radius:8px; margin-bottom:16px; font-size:13.5px; display:flex; justify-content:space-between; align-items:center; }
+  .checklist-item{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #EEEFED; }
+  .checklist-item input[type=checkbox]{ width:17px; height:17px; }
+  .checklist-item .cname{ flex:0 0 190px; font-size:13.5px; }
+  .checklist-item input[type=text]{ flex:1; }
+
+  .tab-pane{ display:none; }
+  .tab-pane.active{ display:block; }
+  .cost-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .cost-grid .field{ margin-bottom:0; }
+  a.link{ color:var(--brand); text-decoration:none; font-weight:600; font-size:13px;}
+  a.link:hover{ text-decoration:underline; }
+  .day-col{ min-width:210px; }
+  .board{ display:flex; gap:14px; overflow-x:auto; padding-bottom:8px;}
+  .task-card{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:8px; font-size:12.5px; }
+  .task-card.done{ opacity:.55; }
+  .task-card .tt{ font-weight:600; margin-bottom:3px;}
+  .task-card .assignee{ color:var(--brand); font-size:11.5px; font-weight:600;}
+  .task-card .notes{ color:var(--grey); font-size:11.5px; margin-top:4px; white-space:pre-wrap;}
+  .chip-row{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
+  .chip{ padding:5px 12px; border-radius:20px; border:1px solid var(--line); font-size:12.5px; font-weight:600; cursor:pointer; background:#fff;}
+  .chip.active{ background:var(--ink); color:#fff; border-color:var(--ink);}
+  .print-invoice{ background:#fff; padding:0; }
+  @media print{ #sidebar,.topbar,.toolbar,.no-print{ display:none !important;} #main{padding:0;} body{background:#fff;} }
+  .flex-between{ display:flex; justify-content:space-between; align-items:center;}
+  .small-muted{ font-size:12px; color:var(--grey);}
+  canvas{ max-width:100%; }
+</style>
+</head>
+<body>
+<div id="loginScreen" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#181B1F;">
+  <div style="background:#fff;border-radius:14px;padding:36px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.4);">
+    <div style="font-family:'Barlow Condensed';font-weight:700;font-size:28px;color:#181B1F;">Forecourt</div>
+    <div style="color:#7A7F84;font-size:13px;margin-bottom:20px;">Sign in to your dealership workspace</div>
+    <div id="setupNotice" style="display:none;background:#E07A1F14;color:#E07A1F;border:1px solid #E07A1F33;border-radius:8px;padding:12px;font-size:12.5px;margin-bottom:16px;line-height:1.5;">
+      This app isn't connected to a database yet. Open the code and fill in <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> near the top of the script — see the setup guide.
+    </div>
+    <div class="field"><label>Email</label><input id="login_email" type="email" style="width:100%" autocomplete="username"/></div>
+    <div class="field"><label>Password</label><input id="login_pass" type="password" style="width:100%" autocomplete="current-password"/></div>
+    <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
+    <button class="btn btn-brand" style="width:100%;justify-content:center;" onclick="doLogin()">Sign in</button>
+    <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
+  </div>
+</div>
+<div id="app" style="display:none;">
+  <div id="sidebar">
+    <div class="brand-row">
+      <input id="bizName" value="Forecourt" oninput="App.setBizName(this.value)"/>
+      <div class="sub">Stock &amp; operations</div>
+    </div>
+    <div class="nav-item" data-tab="dashboard" onclick="App.go('dashboard')">📊 Dashboard</div>
+    <div class="nav-item" data-tab="stock" onclick="App.go('stock')">🚗 Stock</div>
+    <div class="nav-item has-alert" data-tab="tasks" onclick="App.go('tasks')">✅ Daily Tasks <span class="dot"></span></div>
+    <div class="nav-item" data-tab="team" onclick="App.go('team')">👥 Team &amp; Pay</div>
+    <div class="nav-item" data-tab="customers" onclick="App.go('customers')">🧾 Customers &amp; Sales</div>
+    <div class="nav-item" data-tab="reports" onclick="App.go('reports')">📈 Reports</div>
+    <div class="foot">
+      <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
+      <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
+      <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
+    </div>
+  </div>
+  <div id="main"></div>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modalBody"></div></div>
+
+<script>
+/* =========================================================================
+   SUPABASE CONFIG — paste your own project's values here (see setup guide).
+   ========================================================================= */
+const SUPABASE_URL = 'https://kpqbnrmfxdditbbfqctr.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_ziBX-RqRTUpaglzrKBQ-0g_44sl2aze';
+const PHOTOS_BUCKET = 'photos';
+const APP_DATA_ROW_ID = 'main';
+
+const configured = !SUPABASE_URL.includes('YOUR_') && !SUPABASE_ANON_KEY.includes('YOUR_');
+const supabase = configured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* =========================================================================
+   STORAGE LAYER — backed by a Supabase Postgres table + Storage bucket.
+   ========================================================================= */
+const DEFAULT_DB = () => ({
+  bizName: 'Forecourt',
+  vehicles: [],
+  tasks: [],
+  team: [],
+  expenses: [],
+  payroll: [],
+  customers: [],
+  monthlyCosts: [],
+  seq: 1
+});
+const CHECKLIST_TEMPLATE = [
+  'Tyres & tread', 'Brakes', 'Lights (all)', 'Battery & electrics',
+  'Fluid levels', 'Bodywork exterior', 'Interior condition', 'Keys (x2)',
+  'Service history / book', 'Spare wheel / kit', 'Wing mirrors & glass', 'Test drive'
+];
+
+let DB = DEFAULT_DB();
+let currentTab = 'dashboard';
+let stockFilter = 'all';
+let stockSearch = '';
+let taskDayOffset = 0;
+let lastSavedJson = null;      // last JSON we wrote/received, used to ignore echoes of our own save
+let justSavedLocally = false;
+
+async function loadDB(){
+  const {data, error} = await supabase.from('app_data').select('data').eq('id', APP_DATA_ROW_ID).single();
+  if(error){
+    console.error('load failed', error);
+    setSyncStatus('Could not load — check Supabase table setup');
+    // still start with an empty DB and try to create the row
+    await supabase.from('app_data').upsert({id: APP_DATA_ROW_ID, data: DB});
+  } else if(data && data.data && Object.keys(data.data).length){
+    DB = {...DEFAULT_DB(), ...data.data};
+    lastSavedJson = JSON.stringify(DB);
+  } else {
+    // first run — seed the row
+    await supabase.from('app_data').upsert({id: APP_DATA_ROW_ID, data: DB});
+    lastSavedJson = JSON.stringify(DB);
+  }
+  render();
+  subscribeToChanges();
+}
+
+let saveTimer = null;
+function saveDB(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      const json = JSON.stringify(DB);
+      justSavedLocally = true;
+      const {error} = await supabase.from('app_data').update({data: DB, updated_at: new Date().toISOString()}).eq('id', APP_DATA_ROW_ID);
+      if(error) throw error;
+      lastSavedJson = json;
+      setSyncStatus('Saved just now');
+    }
+    catch(e){ console.error('save failed', e); setSyncStatus('Save failed — check connection'); }
+  }, 150);
+}
+
+function setSyncStatus(text){
+  const el = document.getElementById('syncStatus');
+  if(el) el.textContent = text;
+}
+
+/* Realtime: Supabase pushes changes to every connected device the instant
+   a teammate saves, so updates appear live without polling or reloading. */
+let realtimeChannel = null;
+function subscribeToChanges(){
+  if(realtimeChannel) supabase.removeChannel(realtimeChannel);
+  realtimeChannel = supabase.channel('app_data_changes')
+    .on('postgres_changes', {event:'UPDATE', schema:'public', table:'app_data', filter:`id=eq.${APP_DATA_ROW_ID}`}, payload=>{
+      const incoming = payload.new && payload.new.data;
+      if(!incoming) return;
+      const json = JSON.stringify(incoming);
+      if(json === lastSavedJson) return; // our own change echoing back
+      if(justSavedLocally){ justSavedLocally = false; lastSavedJson = json; return; }
+      applyRemoteUpdate(incoming, json);
+    })
+    .subscribe(status=>{
+      if(status==='SUBSCRIBED') setSyncStatus('Live — connected');
+      else if(status==='CHANNEL_ERROR' || status==='TIMED_OUT') setSyncStatus('Connection lost — retrying…');
+    });
+}
+async function pollForUpdates(manual){
+  // manual "Refresh now" fallback — pulls the latest copy on demand
+  if(manual) setSyncStatus('Checking…');
+  const {data, error} = await supabase.from('app_data').select('data').eq('id', APP_DATA_ROW_ID).single();
+  if(error){ setSyncStatus('Offline — will retry'); return; }
+  const json = JSON.stringify(data.data);
+  if(json !== lastSavedJson) applyRemoteUpdate(data.data, json);
+  setSyncStatus('Synced ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}));
+}
+function applyRemoteUpdate(incoming, json){
+  // Don't yank the screen from under someone mid-typing or mid-form.
+  const active = document.activeElement;
+  const isTyping = active && (active.tagName==='INPUT' || active.tagName==='TEXTAREA' || active.tagName==='SELECT');
+  const modalOpen = document.getElementById('overlay').classList.contains('open');
+  if(isTyping || modalOpen) return;
+
+  DB = {...DEFAULT_DB(), ...incoming};
+  lastSavedJson = json;
+  if(currentTab==='stock' && activeVehicleId && DB.vehicles.some(v=>v.id===activeVehicleId)){
+    renderVehicleDetail();
+  } else {
+    if(currentTab==='stock' && activeVehicleId && !DB.vehicles.some(v=>v.id===activeVehicleId)){
+      activeVehicleId = null; // vehicle was deleted by a teammate
+    }
+    render();
+  }
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pollForUpdates(false); });
+
+/* ---- photo storage (Supabase Storage bucket, real binary files) ---- */
+function getPhoto(id){
+  // Public URL construction is synchronous — no network round trip needed.
+  const {data} = supabase.storage.from(PHOTOS_BUCKET).getPublicUrl(id);
+  return Promise.resolve(data ? data.publicUrl : null);
+}
+async function setPhoto(id, blob){
+  try{
+    const {error} = await supabase.storage.from(PHOTOS_BUCKET).upload(id, blob, {upsert:true, contentType: blob.type||'application/octet-stream'});
+    if(error) console.error('photo upload failed', error);
+  }catch(e){ console.error(e); }
+}
+async function deletePhoto(id){
+  try{ await supabase.storage.from(PHOTOS_BUCKET).remove([id]); }catch(e){}
+}
+
+function nextId(prefix){ DB.seq++; return prefix+'_'+DB.seq+'_'+Math.random().toString(36).slice(2,7); }
+function fmtMoney(n){ n = Number(n)||0; return '£'+n.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(d){ if(!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function isOverdue(dateStr){ if(!dateStr) return false; return dateStr < todayISO(); }
+function isDueSoon(dateStr){ if(!dateStr) return false; const d=new Date(dateStr), t=new Date(todayISO()); const diff=(d-t)/86400000; return diff>=0 && diff<=2; }
+
+/* =========================================================================
+   DERIVED CALCS
+   ========================================================================= */
+function vehicleCostTotal(v){
+  const c = v.costs||{};
+  return ['purchase','delivery','service','mot','bodywork','mechanical','autotrader','fuel','other']
+    .reduce((s,k)=> s + (Number(c[k])||0), 0);
+}
+function vehicleNetSale(v){
+  if(!v.sale) return 0;
+  const s = v.sale;
+  return (Number(s.salePrice)||0) - (Number(s.discount)||0) - (Number(s.partExValue)||0)
+    + (Number(s.adminCharge)||0) + (Number(s.deliveryCharge)||0) + (Number(s.warranty)||0) + (Number(s.extraPackage)||0);
+}
+function vehicleProfit(v){ return vehicleNetSale(v) - vehicleCostTotal(v); }
+function openIssuesCount(v){ return (v.issues||[]).filter(i=>i.status!=='done').length; }
+function stockValuation(){
+  const inStock = DB.vehicles.filter(v=>v.status!=='sold' && v.status!=='scrap');
+  const costValue = inStock.reduce((s,v)=>s+vehicleCostTotal(v),0);
+  const sellValue = inStock.reduce((s,v)=>s+(Number(v.askingPrice)||0),0);
+  return {count: inStock.length, costValue, sellValue};
+}
+function allOpenIssues(){
+  const out=[];
+  DB.vehicles.forEach(v=> (v.issues||[]).forEach(i=>{ if(i.status!=='done') out.push({...i, reg:v.reg, vId:v.id}); }));
+  return out;
+}
+function statusLabel(s){
+  return {ready:'Ready to sell', repair:'Needs repair', mot:'Needs MOT', bodywork:'Needs bodywork', scrap:'Scrap', sold:'Sold'}[s]||s;
+}
+function statusTagClass(s){
+  return {ready:'tag-green', repair:'tag-amber', mot:'tag-blue', bodywork:'tag-red', scrap:'tag-grey', sold:'tag-brand'}[s]||'tag-grey';
+}
+function weekKey(dateStr){
+  const d = new Date(dateStr);
+  const onejan = new Date(d.getFullYear(),0,1);
+  const week = Math.ceil((((d-onejan)/86400000)+onejan.getDay()+1)/7);
+  return d.getFullYear()+'-W'+String(week).padStart(2,'0');
+}
+function monthKey(dateStr){ return dateStr.slice(0,7); }
+
+/* =========================================================================
+   RENDER ROOT
+   ========================================================================= */
+function render(){
+  document.querySelectorAll('.nav-item').forEach(n=> n.classList.toggle('active', n.dataset.tab===currentTab));
+  const overdueIssues = allOpenIssues().filter(i=>isOverdue(i.reminderDate));
+  const overdueTasks = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
+  document.querySelector('.nav-item[data-tab="tasks"]').classList.toggle('has-alert', (overdueIssues.length+overdueTasks.length)>0);
+
+  const main = document.getElementById('main');
+  let html = '';
+  if(currentTab==='dashboard') html = renderDashboard();
+  else if(currentTab==='stock') html = renderStock();
+  else if(currentTab==='tasks') html = renderTasks();
+  else if(currentTab==='team') html = renderTeam();
+  else if(currentTab==='customers') html = renderCustomers();
+  else if(currentTab==='reports') html = renderReports();
+  main.innerHTML = html;
+
+  if(currentTab==='reports') drawReportCharts();
+}
+const App = {
+  go(tab){ currentTab = tab; closeModal(); render(); },
+  setBizName(v){ DB.bizName = v; saveDB(); }
+};
+
+/* =========================================================================
+   DASHBOARD
+   ========================================================================= */
+function renderDashboard(){
+  const val = stockValuation();
+  const overdueIssues = allOpenIssues().filter(i=>isOverdue(i.reminderDate));
+  const dueSoonIssues = allOpenIssues().filter(i=>isDueSoon(i.reminderDate));
+  const overdueTasks = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
+  const soldVehicles = DB.vehicles.filter(v=>v.sale);
+  const thisWeek = soldVehicles.filter(v=> weekKey(v.sale.date)===weekKey(todayISO()));
+  const weekRevenue = thisWeek.reduce((s,v)=>s+vehicleNetSale(v),0);
+  const weekProfit = thisWeek.reduce((s,v)=>s+vehicleProfit(v),0);
+  const owedToStaff = DB.expenses.filter(e=>e.status==='owed').reduce((s,e)=>s+Number(e.amount||0),0);
+
+  const byStatus = {};
+  DB.vehicles.forEach(v=>{ byStatus[v.status]=(byStatus[v.status]||0)+1; });
+
+  return `
+  <div class="topbar">
+    <div><h1>Dashboard</h1><div class="date">${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div></div>
+    <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
+  </div>
+
+  ${(overdueIssues.length||overdueTasks.length) ? `
+  <div class="overdue-banner">
+    <span>⚠ ${overdueTasks.length} overdue task${overdueTasks.length===1?'':'s'} · ${overdueIssues.length} overdue vehicle issue${overdueIssues.length===1?'':'s'} — these are past their reminder date.</span>
+    <button class="btn btn-sm btn-ghost" onclick="App.go('tasks')">Review</button>
+  </div>`:''}
+
+  <div class="grid kpi-grid">
+    <div class="card kpi"><div class="label">Vehicles in stock</div><div class="value">${val.count}</div><div class="sub">${Object.entries(byStatus).map(([k,v])=>`${v} ${statusLabel(k)}`).join(' · ')||'—'}</div></div>
+    <div class="card kpi"><div class="label">Stock cost value</div><div class="value small">${fmtMoney(val.costValue)}</div><div class="sub">Total spent so far, unsold stock</div></div>
+    <div class="card kpi"><div class="label">Stock selling value</div><div class="value small">${fmtMoney(val.sellValue)}</div><div class="sub">Potential margin: ${fmtMoney(val.sellValue-val.costValue)}</div></div>
+    <div class="card kpi"><div class="label">Sales this week</div><div class="value">${thisWeek.length}</div><div class="sub">${fmtMoney(weekRevenue)} revenue · ${fmtMoney(weekProfit)} profit</div></div>
+    <div class="card kpi"><div class="label">Open issues</div><div class="value">${allOpenIssues().length}</div><div class="sub">${dueSoonIssues.length} due within 2 days</div></div>
+    <div class="card kpi"><div class="label">Owed to staff</div><div class="value small">${fmtMoney(owedToStaff)}</div><div class="sub">Unreimbursed company spend</div></div>
+  </div>
+
+  <div class="section-title"><h2>Outstanding vehicle issues</h2><span class="small-muted" onclick="App.go('stock')" style="cursor:pointer">View all stock →</span></div>
+  <div class="card">
+    ${allOpenIssues().length===0 ? `<div class="empty">No outstanding bodywork, parts or mechanical issues. 🎉</div>` :
+      allOpenIssues().slice(0,8).map(i=>`
+      <div class="issue-row">
+        <div class="issue-main">
+          <div class="t">${i.reg} — ${i.desc}</div>
+          <div class="m">${i.type} ${i.reminderDate? '· reminder '+fmtDate(i.reminderDate) : ''} ${isOverdue(i.reminderDate)?'<span style=\"color:var(--red);font-weight:700\">OVERDUE</span>':''}</div>
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="markIssueDone('${i.vId}','${i.id}')">Mark done</button>
+      </div>`).join('')}
+  </div>
+
+  <div class="section-title"><h2>This week's task board</h2><span class="small-muted" onclick="App.go('tasks')" style="cursor:pointer">Open board →</span></div>
+  <div class="card">
+    ${DB.tasks.filter(t=>weekKey(t.date)===weekKey(todayISO())).length===0 ? `<div class="empty">No tasks assigned for this week yet.</div>` : `
+    <table><thead><tr><th>Task</th><th>Assigned to</th><th>Date</th><th>Status</th></tr></thead><tbody>
+    ${DB.tasks.filter(t=>weekKey(t.date)===weekKey(todayISO())).sort((a,b)=>a.date.localeCompare(b.date)).map(t=>`
+      <tr><td>${t.title}</td><td>${t.assignee||'—'}</td><td>${fmtDate(t.date)}</td>
+      <td>${t.done?'<span class="tag tag-green">Done</span>': isOverdue(t.date)?'<span class="tag tag-red">Overdue</span>':'<span class="tag tag-amber">Pending</span>'}</td></tr>
+    `).join('')}</tbody></table>`}
+  </div>
+  `;
+}
+
+function markIssueDone(vId, issueId){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const iss = v.issues.find(x=>x.id===issueId); if(!iss) return;
+  iss.status='done'; iss.doneAt = todayISO();
+  saveDB(); render();
+}
+
+/* =========================================================================
+   STOCK
+   ========================================================================= */
+function renderStock(){
+  let list = DB.vehicles.filter(v=>{
+    if(stockFilter!=='all' && v.status!==stockFilter) return false;
+    if(stockSearch && !(v.reg+' '+v.make+' '+v.model).toLowerCase().includes(stockSearch.toLowerCase())) return false;
+    return true;
+  }).sort((a,b)=>(b.dateAdded||'').localeCompare(a.dateAdded||''));
+
+  const counts = {};
+  DB.vehicles.forEach(v=>counts[v.status]=(counts[v.status]||0)+1);
+  const filters = [['all','All'],['ready','Ready to sell'],['repair','Needs repair'],['mot','Needs MOT'],['bodywork','Needs bodywork'],['scrap','Scrap'],['sold','Sold']];
+
+  return `
+  <div class="topbar">
+    <div><h1>Stock</h1><div class="date">${DB.vehicles.length} vehicles total</div></div>
+    <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
+  </div>
+  <div class="chip-row">
+    ${filters.map(([k,l])=>`<div class="chip ${stockFilter===k?'active':''}" onclick="stockFilter='${k}';render()">${l}${counts[k]?' ('+counts[k]+')':''}</div>`).join('')}
+  </div>
+  <div class="toolbar">
+    <input placeholder="Search reg, make or model…" value="${stockSearch}" oninput="stockSearch=this.value;render()" style="width:260px"/>
+    <button class="btn btn-ghost btn-sm" onclick="exportStockCSV()">⬇ Export CSV</button>
+  </div>
+  <div class="card" style="padding:0;overflow:auto;">
+    ${list.length===0? `<div class="empty"><div class="big">No vehicles here</div>Add your first vehicle by registration to get started.</div>` : `
+    <table><thead><tr><th>Reg</th><th>Make / Model</th><th>Status</th><th>Issues</th><th>Cost so far</th><th>Asking</th><th>Margin</th><th></th></tr></thead><tbody>
+    ${list.map(v=>{
+      const cost = vehicleCostTotal(v);
+      const margin = v.sale? vehicleProfit(v) : (Number(v.askingPrice)||0)-cost;
+      const openIss = openIssuesCount(v);
+      return `<tr style="cursor:pointer" onclick="openVehicle('${v.id}')">
+        <td class="mono" style="font-weight:700">${v.reg}</td>
+        <td>${v.make||''} ${v.model||''}<div class="small-muted">${v.year||''} ${v.color||''}</div></td>
+        <td><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span></td>
+        <td>${openIss>0?`<span class="tag tag-red">${openIss} open</span>`:'<span class="tag tag-green">Clear</span>'}</td>
+        <td>${fmtMoney(cost)}</td>
+        <td>${v.sale? fmtMoney(v.sale.salePrice)+' (sold)': fmtMoney(v.askingPrice)}</td>
+        <td style="color:${margin>=0?'var(--green)':'var(--red)'};font-weight:700">${fmtMoney(margin)}</td>
+        <td><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openVehicle('${v.id}')">Open</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>`}
+  </div>
+  `;
+}
+
+function exportStockCSV(){
+  const rows = [['Reg','Make','Model','Year','Status','Purchase','Delivery','Service','MOT','Bodywork','Mechanical','AutoTrader Boost','Fuel','Other','Total Cost','Asking Price','Sold Price','Margin']];
+  DB.vehicles.forEach(v=>{
+    const c=v.costs||{};
+    rows.push([v.reg,v.make,v.model,v.year,statusLabel(v.status),c.purchase||0,c.delivery||0,c.service||0,c.mot||0,c.bodywork||0,c.mechanical||0,c.autotrader||0,c.fuel||0,c.other||0,vehicleCostTotal(v),v.askingPrice||0, v.sale?v.sale.salePrice:'', v.sale?vehicleProfit(v):(v.askingPrice||0)-vehicleCostTotal(v)]);
+  });
+  downloadCSV(rows,'stock-export.csv');
+}
+function downloadCSV(rows,filename){
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
+
+function openAddVehicle(){
+  const body = `
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Add vehicle</h3>
+    <div class="field-row">
+      <div class="field"><label>Registration *</label><input id="f_reg" style="text-transform:uppercase" placeholder="e.g. LP19 KFX"/></div>
+      <div class="field"><label>Status</label>
+        <select id="f_status"><option value="repair">Needs repair</option><option value="mot">Needs MOT</option><option value="bodywork">Needs bodywork</option><option value="ready">Ready to sell</option><option value="scrap">Scrap</option></select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Make</label><input id="f_make" placeholder="e.g. Ford"/></div>
+      <div class="field"><label>Model</label><input id="f_model" placeholder="e.g. Fiesta 1.0"/></div>
+      <div class="field"><label>Year</label><input id="f_year" placeholder="2018"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Colour</label><input id="f_color"/></div>
+      <div class="field"><label>Mileage</label><input id="f_mileage"/></div>
+      <div class="field"><label>Asking price</label><input id="f_asking" type="number"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveNewVehicle()">Add to stock</button>
+    </div>
+  `;
+  openModal(body);
+}
+function saveNewVehicle(){
+  const reg = document.getElementById('f_reg').value.trim().toUpperCase();
+  if(!reg){ alert('Registration is required'); return; }
+  const v = {
+    id: nextId('veh'),
+    reg, make:document.getElementById('f_make').value, model:document.getElementById('f_model').value,
+    year:document.getElementById('f_year').value, color:document.getElementById('f_color').value,
+    mileage:document.getElementById('f_mileage').value, status:document.getElementById('f_status').value,
+    askingPrice: Number(document.getElementById('f_asking').value)||0,
+    dateAdded: todayISO(),
+    costs:{purchase:0,delivery:0,service:0,mot:0,bodywork:0,mechanical:0,autotrader:0,fuel:0,other:0},
+    checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, note:''})),
+    issues:[], photos:[], invoicePhotoIds:[], sale:null
+  };
+  DB.vehicles.push(v); saveDB(); closeModal(); openVehicle(v.id);
+}
+
+let activeVehicleId = null, activeVehicleTab='overview';
+async function openVehicle(id){
+  activeVehicleId = id; activeVehicleTab='overview';
+  currentTab='stock';
+  await renderVehicleDetail();
+}
+async function renderVehicleDetail(){
+  const v = DB.vehicles.find(x=>x.id===activeVehicleId);
+  if(!v){ render(); return; }
+  const cost = vehicleCostTotal(v);
+  const margin = v.sale? vehicleProfit(v) : (Number(v.askingPrice)||0)-cost;
+
+  const tabs = [['overview','Overview'],['issues','Issues & Photos'+(openIssuesCount(v)?` (${openIssuesCount(v)})`:'')],['checklist','Vehicle check'],['costs','Cost & invoice'],['sale', v.sale?'Sale record':'Mark as sold']];
+
+  let inner = '';
+  if(activeVehicleTab==='overview') inner = vehicleOverviewTab(v,cost,margin);
+  else if(activeVehicleTab==='issues') inner = await vehicleIssuesTab(v);
+  else if(activeVehicleTab==='checklist') inner = vehicleChecklistTab(v);
+  else if(activeVehicleTab==='costs') inner = await vehicleCostsTab(v,cost);
+  else if(activeVehicleTab==='sale') inner = vehicleSaleTab(v);
+
+  document.getElementById('main').innerHTML = `
+    <div class="topbar">
+      <div><h1 class="mono">${v.reg}</h1><div class="date">${v.make||''} ${v.model||''} ${v.year||''} · added ${fmtDate(v.dateAdded)}</div></div>
+      <div>
+        <select onchange="changeVehicleStatus('${v.id}',this.value)" style="margin-right:8px;">
+          ${['repair','mot','bodywork','ready','scrap','sold'].map(s=>`<option value="${s}" ${v.status===s?'selected':''}>${statusLabel(s)}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost" onclick="App.go('stock')">← Back to stock</button>
+      </div>
+    </div>
+    <div class="chip-row">${tabs.map(([k,l])=>`<div class="chip ${activeVehicleTab===k?'active':''}" onclick="switchVehicleTab('${k}')">${l}</div>`).join('')}</div>
+    <div>${inner}</div>
+  `;
+}
+function switchVehicleTab(tab){ activeVehicleTab=tab; renderVehicleDetail(); }
+function changeVehicleStatus(id, status){
+  const v = DB.vehicles.find(x=>x.id===id); v.status=status; saveDB(); renderVehicleDetail();
+}
+
+function vehicleOverviewTab(v,cost,margin){
+  return `
+  <div class="grid kpi-grid">
+    <div class="card kpi"><div class="label">Status</div><div class="value small"><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span></div></div>
+    <div class="card kpi"><div class="label">Total cost so far</div><div class="value small">${fmtMoney(cost)}</div></div>
+    <div class="card kpi"><div class="label">${v.sale?'Sold for':'Asking price'}</div><div class="value small">${fmtMoney(v.sale?v.sale.salePrice:v.askingPrice)}</div></div>
+    <div class="card kpi"><div class="label">${v.sale?'Profit':'Potential margin'}</div><div class="value small" style="color:${margin>=0?'var(--green)':'var(--red)'}">${fmtMoney(margin)}</div></div>
+  </div>
+  <div class="card">
+    <div class="field-row">
+      <div class="field"><label>Make</label><input value="${v.make||''}" onchange="updateVehicleField('${v.id}','make',this.value)"/></div>
+      <div class="field"><label>Model</label><input value="${v.model||''}" onchange="updateVehicleField('${v.id}','model',this.value)"/></div>
+      <div class="field"><label>Year</label><input value="${v.year||''}" onchange="updateVehicleField('${v.id}','year',this.value)"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Colour</label><input value="${v.color||''}" onchange="updateVehicleField('${v.id}','color',this.value)"/></div>
+      <div class="field"><label>Mileage</label><input value="${v.mileage||''}" onchange="updateVehicleField('${v.id}','mileage',this.value)"/></div>
+      <div class="field"><label>Asking price (£)</label><input type="number" value="${v.askingPrice||0}" onchange="updateVehicleField('${v.id}','askingPrice',Number(this.value))"/></div>
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="deleteVehicle('${v.id}')">Delete vehicle</button>
+  </div>`;
+}
+function updateVehicleField(id, field, value){
+  const v = DB.vehicles.find(x=>x.id===id); v[field]=value; saveDB();
+}
+function deleteVehicle(id){
+  if(!confirm('Delete this vehicle and all its records? This cannot be undone.')) return;
+  DB.vehicles = DB.vehicles.filter(x=>x.id!==id); saveDB(); App.go('stock');
+}
+
+/* ---- issues & photos ---- */
+async function vehicleIssuesTab(v){
+  let photosHtml = '';
+  for(const p of (v.photos||[])){
+    const url = await getPhoto(p.id);
+    photosHtml += `<div class="photo-cell"><img class="photo-thumb" src="${url}" onclick="window.open('${url}')"/><button class="rm" onclick="removeVehiclePhoto('${v.id}','${p.id}')">✕</button></div>`;
+  }
+  return `
+  <div class="card" style="margin-bottom:16px;">
+    <div class="flex-between"><h3 style="margin:0">General photos</h3>
+      <label class="btn btn-sm btn-ghost" style="cursor:pointer;">+ Upload photo<input type="file" accept="image/*" style="display:none" onchange="uploadVehiclePhoto('${v.id}', this)"/></label>
+    </div>
+    <div class="photo-row">${photosHtml || '<span class="small-muted">No general photos yet.</span>'}</div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between"><h3 style="margin:0">Outstanding issues — bodywork, interior, missing parts, mechanical</h3>
+      <button class="btn btn-sm btn-amber" onclick="openAddIssue('${v.id}')">+ Report issue</button>
+    </div>
+    ${(v.issues||[]).length===0? `<div class="empty">No issues logged for this vehicle.</div>` :
+      await renderIssuesList(v)}
+  </div>`;
+}
+async function renderIssuesList(v){
+  let out = '';
+  for(const i of v.issues){
+    let photoHtml='';
+    if(i.photoId){ const url = await getPhoto(i.photoId); photoHtml = `<img class="photo-thumb" src="${url}" style="width:48px;height:48px;margin-left:10px" onclick="window.open('${url}')"/>`; }
+    out += `<div class="issue-row">
+      <div class="issue-main">
+        <div class="t">${labelForIssueType(i.type)} — ${i.desc}</div>
+        <div class="m">Logged ${fmtDate(i.createdAt)} by ${i.reportedBy||'—'} ${i.reminderDate?'· reminder '+fmtDate(i.reminderDate):''}
+        ${i.status==='done'?`<span class="tag tag-green" style="margin-left:6px;">Done ${fmtDate(i.doneAt)}</span>`: isOverdue(i.reminderDate)?'<span class="tag tag-red" style="margin-left:6px;">Overdue</span>':'<span class="tag tag-amber" style="margin-left:6px;">Open</span>'}</div>
+        ${i.type==='missing part' ? `<a class="link" target="_blank" href="https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent((v.make||'')+' '+(v.model||'')+' '+i.desc)}">Source part on eBay →</a>
+        &nbsp; <a class="link" target="_blank" href="https://www.google.com/search?q=${encodeURIComponent((v.make||'')+' '+(v.model||'')+' '+(v.year||'')+' '+i.desc+' part')}">Search Google →</a>` : ''}
+      </div>
+      ${photoHtml}
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${i.status!=='done'?`<button class="btn btn-sm btn-ghost" onclick="markIssueDone('${v.id}','${i.id}')">Mark done</button>`:`<button class="btn btn-sm btn-ghost" onclick="reopenIssue('${v.id}','${i.id}')">Reopen</button>`}
+        <button class="btn btn-sm btn-danger" onclick="deleteIssue('${v.id}','${i.id}')">Delete</button>
+      </div>
+    </div>`;
+  }
+  return out;
+}
+function labelForIssueType(t){ return {bodywork:'Bodywork',interior:'Interior',"missing part":'Missing part',mechanical:'Mechanical'}[t]||t; }
+function reopenIssue(vId,issueId){ const v=DB.vehicles.find(x=>x.id===vId); const i=v.issues.find(x=>x.id===issueId); i.status='open'; saveDB(); renderVehicleDetail(); }
+function deleteIssue(vId,issueId){ const v=DB.vehicles.find(x=>x.id===vId); v.issues=v.issues.filter(x=>x.id!==issueId); saveDB(); renderVehicleDetail(); }
+
+function openAddIssue(vId){
+  const body = `
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Report an issue</h3>
+    <div class="field-row">
+      <div class="field"><label>Type</label>
+        <select id="i_type"><option value="bodywork">Bodywork (scratch/dent)</option><option value="interior">Interior</option><option value="missing part">Missing part</option><option value="mechanical">Mechanical</option></select>
+      </div>
+      <div class="field"><label>Reported by</label><input id="i_by" placeholder="Staff name"/></div>
+    </div>
+    <div class="field"><label>Description</label><textarea id="i_desc" rows="2" placeholder="e.g. Nearside wing mirror cover missing"></textarea></div>
+    <div class="field-row">
+      <div class="field"><label>Reminder date (get flagged if still open)</label><input id="i_reminder" type="date" value="${todayISO()}"/></div>
+      <div class="field"><label>Photo (optional)</label><input id="i_photo" type="file" accept="image/*"/></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveIssue('${vId}')">Add issue — creates outstanding task</button>
+    </div>
+  `;
+  openModal(body);
+}
+async function saveIssue(vId){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const desc = document.getElementById('i_desc').value.trim();
+  if(!desc){ alert('Add a description'); return; }
+  const issue = {
+    id: nextId('iss'), type: document.getElementById('i_type').value, desc,
+    reportedBy: document.getElementById('i_by').value, createdAt: todayISO(),
+    reminderDate: document.getElementById('i_reminder').value, status:'open', photoId:null
+  };
+  const file = document.getElementById('i_photo').files[0];
+  if(!v.issues) v.issues=[];
+  v.issues.push(issue);
+  saveDB(); closeModal(); renderVehicleDetail();
+  if(file){
+    const dataUrl = await compressImage(file);
+    const pid = nextId('photo');
+    await setPhoto(pid, dataUrl);
+    issue.photoId = pid; saveDB(); renderVehicleDetail();
+  }
+}
+async function uploadVehiclePhoto(vId, input){
+  const file = input.files[0]; if(!file) return;
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const dataUrl = await compressImage(file);
+  const pid = nextId('photo');
+  await setPhoto(pid, dataUrl);
+  if(!v.photos) v.photos=[];
+  v.photos.push({id:pid, addedAt: todayISO()});
+  saveDB(); renderVehicleDetail();
+}
+async function removeVehiclePhoto(vId, photoId){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  v.photos = v.photos.filter(p=>p.id!==photoId);
+  await deletePhoto(photoId);
+  saveDB(); renderVehicleDetail();
+}
+
+function compressImage(file, maxW=1000, quality=0.72){
+  return new Promise((resolve,reject)=>{
+    if(!file.type.startsWith('image/')){ resolve(file); return; } // non-images (e.g. PDFs) pass through as-is
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const scale = Math.min(1, maxW/img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width*scale; canvas.height = img.height*scale;
+        canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+        canvas.toBlob(blob=>resolve(blob), 'image/jpeg', quality);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---- checklist ---- */
+function vehicleChecklistTab(v){
+  if(!v.checklist || v.checklist.length===0) v.checklist = CHECKLIST_TEMPLATE.map(name=>({name,ok:false,note:''}));
+  return `<div class="card">
+    <h3 style="margin-top:0">${CHECKLIST_TEMPLATE.length}-point vehicle check</h3>
+    ${v.checklist.map((c,idx)=>`
+      <div class="checklist-item">
+        <input type="checkbox" ${c.ok?'checked':''} onchange="toggleChecklist('${v.id}',${idx},this.checked)"/>
+        <div class="cname">${c.name}</div>
+        <input type="text" placeholder="Note (optional)" value="${c.note||''}" onchange="updateChecklistNote('${v.id}',${idx},this.value)"/>
+      </div>
+    `).join('')}
+  </div>`;
+}
+function toggleChecklist(vId, idx, val){ const v=DB.vehicles.find(x=>x.id===vId); v.checklist[idx].ok=val; saveDB(); }
+function updateChecklistNote(vId, idx, val){ const v=DB.vehicles.find(x=>x.id===vId); v.checklist[idx].note=val; saveDB(); }
+
+/* ---- costs & invoice ---- */
+async function vehicleCostsTab(v, cost){
+  const c = v.costs||{};
+  let invHtml = '';
+  for(const inv of (v.invoicePhotoIds||[])){
+    const url = await getPhoto(inv.id);
+    invHtml += `<div class="photo-cell">${inv.isPdf? `<a href="${url}" target="_blank" class="photo-thumb" style="display:flex;align-items:center;justify-content:center;background:#f2f2f2;text-decoration:none;font-size:11px;">PDF</a>`:`<img class="photo-thumb" src="${url}" onclick="window.open('${url}')"/>`}<button class="rm" onclick="removeInvoicePhoto('${v.id}','${inv.id}')">✕</button></div>`;
+  }
+  const fields = [['purchase','Purchase price'],['delivery','Delivery cost'],['service','Service'],['mot','MOT'],['bodywork','Bodywork'],['mechanical','Mechanical repair'],['autotrader','AutoTrader boost'],['fuel','Fuel'],['other','Other']];
+  return `
+  <div class="card" style="margin-bottom:16px;">
+    <h3 style="margin-top:0">Cost breakdown</h3>
+    <div class="cost-grid">
+      ${fields.map(([k,l])=>`<div class="field"><label>${l} (£)</label><input type="number" value="${c[k]||0}" onchange="updateCost('${v.id}','${k}',Number(this.value))"/></div>`).join('')}
+    </div>
+    <div class="flex-between" style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px;">
+      <span style="font-weight:700;">Total cost to date</span><span style="font-weight:700;font-size:18px;">${fmtMoney(cost)}</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="flex-between"><h3 style="margin:0">Purchase invoice</h3>
+      <label class="btn btn-sm btn-ghost" style="cursor:pointer;">+ Upload invoice (photo or PDF)<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadInvoice('${v.id}', this)"/></label>
+    </div>
+    <div class="photo-row">${invHtml || '<span class="small-muted">No invoice uploaded yet.</span>'}</div>
+  </div>`;
+}
+function updateCost(vId, key, val){ const v=DB.vehicles.find(x=>x.id===vId); v.costs[key]=val; saveDB(); renderVehicleDetail(); }
+async function uploadInvoice(vId, input){
+  const file = input.files[0]; if(!file) return;
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const isPdf = file.type==='application/pdf';
+  const blob = isPdf ? file : await compressImage(file);
+  const pid = nextId('inv');
+  await setPhoto(pid, blob);
+  if(!v.invoicePhotoIds) v.invoicePhotoIds=[];
+  v.invoicePhotoIds.push({id:pid, isPdf});
+  saveDB(); renderVehicleDetail();
+}
+async function removeInvoicePhoto(vId, id){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  v.invoicePhotoIds = v.invoicePhotoIds.filter(x=>x.id!==id);
+  await deletePhoto(id); saveDB(); renderVehicleDetail();
+}
+
+/* ---- sale ---- */
+function vehicleSaleTab(v){
+  if(v.sale){
+    const s=v.sale;
+    return `<div class="card">
+      <h3 style="margin-top:0">Sale record</h3>
+      <table>
+        <tr><td>Customer</td><td>${(DB.customers.find(c=>c.id===s.customerId)||{}).name||'—'}</td></tr>
+        <tr><td>Sale date</td><td>${fmtDate(s.date)}</td></tr>
+        <tr><td>Sale price</td><td>${fmtMoney(s.salePrice)}</td></tr>
+        <tr><td>Discount</td><td>${fmtMoney(s.discount)}</td></tr>
+        <tr><td>Part exchange</td><td>${s.partExDesc||'—'} ${fmtMoney(s.partExValue)}</td></tr>
+        <tr><td>Admin charge</td><td>${fmtMoney(s.adminCharge)}</td></tr>
+        <tr><td>Delivery charge</td><td>${fmtMoney(s.deliveryCharge)}</td></tr>
+        <tr><td>Warranty</td><td>${fmtMoney(s.warranty)}</td></tr>
+        <tr><td>Extra package</td><td>${fmtMoney(s.extraPackage)}</td></tr>
+        <tr><td style="font-weight:700">Net received</td><td style="font-weight:700">${fmtMoney(vehicleNetSale(v))}</td></tr>
+        <tr><td style="font-weight:700">Profit</td><td style="font-weight:700;color:${vehicleProfit(v)>=0?'var(--green)':'var(--red)'}">${fmtMoney(vehicleProfit(v))}</td></tr>
+      </table>
+      <div style="margin-top:14px;display:flex;gap:10px;">
+        <button class="btn btn-brand" onclick="printInvoice('${v.id}')">🖨 View / print invoice</button>
+        <button class="btn btn-ghost" onclick="undoSale('${v.id}')">Undo sale</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="card">
+    <h3 style="margin-top:0">Record a sale for ${v.reg}</h3>
+    <div class="field"><label>Customer</label>
+      <select id="s_customer">
+        <option value="">— Select existing customer —</option>
+        ${DB.customers.map(c=>`<option value="${c.id}">${c.name} (${c.phone||''})</option>`).join('')}
+      </select>
+      <div class="small-muted" style="margin-top:6px;">Don't see them? <a class="link" onclick="openAddCustomer(true)">Add a new customer</a></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Sale price (£)</label><input id="s_price" type="number" value="${v.askingPrice||0}"/></div>
+      <div class="field"><label>Discount (£)</label><input id="s_discount" type="number" value="0"/></div>
+      <div class="field"><label>Sale date</label><input id="s_date" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Part exchange description</label><input id="s_pxdesc" placeholder="e.g. 2012 Corsa reg AB12 CDE"/></div>
+      <div class="field"><label>Part exchange value (£)</label><input id="s_pxval" type="number" value="0"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Admin charge (£)</label><input id="s_admin" type="number" value="0"/></div>
+      <div class="field"><label>Delivery charge (£)</label><input id="s_delivery" type="number" value="0"/></div>
+      <div class="field"><label>Warranty (£)</label><input id="s_warranty" type="number" value="0"/></div>
+      <div class="field"><label>Extra package (£)</label><input id="s_extra" type="number" value="0"/></div>
+    </div>
+    <button class="btn btn-brand" onclick="confirmSale('${v.id}')">Confirm sale &amp; generate invoice</button>
+  </div>`;
+}
+function confirmSale(vId){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const customerId = document.getElementById('s_customer').value;
+  if(!customerId){ alert('Select or add a customer first'); return; }
+  v.sale = {
+    customerId, date: document.getElementById('s_date').value,
+    salePrice: Number(document.getElementById('s_price').value)||0,
+    discount: Number(document.getElementById('s_discount').value)||0,
+    partExDesc: document.getElementById('s_pxdesc').value,
+    partExValue: Number(document.getElementById('s_pxval').value)||0,
+    adminCharge: Number(document.getElementById('s_admin').value)||0,
+    deliveryCharge: Number(document.getElementById('s_delivery').value)||0,
+    warranty: Number(document.getElementById('s_warranty').value)||0,
+    extraPackage: Number(document.getElementById('s_extra').value)||0,
+  };
+  v.status='sold';
+  saveDB();
+  renderVehicleDetail();
+  if(v.sale.partExValue>0 && confirm('Add the part-exchange vehicle to stock now?')){
+    const nv = {
+      id: nextId('veh'), reg:'PX-'+v.sale.partExDesc.replace(/\s+/g,'').slice(0,10).toUpperCase(), make:'', model:v.sale.partExDesc,
+      year:'', color:'', mileage:'', status:'repair', askingPrice:0, dateAdded: todayISO(),
+      costs:{purchase:v.sale.partExValue,delivery:0,service:0,mot:0,bodywork:0,mechanical:0,autotrader:0,fuel:0,other:0},
+      checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, note:''})),
+      issues:[], photos:[], invoicePhotoIds:[], sale:null
+    };
+    DB.vehicles.push(nv); saveDB();
+  }
+}
+function undoSale(vId){
+  if(!confirm('Undo this sale? The vehicle will return to stock.')) return;
+  const v = DB.vehicles.find(x=>x.id===vId); v.sale=null; v.status='ready'; saveDB(); renderVehicleDetail();
+}
+function printInvoice(vId){
+  const v = DB.vehicles.find(x=>x.id===vId); const s=v.sale;
+  const cust = DB.customers.find(c=>c.id===s.customerId)||{};
+  const win = window.open('','_blank');
+  win.document.write(`
+    <html><head><title>Invoice — ${v.reg}</title>
+    <style>body{font-family:'IBM Plex Sans',Arial,sans-serif;padding:40px;color:#181B1F;} h1{font-family:'Barlow Condensed',sans-serif;} table{width:100%;border-collapse:collapse;margin-top:20px;} td{padding:8px;border-bottom:1px solid #ddd;} .tot{font-weight:700;font-size:18px;} </style>
+    </head><body>
+    <h1>${DB.bizName}</h1>
+    <p>Invoice date: ${fmtDate(s.date)}</p>
+    <p><strong>Customer:</strong> ${cust.name||''}<br/>${cust.phone||''} ${cust.email||''}<br/>${cust.address||''}</p>
+    <p><strong>Vehicle:</strong> ${v.reg} — ${v.make||''} ${v.model||''} ${v.year||''}</p>
+    <table>
+      <tr><td>Sale price</td><td>${fmtMoney(s.salePrice)}</td></tr>
+      <tr><td>Discount</td><td>-${fmtMoney(s.discount)}</td></tr>
+      ${s.partExValue?`<tr><td>Part exchange (${s.partExDesc||''})</td><td>-${fmtMoney(s.partExValue)}</td></tr>`:''}
+      ${s.adminCharge?`<tr><td>Admin charge</td><td>${fmtMoney(s.adminCharge)}</td></tr>`:''}
+      ${s.deliveryCharge?`<tr><td>Delivery charge</td><td>${fmtMoney(s.deliveryCharge)}</td></tr>`:''}
+      ${s.warranty?`<tr><td>Warranty</td><td>${fmtMoney(s.warranty)}</td></tr>`:''}
+      ${s.extraPackage?`<tr><td>Extra package</td><td>${fmtMoney(s.extraPackage)}</td></tr>`:''}
+      <tr class="tot"><td>Total due</td><td>${fmtMoney(vehicleNetSale(v))}</td></tr>
+    </table>
+    <script>window.print();<\/script>
+    </body></html>`);
+}
+
+/* =========================================================================
+   TASKS
+   ========================================================================= */
+function renderTasks(){
+  const overdue = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
+  const days = [];
+  const base = new Date(); base.setDate(base.getDate()+taskDayOffset);
+  const monday = new Date(base); monday.setDate(base.getDate()-((base.getDay()+6)%7));
+  for(let i=0;i<7;i++){ const d=new Date(monday); d.setDate(monday.getDate()+i); days.push(d.toISOString().slice(0,10)); }
+
+  return `
+  <div class="topbar">
+    <div><h1>Daily Tasks</h1><div class="date">Assign, follow up and track completion by day</div></div>
+    <button class="btn btn-brand" onclick="openAddTask()">+ Assign task</button>
+  </div>
+  ${overdue.length?`<div class="overdue-banner"><span>⚠ ${overdue.length} task${overdue.length===1?'':'s'} overdue and not marked done.</span></div>`:''}
+  <div class="toolbar">
+    <button class="btn btn-ghost btn-sm" onclick="taskDayOffset-=7;render()">← Previous week</button>
+    <button class="btn btn-ghost btn-sm" onclick="taskDayOffset=0;render()">This week</button>
+    <button class="btn btn-ghost btn-sm" onclick="taskDayOffset+=7;render()">Next week →</button>
+  </div>
+  <div class="board">
+    ${days.map(d=>`
+      <div class="day-col">
+        <div class="flex-between" style="margin-bottom:6px;">
+          <strong>${new Date(d).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</strong>
+          ${d===todayISO()?'<span class="tag tag-brand">Today</span>':''}
+        </div>
+        ${DB.tasks.filter(t=>t.date===d).length===0?'<div class="small-muted">No tasks</div>':''}
+        ${DB.tasks.filter(t=>t.date===d).map(t=>`
+          <div class="task-card ${t.done?'done':''}">
+            <div class="tt">${t.title} ${!t.done && isOverdue(t.date)?'<span class="tag tag-red" style="margin-left:4px;">Overdue</span>':''}</div>
+            <div class="assignee">${t.assignee||'Unassigned'}</div>
+            ${t.notes?`<div class="notes">${t.notes}</div>`:''}
+            <div style="margin-top:6px;display:flex;gap:6px;">
+              <button class="btn btn-sm ${t.done?'btn-ghost':'btn-brand'}" onclick="toggleTaskDone('${t.id}')">${t.done?'Reopen':'Mark done'}</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteTask('${t.id}')">✕</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+  </div>
+
+  <div class="section-title"><h2>Weekly summary</h2></div>
+  <div class="card">
+    ${renderWeeklyTaskSummary(days)}
+  </div>
+  `;
+}
+function renderWeeklyTaskSummary(days){
+  const weekTasks = DB.tasks.filter(t=>days.includes(t.date));
+  const byAssignee = {};
+  weekTasks.forEach(t=>{ const a=t.assignee||'Unassigned'; byAssignee[a]=byAssignee[a]||{total:0,done:0}; byAssignee[a].total++; if(t.done) byAssignee[a].done++; });
+  if(Object.keys(byAssignee).length===0) return '<div class="empty">No tasks assigned this week.</div>';
+  return `<table><thead><tr><th>Team member</th><th>Assigned</th><th>Completed</th><th>Completion rate</th></tr></thead><tbody>
+    ${Object.entries(byAssignee).map(([name,d])=>`<tr><td>${name}</td><td>${d.total}</td><td>${d.done}</td><td>${Math.round(d.done/d.total*100)}%</td></tr>`).join('')}
+  </tbody></table>`;
+}
+function openAddTask(){
+  const body = `
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Assign a task</h3>
+    <div class="field"><label>Task</label><input id="t_title" placeholder="e.g. Chase MOT booking for LP19 KFX"/></div>
+    <div class="field-row">
+      <div class="field"><label>Assign to</label>
+        <select id="t_assignee"><option value="">Unassigned</option>${DB.team.map(m=>`<option>${m.name}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Date</label><input id="t_date" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="t_notes" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveTask()">Assign</button>
+    </div>
+  `;
+  openModal(body);
+}
+function saveTask(){
+  const title = document.getElementById('t_title').value.trim();
+  if(!title){ alert('Add a task title'); return; }
+  DB.tasks.push({id:nextId('task'), title, assignee:document.getElementById('t_assignee').value, date:document.getElementById('t_date').value, notes:document.getElementById('t_notes').value, done:false, createdAt:todayISO()});
+  saveDB(); closeModal(); render();
+}
+function toggleTaskDone(id){ const t=DB.tasks.find(x=>x.id===id); t.done=!t.done; t.doneAt = t.done?todayISO():null; saveDB(); render(); }
+function deleteTask(id){ DB.tasks = DB.tasks.filter(x=>x.id!==id); saveDB(); render(); }
+
+/* =========================================================================
+   TEAM & PAY
+   ========================================================================= */
+function renderTeam(){
+  const owed = DB.expenses.filter(e=>e.status==='owed');
+  return `
+  <div class="topbar">
+    <div><h1>Team &amp; Pay</h1><div class="date">Staff, company spend and payroll</div></div>
+    <button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>
+  </div>
+
+  <div class="section-title"><h2>Team</h2></div>
+  <div class="card" style="padding:0;">
+    ${DB.team.length===0?'<div class="empty">No team members yet.</div>':`
+    <table><thead><tr><th>Name</th><th>Role</th><th>Day rate</th><th></th></tr></thead><tbody>
+    ${DB.team.map(m=>`<tr><td>${m.name}</td><td>${m.role||'—'}</td><td>${fmtMoney(m.dayRate)}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteTeamMember('${m.id}')">Remove</button></td></tr>`).join('')}
+    </tbody></table>`}
+  </div>
+
+  <div class="section-title"><h2>Company spend by staff <span class="small-muted">— ${owed.length} unpaid, ${fmtMoney(owed.reduce((s,e)=>s+Number(e.amount||0),0))} owed</span></h2>
+    <button class="btn btn-amber btn-sm" onclick="openAddExpense()">+ Log a spend</button>
+  </div>
+  <div class="card" style="padding:0;">
+    ${DB.expenses.length===0?'<div class="empty">No spend logged yet.</div>':`
+    <table><thead><tr><th>Date</th><th>Employee</th><th>Note</th><th>Amount</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>
+    ${DB.expenses.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`
+      <tr><td>${fmtDate(e.date)}</td><td>${e.employee}</td><td>${e.note||''}</td><td>${fmtMoney(e.amount)}</td>
+      <td>${e.photoId?`<button class="btn btn-sm btn-ghost" onclick="viewExpensePhoto('${e.photoId}')">View</button>`:'—'}</td>
+      <td><span class="tag ${e.status==='paid'?'tag-green':'tag-amber'}">${e.status==='paid'?'Paid back':'Owed'}</span></td>
+      <td>${e.status==='owed'?`<button class="btn btn-sm btn-brand" onclick="markExpensePaid('${e.id}')">Mark paid</button>`:''} <button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">✕</button></td>
+      </tr>`).join('')}
+    </tbody></table>`}
+  </div>
+
+  <div class="section-title"><h2>Payroll</h2><button class="btn btn-brand btn-sm" onclick="openAddPayroll()">+ Add pay record</button></div>
+  <div class="card" style="padding:0;">
+    ${DB.payroll.length===0?'<div class="empty">No payroll records yet.</div>':`
+    <table><thead><tr><th>Employee</th><th>Period</th><th>Days worked</th><th>Day rate</th><th>Gross pay</th><th>Deductions</th><th>Cash paid</th><th>Bank paid</th><th>Balance</th><th></th></tr></thead><tbody>
+    ${DB.payroll.slice().sort((a,b)=>b.period.localeCompare(a.period)).map(p=>{
+      const gross = Number(p.daysWorked)*Number(p.dayRate);
+      const balance = gross - Number(p.deductions||0) - Number(p.cashPaid||0) - Number(p.bankPaid||0);
+      return `<tr><td>${p.employee}</td><td>${p.period}</td><td>${p.daysWorked}</td><td>${fmtMoney(p.dayRate)}</td><td>${fmtMoney(gross)}</td><td>${fmtMoney(p.deductions)}</td><td>${fmtMoney(p.cashPaid)}</td><td>${fmtMoney(p.bankPaid)}</td>
+      <td style="font-weight:700;color:${balance>0?'var(--red)':'var(--green)'}">${fmtMoney(balance)}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deletePayroll('${p.id}')">✕</button></td></tr>`;
+    }).join('')}
+    </tbody></table>`}
+  </div>
+  `;
+}
+function openAddTeamMember(){
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add team member</h3>
+    <div class="field"><label>Name</label><input id="m_name"/></div>
+    <div class="field-row"><div class="field"><label>Role</label><input id="m_role"/></div><div class="field"><label>Day rate (£)</label><input id="m_rate" type="number"/></div></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveTeamMember()">Add</button></div>`);
+}
+function saveTeamMember(){
+  const name = document.getElementById('m_name').value.trim(); if(!name) return;
+  DB.team.push({id:nextId('mem'), name, role:document.getElementById('m_role').value, dayRate:Number(document.getElementById('m_rate').value)||0});
+  saveDB(); closeModal(); render();
+}
+function deleteTeamMember(id){ if(!confirm('Remove this team member?'))return; DB.team=DB.team.filter(x=>x.id!==id); saveDB(); render(); }
+
+function openAddExpense(){
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Log a company spend</h3>
+    <div class="field-row">
+      <div class="field"><label>Employee</label><select id="e_emp">${DB.team.map(m=>`<option>${m.name}</option>`).join('')}</select></div>
+      <div class="field"><label>Date</label><input id="e_date" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Amount (£)</label><input id="e_amount" type="number"/></div>
+      <div class="field"><label>Receipt photo</label><input id="e_photo" type="file" accept="image/*"/></div>
+    </div>
+    <div class="field"><label>What was it for</label><textarea id="e_note" rows="2"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveExpense()">Log spend</button></div>`);
+}
+async function saveExpense(){
+  const employee = document.getElementById('e_emp').value; if(!employee){alert('Add a team member first');return;}
+  const expense = {id:nextId('exp'), employee, date:document.getElementById('e_date').value, amount:Number(document.getElementById('e_amount').value)||0, note:document.getElementById('e_note').value, status:'owed', photoId:null};
+  const file = document.getElementById('e_photo').files[0];
+  DB.expenses.push(expense); saveDB(); closeModal(); render();
+  if(file){ const url = await compressImage(file); const pid=nextId('photo'); await setPhoto(pid,url); expense.photoId=pid; saveDB(); render(); }
+}
+function markExpensePaid(id){ const e=DB.expenses.find(x=>x.id===id); e.status='paid'; saveDB(); render(); }
+function deleteExpense(id){ DB.expenses=DB.expenses.filter(x=>x.id!==id); saveDB(); render(); }
+async function viewExpensePhoto(pid){ const url = await getPhoto(pid); if(url) window.open(url); }
+
+function openAddPayroll(){
+  const thisMonth = todayISO().slice(0,7);
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add pay record</h3>
+    <div class="field-row">
+      <div class="field"><label>Employee</label><select id="p_emp" onchange="prefillRate()">${DB.team.map(m=>`<option data-rate="${m.dayRate}">${m.name}</option>`).join('')}</select></div>
+      <div class="field"><label>Period (month)</label><input id="p_period" type="month" value="${thisMonth}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Days worked</label><input id="p_days" type="number"/></div>
+      <div class="field"><label>Day rate (£)</label><input id="p_rate" type="number" value="${(DB.team[0]||{}).dayRate||0}"/></div>
+      <div class="field"><label>Deductions / advances (£)</label><input id="p_ded" type="number" value="0"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Cash paid (£)</label><input id="p_cash" type="number" value="0"/></div>
+      <div class="field"><label>Bank paid (£)</label><input id="p_bank" type="number" value="0"/></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="savePayroll()">Save</button></div>`);
+}
+function prefillRate(){ const sel=document.getElementById('p_emp'); document.getElementById('p_rate').value = sel.selectedOptions[0].dataset.rate||0; }
+function savePayroll(){
+  const employee = document.getElementById('p_emp').value; if(!employee){alert('Add a team member first');return;}
+  DB.payroll.push({id:nextId('pay'), employee, period:document.getElementById('p_period').value, daysWorked:Number(document.getElementById('p_days').value)||0, dayRate:Number(document.getElementById('p_rate').value)||0, deductions:Number(document.getElementById('p_ded').value)||0, cashPaid:Number(document.getElementById('p_cash').value)||0, bankPaid:Number(document.getElementById('p_bank').value)||0});
+  saveDB(); closeModal(); render();
+}
+function deletePayroll(id){ DB.payroll=DB.payroll.filter(x=>x.id!==id); saveDB(); render(); }
+
+/* =========================================================================
+   CUSTOMERS
+   ========================================================================= */
+function renderCustomers(){
+  return `
+  <div class="topbar">
+    <div><h1>Customers &amp; Sales</h1><div class="date">${DB.customers.length} customers · ${DB.vehicles.filter(v=>v.sale).length} sales on record</div></div>
+    <button class="btn btn-brand" onclick="openAddCustomer(false)">+ Add customer</button>
+  </div>
+  <div class="card" style="padding:0;margin-bottom:24px;">
+    ${DB.customers.length===0?'<div class="empty">No customers yet.</div>':`
+    <table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Vehicles bought</th><th></th></tr></thead><tbody>
+    ${DB.customers.map(c=>{
+      const bought = DB.vehicles.filter(v=>v.sale && v.sale.customerId===c.id);
+      return `<tr><td>${c.name}</td><td>${c.phone||'—'}</td><td>${c.email||'—'}</td><td>${bought.map(v=>v.reg).join(', ')||'—'}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteCustomer('${c.id}')">Remove</button></td></tr>`;
+    }).join('')}
+    </tbody></table>`}
+  </div>
+
+  <div class="section-title"><h2>Sales record</h2></div>
+  <div class="card" style="padding:0;">
+    ${DB.vehicles.filter(v=>v.sale).length===0?'<div class="empty">No sales recorded yet. Record a sale from a vehicle&#39;s Mark as sold tab in Stock.</div>':`
+    <table><thead><tr><th>Date</th><th>Reg</th><th>Customer</th><th>Net received</th><th>Profit</th><th></th></tr></thead><tbody>
+    ${DB.vehicles.filter(v=>v.sale).sort((a,b)=>b.sale.date.localeCompare(a.sale.date)).map(v=>`
+      <tr><td>${fmtDate(v.sale.date)}</td><td class="mono">${v.reg}</td><td>${(DB.customers.find(c=>c.id===v.sale.customerId)||{}).name||'—'}</td>
+      <td>${fmtMoney(vehicleNetSale(v))}</td><td style="color:${vehicleProfit(v)>=0?'var(--green)':'var(--red)'}">${fmtMoney(vehicleProfit(v))}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="printInvoice('${v.id}')">Invoice</button></td></tr>
+    `).join('')}
+    </tbody></table>`}
+  </div>
+  `;
+}
+function openAddCustomer(fromSale){
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add customer</h3>
+    <div class="field"><label>Name</label><input id="c_name"/></div>
+    <div class="field-row"><div class="field"><label>Phone</label><input id="c_phone"/></div><div class="field"><label>Email</label><input id="c_email"/></div></div>
+    <div class="field"><label>Address</label><input id="c_address"/></div>
+    <div class="field"><label>Notes</label><textarea id="c_notes" rows="2"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveCustomer(${fromSale})">Add</button></div>`);
+}
+function saveCustomer(fromSale){
+  const name = document.getElementById('c_name').value.trim(); if(!name){alert('Name required');return;}
+  const c = {id:nextId('cust'), name, phone:document.getElementById('c_phone').value, email:document.getElementById('c_email').value, address:document.getElementById('c_address').value, notes:document.getElementById('c_notes').value};
+  DB.customers.push(c); saveDB(); closeModal();
+  if(fromSale) renderVehicleDetail(); else render();
+}
+function deleteCustomer(id){ if(!confirm('Remove this customer?'))return; DB.customers=DB.customers.filter(x=>x.id!==id); saveDB(); render(); }
+
+/* =========================================================================
+   REPORTS
+   ========================================================================= */
+function renderReports(){
+  const val = stockValuation();
+  const currentMonth = todayISO().slice(0,7);
+  const soldThisMonth = DB.vehicles.filter(v=>v.sale && monthKey(v.sale.date)===currentMonth);
+  const revenue = soldThisMonth.reduce((s,v)=>s+vehicleNetSale(v),0);
+  const vehicleProfitSum = soldThisMonth.reduce((s,v)=>s+vehicleProfit(v),0);
+  const monthCosts = DB.monthlyCosts.filter(c=>c.month===currentMonth);
+  const monthCostTotal = monthCosts.reduce((s,c)=>s+Number(c.amount||0),0);
+  const netProfit = vehicleProfitSum - monthCostTotal;
+
+  return `
+  <div class="topbar">
+    <div><h1>Reports</h1><div class="date">Live weekly &amp; monthly performance</div></div>
+    <button class="btn btn-ghost" onclick="exportSalesCSV()">⬇ Export sales CSV</button>
+  </div>
+
+  <div class="grid kpi-grid">
+    <div class="card kpi"><div class="label">Sales this month</div><div class="value">${soldThisMonth.length}</div></div>
+    <div class="card kpi"><div class="label">Revenue this month</div><div class="value small">${fmtMoney(revenue)}</div></div>
+    <div class="card kpi"><div class="label">Vehicle profit</div><div class="value small">${fmtMoney(vehicleProfitSum)}</div></div>
+    <div class="card kpi"><div class="label">Overheads this month</div><div class="value small">${fmtMoney(monthCostTotal)}</div></div>
+    <div class="card kpi"><div class="label">Net profit (month)</div><div class="value small" style="color:${netProfit>=0?'var(--green)':'var(--red)'}">${fmtMoney(netProfit)}</div></div>
+    <div class="card kpi"><div class="label">Stock valuation</div><div class="value small">${fmtMoney(val.costValue)} cost</div><div class="sub">${fmtMoney(val.sellValue)} selling value</div></div>
+  </div>
+
+  <div class="section-title"><h2>Weekly sales &amp; profit (last 8 weeks)</h2></div>
+  <div class="card"><canvas id="weeklyChart" height="90"></canvas></div>
+
+  <div class="section-title"><h2>Monthly overhead costs</h2><button class="btn btn-amber btn-sm" onclick="openAddMonthlyCost()">+ Add cost</button></div>
+  <div class="card" style="padding:0;margin-bottom:20px;">
+    <table><thead><tr><th>Month</th><th>Category</th><th>Description</th><th>Amount</th><th>Method</th><th></th></tr></thead><tbody>
+    ${DB.monthlyCosts.length===0?'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--grey)">No overhead costs logged yet — add rent, AutoTrader bill, utilities, salaries, subscriptions.</td></tr>':
+    DB.monthlyCosts.slice().sort((a,b)=>b.month.localeCompare(a.month)).map(c=>`
+      <tr><td>${c.month}</td><td>${c.category}</td><td>${c.desc||''}</td><td>${fmtMoney(c.amount)}</td><td><span class="tag tag-grey">${c.method}</span></td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteMonthlyCost('${c.id}')">✕</button></td></tr>`).join('')}
+    </tbody></table>
+  </div>
+
+  <div class="section-title"><h2>End of month report</h2>
+    <select id="reportMonthSelect" onchange="renderEomReport()" style="margin-left:auto;">
+      ${monthOptions()}
+    </select>
+  </div>
+  <div class="card" id="eomReport"></div>
+  `;
+}
+function monthOptions(){
+  const months = new Set();
+  DB.vehicles.forEach(v=>{ if(v.sale) months.add(monthKey(v.sale.date)); });
+  DB.monthlyCosts.forEach(c=>months.add(c.month));
+  months.add(todayISO().slice(0,7));
+  return [...months].sort().reverse().map(m=>`<option value="${m}">${m}</option>`).join('');
+}
+function renderEomReport(){
+  const month = document.getElementById('reportMonthSelect').value || todayISO().slice(0,7);
+  const sold = DB.vehicles.filter(v=>v.sale && monthKey(v.sale.date)===month);
+  const revenue = sold.reduce((s,v)=>s+vehicleNetSale(v),0);
+  const vehicleCosts = sold.reduce((s,v)=>s+vehicleCostTotal(v),0);
+  const profit = sold.reduce((s,v)=>s+vehicleProfit(v),0);
+  const overheads = DB.monthlyCosts.filter(c=>c.month===month);
+  const overheadTotal = overheads.reduce((s,c)=>s+Number(c.amount||0),0);
+  const byCat = {};
+  overheads.forEach(c=>byCat[c.category]=(byCat[c.category]||0)+Number(c.amount||0));
+  const val = stockValuation();
+  document.getElementById('eomReport').innerHTML = `
+    <h3 style="margin-top:0">${month}</h3>
+    <table>
+      <tr><td>Vehicles sold</td><td>${sold.length}</td></tr>
+      <tr><td>Revenue (net received)</td><td>${fmtMoney(revenue)}</td></tr>
+      <tr><td>Vehicle cost of goods sold</td><td>${fmtMoney(vehicleCosts)}</td></tr>
+      <tr><td style="font-weight:700">Vehicle profit</td><td style="font-weight:700">${fmtMoney(profit)}</td></tr>
+      ${Object.entries(byCat).map(([cat,amt])=>`<tr><td>Overhead — ${cat}</td><td>${fmtMoney(amt)}</td></tr>`).join('')}
+      <tr><td style="font-weight:700">Total overheads</td><td style="font-weight:700">${fmtMoney(overheadTotal)}</td></tr>
+      <tr style="border-top:2px solid var(--ink)"><td style="font-weight:700;font-size:16px;">Net profit</td><td style="font-weight:700;font-size:16px;color:${(profit-overheadTotal)>=0?'var(--green)':'var(--red)'}">${fmtMoney(profit-overheadTotal)}</td></tr>
+      <tr><td>Stock on hand (as of today)</td><td>${val.count} vehicles · ${fmtMoney(val.costValue)} cost / ${fmtMoney(val.sellValue)} selling value</td></tr>
+    </table>
+  `;
+}
+function openAddMonthlyCost(){
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add monthly cost</h3>
+    <div class="field-row">
+      <div class="field"><label>Month</label><input id="mc_month" type="month" value="${todayISO().slice(0,7)}"/></div>
+      <div class="field"><label>Category</label><select id="mc_cat"><option>Rent</option><option>AutoTrader bill</option><option>Utilities</option><option>Salaries</option><option>Subscriptions</option><option>Other</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Description</label><input id="mc_desc"/></div>
+      <div class="field"><label>Amount (£)</label><input id="mc_amount" type="number"/></div>
+      <div class="field"><label>Paid by</label><select id="mc_method"><option>Bank</option><option>Cash</option></select></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveMonthlyCost()">Add</button></div>`);
+}
+function saveMonthlyCost(){
+  DB.monthlyCosts.push({id:nextId('mc'), month:document.getElementById('mc_month').value, category:document.getElementById('mc_cat').value, desc:document.getElementById('mc_desc').value, amount:Number(document.getElementById('mc_amount').value)||0, method:document.getElementById('mc_method').value});
+  saveDB(); closeModal(); render();
+}
+function deleteMonthlyCost(id){ DB.monthlyCosts=DB.monthlyCosts.filter(x=>x.id!==id); saveDB(); render(); }
+function exportSalesCSV(){
+  const rows=[['Date','Reg','Customer','Sale Price','Discount','Part Ex Value','Admin','Delivery','Warranty','Extra Package','Net Received','Vehicle Cost','Profit']];
+  DB.vehicles.filter(v=>v.sale).forEach(v=>{
+    const s=v.sale, cust=DB.customers.find(c=>c.id===s.customerId)||{};
+    rows.push([s.date,v.reg,cust.name||'',s.salePrice,s.discount,s.partExValue,s.adminCharge,s.deliveryCharge,s.warranty,s.extraPackage,vehicleNetSale(v),vehicleCostTotal(v),vehicleProfit(v)]);
+  });
+  downloadCSV(rows,'sales-export.csv');
+}
+
+let weeklyChartInstance = null;
+function drawReportCharts(){
+  renderEomReport();
+  const ctx = document.getElementById('weeklyChart');
+  if(!ctx || typeof Chart==='undefined') return;
+  const weeks = [];
+  for(let i=7;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i*7); weeks.push(weekKey(d.toISOString())); }
+  const revenueByWeek = weeks.map(w=> DB.vehicles.filter(v=>v.sale && weekKey(v.sale.date)===w).reduce((s,v)=>s+vehicleNetSale(v),0));
+  const profitByWeek = weeks.map(w=> DB.vehicles.filter(v=>v.sale && weekKey(v.sale.date)===w).reduce((s,v)=>s+vehicleProfit(v),0));
+  if(weeklyChartInstance) weeklyChartInstance.destroy();
+  weeklyChartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{ labels: weeks.map(w=>w.split('-W')[1] ? 'Wk '+w.split('-W')[1] : w),
+      datasets:[
+        {label:'Revenue', data:revenueByWeek, backgroundColor:'#33628A'},
+        {label:'Profit', data:profitByWeek, backgroundColor:'#2E7D5B'}
+      ]},
+    options:{ responsive:true, plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
+  });
+}
+
+/* =========================================================================
+   MODAL HELPERS
+   ========================================================================= */
+function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+
+/* =========================================================================
+   AUTH — Supabase email/password. Ask your manager to create your account
+   in the Supabase dashboard under Authentication → Users.
+   ========================================================================= */
+async function doLogin(){
+  const email = document.getElementById('login_email').value.trim();
+  const password = document.getElementById('login_pass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if(!configured){
+    document.getElementById('setupNotice').style.display = 'block';
+    return;
+  }
+  const {data, error} = await supabase.auth.signInWithPassword({email, password});
+  if(error){ errEl.textContent = error.message; errEl.style.display = 'block'; return; }
+  await enterApp(data.user);
+}
+async function doLogout(){
+  await supabase.auth.signOut();
+  location.reload();
+}
+async function enterApp(user){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('userEmailLabel').textContent = user.email;
+  await loadDB();
+  document.getElementById('bizName').value = DB.bizName || 'Forecourt';
+}
+
+/* =========================================================================
+   INIT
+   ========================================================================= */
+(async function init(){
+  if(!configured){
+    document.getElementById('setupNotice').style.display = 'block';
+    return;
+  }
+  const {data:{session}} = await supabase.auth.getSession();
+  if(session && session.user){
+    await enterApp(session.user);
+  }
+  // otherwise the login screen (shown by default) waits for doLogin()
+})();
+document.getElementById('login_pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+
+</script>
+</body>
+</html>
