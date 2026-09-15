@@ -546,13 +546,14 @@ function renderDashboard(){
   </div>`:''}
 
   <div class="grid kpi-grid">
-    <div class="card kpi"><div class="label">Vehicles in stock</div><div class="value">${val.count}</div><div class="sub">${Object.entries(byStatus).map(([k,v])=>`${v} ${statusLabel(k)}`).join(' · ')||'—'}</div></div>
-    <div class="card kpi"><div class="label">Stock cost value</div><div class="value small">${fmtMoney(val.costValue)}</div><div class="sub">Total spent so far, unsold stock</div></div>
-    <div class="card kpi"><div class="label">Stock selling value</div><div class="value small">${fmtMoney(val.sellValue)}</div><div class="sub">Potential margin: ${fmtMoney(val.sellValue-val.costValue)}</div></div>
-    <div class="card kpi"><div class="label">Sales this week</div><div class="value">${thisWeek.length}</div><div class="sub">${fmtMoney(weekRevenue)} revenue · ${fmtMoney(weekProfit)} profit</div></div>
-    <div class="card kpi"><div class="label">Open issues</div><div class="value">${allOpenIssues().length}</div><div class="sub">${dueSoonIssues.length} due within 2 days</div></div>
-    <div class="card kpi"><div class="label">Owed to staff</div><div class="value small">${fmtMoney(owedToStaff)}</div><div class="sub">Unreimbursed company spend</div></div>
+    <div class="card kpi" style="cursor:pointer" onclick="App.go('stock')"><div class="label">Vehicles in stock</div><div class="value">${val.count}</div><div class="sub">${Object.entries(byStatus).map(([k,v])=>`${v} ${statusLabel(k)}`).join(' · ')||'—'}</div></div>
+    <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('reports')"`:''}><div class="label">Stock cost value</div><div class="value small">${fmtMoney(val.costValue)}</div><div class="sub">Total spent so far, unsold stock</div></div>
+    <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('reports')"`:''}><div class="label">Stock selling value</div><div class="value small">${fmtMoney(val.sellValue)}</div><div class="sub">Potential margin: ${fmtMoney(val.sellValue-val.costValue)}</div></div>
+    <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('reports')"`:''}><div class="label">Sales this week</div><div class="value">${thisWeek.length}</div><div class="sub">${fmtMoney(weekRevenue)} revenue · ${fmtMoney(weekProfit)} profit</div></div>
+    <div class="card kpi" style="cursor:pointer" onclick="App.go('tasks');taskView='issues';render()"><div class="label">Open issues</div><div class="value">${allOpenIssues().length}</div><div class="sub">${dueSoonIssues.length} due within 2 days</div></div>
+    <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('team')"`:''}><div class="label">Owed to staff</div><div class="value small">${fmtMoney(owedToStaff)}</div><div class="sub">Unreimbursed company spend</div></div>
   </div>
+  <div class="small-muted" style="margin:-12px 0 18px;">Tap a card above to jump straight to that section.</div>
 
   <div class="section-title"><h2>Outstanding vehicle issues</h2><span class="small-muted" onclick="App.go('stock')" style="cursor:pointer">View all stock →</span></div>
   <div class="card">
@@ -804,8 +805,12 @@ async function renderIssuesList(v){
         <div class="t">${labelForIssueType(i.type)} — ${i.desc}</div>
         <div class="m">Logged ${fmtDate(i.createdAt)} by ${i.reportedBy||'—'} ${i.reminderDate?'· reminder '+fmtDate(i.reminderDate):''}
         ${i.status==='done'?`<span class="tag tag-green" style="margin-left:6px;">Done ${fmtDate(i.doneAt)}</span>`: isOverdue(i.reminderDate)?'<span class="tag tag-red" style="margin-left:6px;">Overdue</span>':'<span class="tag tag-amber" style="margin-left:6px;">Open</span>'}</div>
-        ${i.type==='missing part' ? `<a class="link" target="_blank" href="https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent((v.make||'')+' '+(v.model||'')+' '+i.desc)}">Source part on eBay →</a>
-        &nbsp; <a class="link" target="_blank" href="https://www.google.com/search?q=${encodeURIComponent((v.make||'')+' '+(v.model||'')+' '+(v.year||'')+' '+i.desc+' part')}">Search Google →</a>` : ''}
+        <div style="margin-top:4px;">
+          ${issueSourceLinksHtml(i)}
+          ${i.type==='missing part' ? `${i.link1||i.link2?' &nbsp; ':''}<a class="link" target="_blank" href="https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent((v.make||'')+' '+(v.model||'')+' '+i.desc)}">Search eBay →</a>
+          &nbsp; <a class="link" target="_blank" href="https://www.google.com/search?q=${encodeURIComponent((v.make||'')+' '+(v.model||'')+' '+(v.year||'')+' '+i.desc+' part')}">Search Google →</a>` : ''}
+          &nbsp; <a class="link" style="cursor:pointer" onclick="openEditIssueLinks('${v.id}','${i.id}')">${(i.link1||i.link2)?'Edit links':'+ Add source links'}</a>
+        </div>
       </div>
       ${photoHtml}
       <div style="display:flex;flex-direction:column;gap:6px;">
@@ -835,6 +840,10 @@ function openAddIssue(vId){
       <div class="field"><label>Reminder date (get flagged if still open)</label><input id="i_reminder" type="date" value="${todayISO()}"/></div>
       <div class="field"><label>Photo (optional)</label><input id="i_photo" type="file" accept="image/*"/></div>
     </div>
+    <div class="field-row">
+      <div class="field"><label>Source link 1 (optional)</label><input id="i_link1" type="url" placeholder="e.g. eBay listing for the part"/></div>
+      <div class="field"><label>Source link 2 (optional)</label><input id="i_link2" type="url" placeholder="e.g. a second supplier/quote"/></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-brand" onclick="saveIssue('${vId}')">Add issue — creates outstanding task</button>
@@ -849,18 +858,47 @@ async function saveIssue(vId){
   const issue = {
     id: nextId('iss'), type: document.getElementById('i_type').value, desc,
     reportedBy: document.getElementById('i_by').value, createdAt: todayISO(),
-    reminderDate: document.getElementById('i_reminder').value, status:'open', photoId:null
+    reminderDate: document.getElementById('i_reminder').value, status:'open', photoId:null,
+    link1: document.getElementById('i_link1').value.trim(), link2: document.getElementById('i_link2').value.trim()
   };
   const file = document.getElementById('i_photo').files[0];
   if(!v.issues) v.issues=[];
   v.issues.push(issue);
   saveDB(); closeModal(); renderVehicleDetail();
   if(file){
-    const dataUrl = await compressImage(file);
+    const blob = await compressImage(file);
     const pid = nextId('photo');
-    await setPhoto(pid, dataUrl);
+    await setPhoto(pid, blob);
     issue.photoId = pid; saveDB(); renderVehicleDetail();
   }
+}
+function openEditIssueLinks(vId, issueId){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const i = v.issues.find(x=>x.id===issueId);
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Source links</h3>
+    <div class="small-muted" style="margin-bottom:10px;">${i.desc}</div>
+    <div class="field"><label>Source link 1</label><input id="el_link1" type="url" value="${i.link1||''}" placeholder="e.g. eBay listing for the part"/></div>
+    <div class="field"><label>Source link 2</label><input id="el_link2" type="url" value="${i.link2||''}" placeholder="e.g. a second supplier/quote"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveIssueLinks('${vId}','${issueId}')">Save links</button>
+    </div>
+  `);
+}
+function saveIssueLinks(vId, issueId){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const i = v.issues.find(x=>x.id===issueId);
+  i.link1 = document.getElementById('el_link1').value.trim();
+  i.link2 = document.getElementById('el_link2').value.trim();
+  saveDB(); closeModal();
+  if(currentTab==='stock' && activeVehicleId===vId){ renderVehicleDetail(); } else { render(); }
+}
+function issueSourceLinksHtml(i){
+  const links = [i.link1, i.link2].filter(Boolean);
+  if(links.length===0) return '';
+  return links.map((l,idx)=>`<a class="link" target="_blank" href="${l.startsWith('http')?l:'https://'+l}">Source ${idx+1} →</a>`).join(' &nbsp; ');
 }
 async function uploadVehiclePhoto(vId, input){
   const file = input.files[0]; if(!file) return;
@@ -1158,7 +1196,11 @@ function renderOutstandingRepairsView(openIssues){
           <div class="m"><span class="tag ${isOverdue(i.reminderDate)?'tag-red':'tag-amber'}">${labelForIssueType(i.type)}</span>
             ${i.reminderDate? ' · reminder '+fmtDate(i.reminderDate):''} ${isOverdue(i.reminderDate)?' · <strong style="color:var(--red)">OVERDUE</strong>':''}
             ${i.reportedBy?' · logged by '+i.reportedBy:''}</div>
-          ${i.type==='missing part' ? `<a class="link" target="_blank" href="https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(i.desc)}">Source part on eBay →</a>` : ''}
+          <div style="margin-top:4px;">
+            ${issueSourceLinksHtml(i)}
+            ${i.type==='missing part' ? `${i.link1||i.link2?' &nbsp; ':''}<a class="link" target="_blank" href="https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(i.desc)}">Search eBay →</a>` : ''}
+            &nbsp; <a class="link" style="cursor:pointer" onclick="openEditIssueLinks('${i.vId}','${i.id}')">${(i.link1||i.link2)?'Edit links':'+ Add source links'}</a>
+          </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           <button class="btn btn-sm btn-brand" onclick="markIssueDone('${i.vId}','${i.id}')">Mark repaired</button>
@@ -1457,10 +1499,26 @@ function renderReports(){
   <div class="section-title"><h2>Weekly sales &amp; profit (last 8 weeks)</h2></div>
   <div class="card"><canvas id="weeklyChart" height="90"></canvas></div>
 
+  <div class="section-title"><h2>Monthly sales &amp; profit (last 12 months)</h2></div>
+  <div class="card"><canvas id="monthlyChart" height="90"></canvas></div>
+
+  <div class="grid" style="grid-template-columns:1fr 1fr; margin-bottom:20px;">
+    <div class="card">
+      <h3 style="margin-top:0;font-size:15px;">Stock levels — vehicles in/out (last 12 months)</h3>
+      <canvas id="stockLevelChart" height="140"></canvas>
+      <div class="small-muted" style="margin-top:8px;">Estimated from when vehicles were added vs sold — doesn't account for scrapped vehicles' exact timing.</div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;font-size:15px;">Stock value — cost vs selling (last 12 months)</h3>
+      <canvas id="stockValueChart" height="140"></canvas>
+      <div class="small-muted" style="margin-top:8px;">Uses each vehicle's current logged cost/asking price applied back across the months it was in stock.</div>
+    </div>
+  </div>
+
   <div class="section-title"><h2>Monthly overhead costs</h2><button class="btn btn-amber btn-sm" onclick="openAddMonthlyCost()">+ Add cost</button></div>
   <div class="card" style="padding:0;margin-bottom:20px;">
     <table><thead><tr><th>Month</th><th>Category</th><th>Description</th><th>Amount</th><th>Method</th><th></th></tr></thead><tbody>
-    ${DB.monthlyCosts.length===0?'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--grey)">No overhead costs logged yet — add rent, AutoTrader bill, utilities, salaries, subscriptions.</td></tr>':
+    ${DB.monthlyCosts.length===0?'<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--grey)">No overhead costs logged yet — add rent, AutoTrader, CarGurus, Cazoo, utilities, salaries, AA, website, business rates, food, advertising, or other costs.</td></tr>':
     DB.monthlyCosts.slice().sort((a,b)=>b.month.localeCompare(a.month)).map(c=>`
       <tr><td>${c.month}</td><td>${c.category}</td><td>${c.desc||''}</td><td>${fmtMoney(c.amount)}</td><td><span class="tag tag-grey">${c.method}</span></td>
       <td><button class="btn btn-sm btn-danger" onclick="deleteMonthlyCost('${c.id}')">✕</button></td></tr>`).join('')}
@@ -1475,43 +1533,81 @@ function renderReports(){
   <div class="card" id="eomReport"></div>
   `;
 }
-function monthOptions(){
-  const months = new Set();
-  DB.vehicles.forEach(v=>{ if(v.sale) months.add(monthKey(v.sale.date)); });
-  DB.monthlyCosts.forEach(c=>months.add(c.month));
-  months.add(todayISO().slice(0,7));
-  return [...months].sort().reverse().map(m=>`<option value="${m}">${m}</option>`).join('');
-}
-function renderEomReport(){
-  const month = document.getElementById('reportMonthSelect').value || todayISO().slice(0,7);
+function monthlyFigures(month){
   const sold = DB.vehicles.filter(v=>v.sale && monthKey(v.sale.date)===month);
   const revenue = sold.reduce((s,v)=>s+vehicleNetSale(v),0);
   const vehicleCosts = sold.reduce((s,v)=>s+vehicleCostTotal(v),0);
   const profit = sold.reduce((s,v)=>s+vehicleProfit(v),0);
   const overheads = DB.monthlyCosts.filter(c=>c.month===month);
   const overheadTotal = overheads.reduce((s,c)=>s+Number(c.amount||0),0);
+  const cashPaid = overheads.filter(c=>c.method==='Cash').reduce((s,c)=>s+Number(c.amount||0),0);
+  const bankPaid = overheads.filter(c=>c.method==='Bank').reduce((s,c)=>s+Number(c.amount||0),0);
   const byCat = {};
+  COST_CATEGORIES.forEach(c=>byCat[c]=0);
   overheads.forEach(c=>byCat[c.category]=(byCat[c.category]||0)+Number(c.amount||0));
+  return {sold, revenue, vehicleCosts, profit, overheads, overheadTotal, cashPaid, bankPaid, byCat, netProfit: profit-overheadTotal};
+}
+function allKnownMonths(){
+  const months = new Set();
+  DB.vehicles.forEach(v=>{ if(v.sale) months.add(monthKey(v.sale.date)); });
+  DB.monthlyCosts.forEach(c=>months.add(c.month));
+  return [...months].sort();
+}
+function monthOptions(){
+  const months = new Set(allKnownMonths());
+  months.add(todayISO().slice(0,7));
+  return [...months].sort().reverse().map(m=>`<option value="${m}">${m}</option>`).join('');
+}
+function renderEomReport(){
+  const month = document.getElementById('reportMonthSelect').value || todayISO().slice(0,7);
+  const f = monthlyFigures(month);
   const val = stockValuation();
+  // running balance = cumulative net profit from the earliest known month up to and including this one
+  const runningBalance = allKnownMonths().filter(m=>m<=month).reduce((s,m)=> s + (m===month ? f.netProfit : monthlyFigures(m).netProfit), 0);
+
   document.getElementById('eomReport').innerHTML = `
     <h3 style="margin-top:0">${month}</h3>
+    <div class="grid kpi-grid" style="margin-bottom:18px;">
+      <div class="card kpi"><div class="label">Vehicles sold</div><div class="value">${f.sold.length}</div></div>
+      <div class="card kpi"><div class="label">Revenue</div><div class="value small">${fmtMoney(f.revenue)}</div></div>
+      <div class="card kpi"><div class="label">Vehicle profit</div><div class="value small">${fmtMoney(f.profit)}</div></div>
+      <div class="card kpi"><div class="label">Overheads</div><div class="value small">${fmtMoney(f.overheadTotal)}</div></div>
+      <div class="card kpi"><div class="label">Net profit</div><div class="value small" style="color:${f.netProfit>=0?'var(--green)':'var(--red)'}">${fmtMoney(f.netProfit)}</div></div>
+      <div class="card kpi"><div class="label">Running balance</div><div class="value small" style="color:${runningBalance>=0?'var(--green)':'var(--red)'}">${fmtMoney(runningBalance)}</div><div class="sub">Cumulative net profit to date</div></div>
+    </div>
+
+    <h3 style="font-size:16px;">Sales this month</h3>
+    ${f.sold.length===0?`<div class="empty" style="padding:20px;">No vehicles sold in ${month}.</div>`:`
+    <table style="margin-bottom:20px;"><thead><tr><th>Date</th><th>Reg</th><th>Customer</th><th>Net received</th><th>Cost</th><th>Profit</th></tr></thead><tbody>
+    ${f.sold.slice().sort((a,b)=>a.sale.date.localeCompare(b.sale.date)).map(v=>`
+      <tr style="cursor:pointer" onclick="openVehicle('${v.id}')">
+        <td>${fmtDate(v.sale.date)}</td><td class="mono">${v.reg}</td><td>${(DB.customers.find(c=>c.id===v.sale.customerId)||{}).name||'—'}</td>
+        <td>${fmtMoney(vehicleNetSale(v))}</td><td>${fmtMoney(vehicleCostTotal(v))}</td>
+        <td style="color:${vehicleProfit(v)>=0?'var(--green)':'var(--red)'}">${fmtMoney(vehicleProfit(v))}</td>
+      </tr>`).join('')}
+    </tbody></table>`}
+
+    <h3 style="font-size:16px;">Overhead costs by category</h3>
+    <table style="margin-bottom:20px;"><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>
+    ${COST_CATEGORIES.map(cat=>`<tr><td>${cat}</td><td>${f.byCat[cat]?fmtMoney(f.byCat[cat]):'—'}</td></tr>`).join('')}
+    <tr style="font-weight:700"><td>Total overheads</td><td>${fmtMoney(f.overheadTotal)}</td></tr>
+    </tbody></table>
+
     <table>
-      <tr><td>Vehicles sold</td><td>${sold.length}</td></tr>
-      <tr><td>Revenue (net received)</td><td>${fmtMoney(revenue)}</td></tr>
-      <tr><td>Vehicle cost of goods sold</td><td>${fmtMoney(vehicleCosts)}</td></tr>
-      <tr><td style="font-weight:700">Vehicle profit</td><td style="font-weight:700">${fmtMoney(profit)}</td></tr>
-      ${Object.entries(byCat).map(([cat,amt])=>`<tr><td>Overhead — ${cat}</td><td>${fmtMoney(amt)}</td></tr>`).join('')}
-      <tr><td style="font-weight:700">Total overheads</td><td style="font-weight:700">${fmtMoney(overheadTotal)}</td></tr>
-      <tr style="border-top:2px solid var(--ink)"><td style="font-weight:700;font-size:16px;">Net profit</td><td style="font-weight:700;font-size:16px;color:${(profit-overheadTotal)>=0?'var(--green)':'var(--red)'}">${fmtMoney(profit-overheadTotal)}</td></tr>
+      <tr><td>Paid by bank</td><td>${fmtMoney(f.bankPaid)}</td></tr>
+      <tr><td>Paid by cash</td><td>${fmtMoney(f.cashPaid)}</td></tr>
+      <tr style="border-top:2px solid var(--ink)"><td style="font-weight:700;font-size:16px;">Net profit this month</td><td style="font-weight:700;font-size:16px;color:${f.netProfit>=0?'var(--green)':'var(--red)'}">${fmtMoney(f.netProfit)}</td></tr>
+      <tr><td style="font-weight:700">Running balance (all-time)</td><td style="font-weight:700;color:${runningBalance>=0?'var(--green)':'var(--red)'}">${fmtMoney(runningBalance)}</td></tr>
       <tr><td>Stock on hand (as of today)</td><td>${val.count} vehicles · ${fmtMoney(val.costValue)} cost / ${fmtMoney(val.sellValue)} selling value</td></tr>
     </table>
   `;
 }
+const COST_CATEGORIES = ['Rent','AutoTrader','CarGurus','Cazoo','Utilities','Salaries','AA','Website','Business rates','Food','Advertising & Marketing','Miscellaneous'];
 function openAddMonthlyCost(){
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add monthly cost</h3>
     <div class="field-row">
       <div class="field"><label>Month</label><input id="mc_month" type="month" value="${todayISO().slice(0,7)}"/></div>
-      <div class="field"><label>Category</label><select id="mc_cat"><option>Rent</option><option>AutoTrader bill</option><option>Utilities</option><option>Salaries</option><option>Subscriptions</option><option>Other</option></select></div>
+      <div class="field"><label>Category</label><select id="mc_cat">${COST_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Description</label><input id="mc_desc"/></div>
@@ -1562,6 +1658,76 @@ function drawReportCharts(){
       data:{ labels: weeks.map(w=>w.split('-W')[1] ? 'Wk '+w.split('-W')[1] : w),
         datasets:[{label:'Vehicles sold', data:countByWeek, backgroundColor:'#0F5257'}]},
       options:{ responsive:true, plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true, ticks:{stepSize:1}}} }
+    });
+  }
+  if(isManager()) drawMonthlyTrendCharts();
+}
+
+let monthlyChartInstance = null, stockLevelChartInstance = null, stockValueChartInstance = null;
+function last12Months(){
+  const months = [];
+  const d = new Date();
+  d.setDate(1);
+  for(let i=11;i>=0;i--){ const dd=new Date(d.getFullYear(), d.getMonth()-i, 1); months.push(dd.toISOString().slice(0,7)); }
+  return months;
+}
+function drawMonthlyTrendCharts(){
+  const months = last12Months();
+
+  // Monthly sales & profit
+  const mCtx = document.getElementById('monthlyChart');
+  if(mCtx && typeof Chart!=='undefined'){
+    if(monthlyChartInstance) monthlyChartInstance.destroy();
+    const revenueByMonth = months.map(m=>{ const f=monthlyFigures(m); return f.revenue; });
+    const profitByMonth = months.map(m=>{ const f=monthlyFigures(m); return f.netProfit; });
+    monthlyChartInstance = new Chart(mCtx, {
+      type:'bar',
+      data:{ labels: months.map(m=>m.slice(2)), datasets:[
+        {label:'Revenue', data:revenueByMonth, backgroundColor:'#33628A'},
+        {label:'Net profit', data:profitByMonth, backgroundColor:'#2E7D5B'}
+      ]},
+      options:{ responsive:true, plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
+    });
+  }
+
+  // Stock level trend: vehicles added-to-date minus sold-to-date, at each month end
+  const slCtx = document.getElementById('stockLevelChart');
+  if(slCtx && typeof Chart!=='undefined'){
+    if(stockLevelChartInstance) stockLevelChartInstance.destroy();
+    const levels = months.map(m=>{
+      const monthEnd = m+'-31';
+      const added = DB.vehicles.filter(v=>v.dateAdded && v.dateAdded<=monthEnd).length;
+      const sold = DB.vehicles.filter(v=>v.sale && v.sale.date<=monthEnd).length;
+      return added - sold;
+    });
+    stockLevelChartInstance = new Chart(slCtx, {
+      type:'line',
+      data:{ labels: months.map(m=>m.slice(2)), datasets:[
+        {label:'Vehicles in stock', data:levels, borderColor:'#0F5257', backgroundColor:'#0F525722', fill:true, tension:.25}
+      ]},
+      options:{ responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, ticks:{stepSize:1}}} }
+    });
+  }
+
+  // Stock value trend: approximate cost/selling value of what was in stock at each month end,
+  // using each vehicle's current logged figures applied back across the months it was held.
+  const svCtx = document.getElementById('stockValueChart');
+  if(svCtx && typeof Chart!=='undefined'){
+    if(stockValueChartInstance) stockValueChartInstance.destroy();
+    const costVals = [], sellVals = [];
+    months.forEach(m=>{
+      const monthEnd = m+'-31';
+      const inStockThen = DB.vehicles.filter(v=> v.dateAdded && v.dateAdded<=monthEnd && (!v.sale || v.sale.date>monthEnd) && v.status!=='scrap');
+      costVals.push(inStockThen.reduce((s,v)=>s+vehicleCostTotal(v),0));
+      sellVals.push(inStockThen.reduce((s,v)=>s+(Number(v.askingPrice)||0),0));
+    });
+    stockValueChartInstance = new Chart(svCtx, {
+      type:'line',
+      data:{ labels: months.map(m=>m.slice(2)), datasets:[
+        {label:'Cost value', data:costVals, borderColor:'#E07A1F', backgroundColor:'#E07A1F22', fill:true, tension:.25},
+        {label:'Selling value', data:sellVals, borderColor:'#2E7D5B', backgroundColor:'#2E7D5B22', fill:true, tension:.25}
+      ]},
+      options:{ responsive:true, plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
     });
   }
 }
