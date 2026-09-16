@@ -49,6 +49,8 @@
     background:var(--paper);
     color:var(--ink);
     -webkit-font-smoothing:antialiased;
+    font-size:14.5px;
+    line-height:1.55;
   }
   h1,h2,h3,.num{ font-family:'Barlow Condensed', sans-serif; font-weight:700; letter-spacing:.2px; }
   .mono{ font-family:'IBM Plex Mono', monospace; }
@@ -70,7 +72,7 @@
   .brand-row .sub{ color:#B7BDC4; font-size:11.5px; margin-top:2px;}
   .nav-item{
     display:flex; align-items:center; gap:10px; margin:2px 10px; padding:11px 12px; cursor:pointer;
-    color:#C7CCD1; font-size:14.5px; font-weight:500; border-radius:8px;
+    color:#C7CCD1; font-size:15px; font-weight:500; border-radius:8px;
     transition:background-color .15s ease, color .15s ease;
   }
   .nav-item:hover{ background:#ffffff0a; color:#fff; }
@@ -83,9 +85,9 @@
   #main{ flex:1; min-width:0; padding:26px 32px 60px; }
   .topbar{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:22px; }
   .topbar h1{ font-size:30px; margin:0; }
-  .topbar .date{ color:var(--ink-soft); font-size:13px; }
+  .topbar .date{ color:var(--ink-soft); font-size:13.5px; }
   .btn{
-    border:none; border-radius:8px; padding:9px 16px; font-weight:600; font-size:13.5px;
+    border:none; border-radius:8px; padding:9px 16px; font-weight:600; font-size:14px;
     cursor:pointer; font-family:'IBM Plex Sans'; display:inline-flex; align-items:center; gap:6px;
     transition:transform .08s ease, box-shadow .15s ease, background-color .15s ease; transform:translateY(0);
   }
@@ -110,17 +112,17 @@
   .kpi-grid .card:nth-child(6n+4){ border-top-color:var(--amber); }
   .kpi-grid .card:nth-child(6n+5){ border-top-color:var(--red); }
   .kpi-grid .card:nth-child(6n+6){ border-top-color:var(--grey); }
-  .kpi .label{ font-size:11.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.6px; font-weight:600;}
+  .kpi .label{ font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.5px; font-weight:600;}
   .kpi .value{ font-size:30px; margin-top:6px; line-height:1.1; }
   .kpi .value.small{ font-size:22px; }
   .kpi .sub{ font-size:12px; color:var(--grey); margin-top:2px;}
 
-  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
-  th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--grey); padding:9px 10px; border-bottom:1.5px solid var(--line); background:#FAFBFA; }
-  td{ padding:10px; border-bottom:1px solid #EEEFED; vertical-align:middle; }
+  table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+  th{ text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.4px; color:var(--grey); padding:10px; border-bottom:1.5px solid var(--line); background:#FAFBFA; }
+  td{ padding:11px 10px; border-bottom:1px solid #EEEFED; vertical-align:middle; line-height:1.45; }
   tbody tr{ transition:background-color .1s ease; }
   tr:hover td{ background:#FAFAF9; }
-  .tag{ display:inline-block; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:600; white-space:nowrap;}
+  .tag{ display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; white-space:nowrap;}
   .tag-green{ background:var(--green-dim); color:var(--green); }
   .tag-amber{ background:var(--amber-dim); color:var(--amber); }
   .tag-red{ background:var(--red-dim); color:var(--red); }
@@ -132,12 +134,12 @@
   .section-title h2{ font-size:20px; margin:0; }
   .toolbar{ display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;}
   input, select, textarea{
-    font-family:'IBM Plex Sans'; border:1px solid var(--line); border-radius:7px; padding:8px 10px; font-size:13.5px; background:#fff; color:var(--ink);
+    font-family:'IBM Plex Sans'; border:1px solid var(--line); border-radius:7px; padding:9px 10px; font-size:14.5px; background:#fff; color:var(--ink);
     transition:border-color .12s ease, box-shadow .12s ease;
   }
   input:focus, select:focus, textarea:focus{ border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-dim); outline:none; }
   textarea{ resize:vertical; }
-  label{ font-size:12px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:4px; }
+  label{ font-size:12.5px; font-weight:600; color:var(--ink-soft); display:block; margin-bottom:4px; }
   .field{ margin-bottom:12px; }
   .field-row{ display:flex; gap:12px; flex-wrap:wrap; }
   .field-row .field{ flex:1; min-width:140px; }
@@ -164,7 +166,7 @@
   .issue-row:last-child{ border-bottom:none; }
   .issue-main{ flex:1; }
   .issue-main .t{ font-weight:600; font-size:13.5px; }
-  .issue-main .m{ font-size:12px; color:var(--grey); margin-top:2px;}
+  .issue-main .m{ font-size:12.5px; color:var(--grey); margin-top:2px; line-height:1.5;}
   .overdue-banner{ background:var(--red-dim); border:1px solid #B23A2433; color:var(--red); padding:12px 16px; border-radius:8px; margin-bottom:16px; font-size:13.5px; display:flex; justify-content:space-between; align-items:center; }
   .checklist-item{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #EEEFED; }
   .checklist-item input[type=checkbox]{ width:17px; height:17px; }
@@ -185,12 +187,12 @@
   .task-card .assignee{ color:var(--brand); font-size:11.5px; font-weight:600;}
   .task-card .notes{ color:var(--grey); font-size:11.5px; margin-top:4px; white-space:pre-wrap;}
   .chip-row{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
-  .chip{ padding:5px 12px; border-radius:20px; border:1px solid var(--line); font-size:12.5px; font-weight:600; cursor:pointer; background:#fff; transition:background-color .12s ease, color .12s ease, border-color .12s ease;}
+  .chip{ padding:6px 13px; border-radius:20px; border:1px solid var(--line); font-size:13px; font-weight:600; cursor:pointer; background:#fff; transition:background-color .12s ease, color .12s ease, border-color .12s ease;}
   .chip.active{ background:var(--ink); color:#fff; border-color:var(--ink);}
   .print-invoice{ background:#fff; padding:0; }
   @media print{ #sidebar,.topbar,.toolbar,.no-print{ display:none !important;} #main{padding:0;} body{background:#fff;} }
   .flex-between{ display:flex; justify-content:space-between; align-items:center;}
-  .small-muted{ font-size:12px; color:var(--grey);}
+  .small-muted{ font-size:12.5px; color:var(--grey); line-height:1.5;}
   canvas{ max-width:100%; }
 
   /* ---------- Mobile layout ---------- */
@@ -433,8 +435,9 @@ function getPhoto(id){
 async function setPhoto(id, blob){
   try{
     const {error} = await sb.storage.from(PHOTOS_BUCKET).upload(id, blob, {upsert:true, contentType: blob.type||'application/octet-stream'});
-    if(error) console.error('photo upload failed', error);
-  }catch(e){ console.error(e); }
+    if(error){ console.error('photo upload failed', error); return false; }
+    return true;
+  }catch(e){ console.error(e); return false; }
 }
 async function deletePhoto(id){
   try{ await sb.storage.from(PHOTOS_BUCKET).remove([id]); }catch(e){}
@@ -868,8 +871,9 @@ async function saveIssue(vId){
   if(file){
     const blob = await compressImage(file);
     const pid = nextId('photo');
-    await setPhoto(pid, blob);
-    issue.photoId = pid; saveDB(); renderVehicleDetail();
+    const ok = await setPhoto(pid, blob);
+    if(ok){ issue.photoId = pid; saveDB(); renderVehicleDetail(); }
+    else { alert("The photo didn't upload — everything else was saved, but you'll need to try attaching the photo again (check your connection, or ask your manager to check Supabase Storage permissions)."); }
   }
 }
 function openEditIssueLinks(vId, issueId){
@@ -903,9 +907,10 @@ function issueSourceLinksHtml(i){
 async function uploadVehiclePhoto(vId, input){
   const file = input.files[0]; if(!file) return;
   const v = DB.vehicles.find(x=>x.id===vId);
-  const dataUrl = await compressImage(file);
+  const blob = await compressImage(file);
   const pid = nextId('photo');
-  await setPhoto(pid, dataUrl);
+  const ok = await setPhoto(pid, blob);
+  if(!ok){ alert("The photo didn't upload. Check your connection, or ask your manager to check Supabase Storage permissions for the 'photos' bucket."); return; }
   if(!v.photos) v.photos=[];
   v.photos.push({id:pid, addedAt: todayISO()});
   saveDB(); renderVehicleDetail();
@@ -988,7 +993,8 @@ async function uploadInvoice(vId, input){
   const isPdf = file.type==='application/pdf';
   const blob = isPdf ? file : await compressImage(file);
   const pid = nextId('inv');
-  await setPhoto(pid, blob);
+  const ok = await setPhoto(pid, blob);
+  if(!ok){ alert("The invoice didn't upload. Check your connection, or ask your manager to check Supabase Storage permissions for the 'photos' bucket."); return; }
   if(!v.invoicePhotoIds) v.invoicePhotoIds=[];
   v.invoicePhotoIds.push({id:pid, isPdf});
   saveDB(); renderVehicleDetail();
@@ -1263,16 +1269,68 @@ function priorityTag(p){
 /* =========================================================================
    TEAM & PAY
    ========================================================================= */
+function expensePaidAmount(e){
+  if(e.paidAmount!=null) return Number(e.paidAmount)||0;
+  return e.status==='paid' ? Number(e.amount)||0 : 0; // fallback for records saved before partial payments existed
+}
+function expenseBalance(e){ return Math.max(0, (Number(e.amount)||0) - expensePaidAmount(e)); }
+function expenseStatusLabel(e){
+  const bal = expenseBalance(e);
+  if(bal<=0) return 'paid';
+  if(expensePaidAmount(e)>0) return 'partial';
+  return 'owed';
+}
+function photoUrlSync(id){
+  if(!id) return '';
+  const {data} = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(id);
+  return data ? data.publicUrl : '';
+}
+
+let teamView = 'overview';
 function renderTeam(){
-  const owed = DB.expenses.filter(e=>e.status==='owed');
-  const myExpenses = isManager() ? DB.expenses : DB.expenses.filter(e=>e.userEmail===currentUserEmail);
-  const myPayroll = isManager() ? DB.payroll : DB.payroll.filter(p=>p.userEmail===currentUserEmail);
   return `
   <div class="topbar">
     <div><h1>Team &amp; Pay</h1><div class="date">Staff, company spend and payroll ${isManager()?'':'· showing your own records'}</div></div>
-    ${isManager()?`<button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>`:''}
+    ${isManager() && teamView==='overview'?`<button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>`:''}
   </div>
+  <div class="chip-row">
+    <div class="chip ${teamView==='overview'?'active':''}" onclick="teamView='overview';render()">Overview</div>
+    <div class="chip ${teamView==='receipts'?'active':''}" onclick="teamView='receipts';render()">Receipt box</div>
+  </div>
+  ${teamView==='receipts' ? renderReceiptBox() : renderTeamOverview()}
+  `;
+}
+function renderTeamOverview(){
+  const myExpenses = isManager() ? DB.expenses : DB.expenses.filter(e=>e.userEmail===currentUserEmail);
+  const myPayroll = isManager() ? DB.payroll : DB.payroll.filter(p=>p.userEmail===currentUserEmail);
 
+  // Per-employee owed summary (manager only)
+  let summaryHtml = '';
+  if(isManager()){
+    const byEmployee = {};
+    DB.expenses.forEach(e=>{
+      const key = e.employee||'Unknown';
+      if(!byEmployee[key]) byEmployee[key] = {total:0, paid:0, balance:0};
+      byEmployee[key].total += Number(e.amount)||0;
+      byEmployee[key].paid += expensePaidAmount(e);
+      byEmployee[key].balance += expenseBalance(e);
+    });
+    const rows = Object.entries(byEmployee).sort((a,b)=>b[1].balance-a[1].balance);
+    const grandTotal = rows.reduce((s,[,v])=>s+v.balance,0);
+    summaryHtml = `
+    <div class="section-title"><h2>Owed by employee</h2></div>
+    <div class="card" style="padding:0;margin-bottom:20px;">
+      ${rows.length===0?'<div class="empty">No spend logged yet.</div>':`
+      <table><thead><tr><th>Employee</th><th>Total logged</th><th>Paid back</th><th>Outstanding</th></tr></thead><tbody>
+      ${rows.map(([name,v])=>`<tr><td>${name}</td><td>${fmtMoney(v.total)}</td><td>${fmtMoney(v.paid)}</td>
+        <td style="font-weight:700;color:${v.balance>0?'var(--red)':'var(--green)'}">${fmtMoney(v.balance)}</td></tr>`).join('')}
+      <tr style="border-top:2px solid var(--ink)"><td style="font-weight:700;">Grand total owed</td><td></td><td></td>
+        <td style="font-weight:700;font-size:16px;color:${grandTotal>0?'var(--red)':'var(--green)'}">${fmtMoney(grandTotal)}</td></tr>
+      </tbody></table>`}
+    </div>`;
+  }
+
+  return `
   <div class="section-title"><h2>Team</h2></div>
   <div class="card" style="padding:0;">
     ${DB.team.length===0?'<div class="empty">No team members yet.</div>':`
@@ -1284,18 +1342,24 @@ function renderTeam(){
     </tbody></table>`}
   </div>
 
-  <div class="section-title"><h2>Company spend by staff ${isManager()?`<span class="small-muted">— ${owed.length} unpaid, ${fmtMoney(owed.reduce((s,e)=>s+Number(e.amount||0),0))} owed</span>`:''}</h2>
+  ${summaryHtml}
+
+  <div class="section-title"><h2>Company spend by staff</h2>
     <button class="btn btn-amber btn-sm" onclick="openAddExpense()">+ Log my spend</button>
   </div>
   <div class="card" style="padding:0;">
     ${myExpenses.length===0?'<div class="empty">No spend logged yet.</div>':`
-    <table><thead><tr><th>Date</th><th>Employee</th><th>Note</th><th>Amount</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>
-    ${myExpenses.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(e=>`
-      <tr><td>${fmtDate(e.date)}</td><td>${e.employee}</td><td>${e.note||''}</td><td>${fmtMoney(e.amount)}</td>
+    <table><thead><tr><th>Date</th><th>Employee</th><th>Note</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>
+    ${myExpenses.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
+      const bal = expenseBalance(e), status = expenseStatusLabel(e);
+      const statusTag = status==='paid' ? '<span class="tag tag-green">Paid back</span>' : status==='partial' ? '<span class="tag tag-amber">Partly paid</span>' : '<span class="tag tag-red">Owed</span>';
+      return `<tr><td>${fmtDate(e.date)}</td><td>${e.employee}</td><td>${e.note||''}</td><td>${fmtMoney(e.amount)}</td>
+      <td>${fmtMoney(expensePaidAmount(e))}</td><td style="font-weight:700;color:${bal>0?'var(--red)':'var(--green)'}">${fmtMoney(bal)}</td>
       <td>${e.photoId?`<button class="btn btn-sm btn-ghost" onclick="viewExpensePhoto('${e.photoId}')">View</button>`:'—'}</td>
-      <td><span class="tag ${e.status==='paid'?'tag-green':'tag-amber'}">${e.status==='paid'?'Paid back':'Owed'}</span></td>
-      <td>${(e.status==='owed' && isManager())?`<button class="btn btn-sm btn-brand" onclick="markExpensePaid('${e.id}')">Mark paid</button>`:''} ${(isManager()||e.userEmail===currentUserEmail)?`<button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">✕</button>`:''}</td>
-      </tr>`).join('')}
+      <td>${statusTag}</td>
+      <td>${(bal>0 && isManager())?`<button class="btn btn-sm btn-brand" onclick="openRecordPayment('${e.id}')">Record payment</button>`:''} ${(isManager()||e.userEmail===currentUserEmail)?`<button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">✕</button>`:''}</td>
+      </tr>`;
+    }).join('')}
     </tbody></table>`}
   </div>
 
@@ -1326,6 +1390,29 @@ function renderTeam(){
     </tbody></table>`}
   </div>`}
   `;
+}
+function renderReceiptBox(){
+  const receipts = (isManager() ? DB.expenses : DB.expenses.filter(e=>e.userEmail===currentUserEmail)).filter(e=>e.photoId);
+  if(receipts.length===0) return `<div class="card"><div class="empty">No receipts uploaded yet.</div></div>`;
+  const sorted = receipts.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  return `
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));">
+    ${sorted.map(e=>{
+      const bal = expenseBalance(e), status = expenseStatusLabel(e);
+      const statusTag = status==='paid' ? '<span class="tag tag-green">Paid back</span>' : status==='partial' ? '<span class="tag tag-amber">Partly paid</span>' : '<span class="tag tag-red">Owed</span>';
+      return `<div class="card" style="padding:10px;">
+        <img src="${photoUrlSync(e.photoId)}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="window.open('${photoUrlSync(e.photoId)}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+        <div style="display:none;width:100%;aspect-ratio:1;border-radius:8px;background:var(--grey-dim);align-items:center;justify-content:center;color:var(--grey);font-size:12px;text-align:center;padding:8px;">Photo unavailable</div>
+        <div style="margin-top:8px;">
+          <div class="tag tag-brand" style="margin-bottom:4px;">${e.employee}</div>
+          <div style="font-weight:700;font-size:14.5px;">${fmtMoney(e.amount)}</div>
+          <div class="small-muted">${fmtDate(e.date)}</div>
+          ${e.note?`<div class="small-muted" style="margin-top:2px;">${e.note}</div>`:''}
+          <div style="margin-top:6px;">${statusTag}</div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 function changeAccessLevel(id, level){
   const m = DB.team.find(x=>x.id===id); if(!m) return;
@@ -1363,12 +1450,43 @@ function openAddExpense(){
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveExpense()">Log spend</button></div>`);
 }
 async function saveExpense(){
-  const expense = {id:nextId('exp'), employee:currentUserName, userEmail:currentUserEmail, date:document.getElementById('e_date').value, amount:Number(document.getElementById('e_amount').value)||0, note:document.getElementById('e_note').value, status:'owed', photoId:null};
+  const expense = {id:nextId('exp'), employee:currentUserName, userEmail:currentUserEmail, date:document.getElementById('e_date').value, amount:Number(document.getElementById('e_amount').value)||0, note:document.getElementById('e_note').value, status:'owed', paidAmount:0, payments:[], photoId:null};
   const file = document.getElementById('e_photo').files[0];
   DB.expenses.push(expense); saveDB(); closeModal(); render();
-  if(file){ const blob = await compressImage(file); const pid=nextId('photo'); await setPhoto(pid,blob); expense.photoId=pid; saveDB(); render(); }
+  if(file){
+    const blob = await compressImage(file);
+    const pid=nextId('photo');
+    const ok = await setPhoto(pid,blob);
+    if(ok){ expense.photoId=pid; saveDB(); render(); }
+    else { alert("The spend was logged, but the receipt photo didn't upload. You can try again — tap into this entry once photo re-attach is available, or ask your manager to check Supabase Storage permissions for the 'photos' bucket."); }
+  }
 }
-function markExpensePaid(id){ if(!isManager()) return; const e=DB.expenses.find(x=>x.id===id); e.status='paid'; saveDB(); render(); }
+function openRecordPayment(id){
+  if(!isManager()) return;
+  const e = DB.expenses.find(x=>x.id===id); if(!e) return;
+  const bal = expenseBalance(e);
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Record payment</h3>
+    <div class="small-muted" style="margin-bottom:10px;">${e.employee} — ${e.note||'company spend'} on ${fmtDate(e.date)}<br/>
+    Total ${fmtMoney(e.amount)} · already paid ${fmtMoney(expensePaidAmount(e))} · balance <strong>${fmtMoney(bal)}</strong></div>
+    <div class="field-row">
+      <div class="field"><label>Amount paying now (£)</label><input id="pay_amount" type="number" value="${bal}" max="${bal}" step="0.01"/></div>
+      <div class="field"><label>Method</label><select id="pay_method"><option>Bank</option><option>Cash</option></select></div>
+    </div>
+    <div class="field"><label>Date</label><input id="pay_date" type="date" value="${todayISO()}"/></div>
+    <div class="small-muted" style="margin-bottom:10px;">Paying less than the full balance leaves it marked "Partly paid" with the remainder still outstanding.</div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveExpensePayment('${id}')">Save payment</button></div>`);
+}
+function saveExpensePayment(id){
+  if(!isManager()) return;
+  const e = DB.expenses.find(x=>x.id===id); if(!e) return;
+  const amount = Number(document.getElementById('pay_amount').value)||0;
+  if(amount<=0){ alert('Enter an amount greater than zero'); return; }
+  if(!e.payments) e.payments=[];
+  e.payments.push({date:document.getElementById('pay_date').value, amount, method:document.getElementById('pay_method').value});
+  e.paidAmount = expensePaidAmount(e) + amount;
+  e.status = e.paidAmount >= Number(e.amount) ? 'paid' : 'partial';
+  saveDB(); closeModal(); render();
+}
 function deleteExpense(id){
   const e = DB.expenses.find(x=>x.id===id);
   if(!isManager() && e.userEmail!==currentUserEmail) return;
