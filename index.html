@@ -277,11 +277,13 @@
       <div class="nav-item" data-tab="team" onclick="App.go('team')">👥 Team &amp; Pay</div>
       <div class="nav-item" data-tab="customers" onclick="App.go('customers')">🧾 Customers &amp; Sales</div>
       <div class="nav-item" data-tab="reports" onclick="App.go('reports')">📈 Reports</div>
+      <div class="nav-item" data-tab="boardroom" onclick="App.go('boardroom')">💡 Ideas &amp; Capital</div>
       <div class="foot">
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
+        <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
       </div>
     </div>
@@ -315,6 +317,8 @@ const DEFAULT_DB = () => ({
   payroll: [],
   customers: [],
   monthlyCosts: [],
+  notes: [],
+  assets: [],
   seq: 1
 });
 const CHECKLIST_TEMPLATE = [
@@ -327,9 +331,12 @@ let DB = DEFAULT_DB();
 let currentTab = 'dashboard';
 let currentUserEmail = null;
 let currentUserName = null;
-let currentUserRole = 'staff'; // 'manager' has full access; 'staff' has restricted access
+let currentUserRole = 'staff'; // 'superadmin' > 'manager' > 'staff'
+function isSuperAdmin(){ return currentUserRole==='superadmin'; }
+function isManager(){ return currentUserRole==='manager' || currentUserRole==='superadmin'; }
+function roleLabel(r){ return r==='superadmin'?'Super Admin':(r==='manager'?'Manager':'Staff'); }
+function normaliseRole(r){ return (r==='superadmin'||r==='manager')?r:'staff'; }
 let currentUserTeamId = null;
-function isManager(){ return currentUserRole==='manager'; }
 let stockFilter = 'all';
 let stockSearch = '';
 let taskDayOffset = 0;
@@ -414,7 +421,7 @@ function applyRemoteUpdate(incoming, json){
   DB = {...DEFAULT_DB(), ...incoming};
   lastSavedJson = json;
   const me = DB.team.find(m=>(m.email||'').toLowerCase()===currentUserEmail);
-  if(me){ currentUserRole = me.accessLevel==='manager'?'manager':'staff'; currentUserName = me.name; }
+  if(me){ currentUserRole = normaliseRole(me.accessLevel); currentUserName = me.name; }
   if(currentTab==='stock' && activeVehicleId && DB.vehicles.some(v=>v.id===activeVehicleId)){
     renderVehicleDetail();
   } else {
@@ -426,21 +433,117 @@ function applyRemoteUpdate(incoming, json){
 }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pollForUpdates(false); });
 
-/* ---- photo storage (Supabase Storage bucket, real binary files) ---- */
-function getPhoto(id){
-  // Public URL construction is synchronous — no network round trip needed.
-  const {data} = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(id);
-  return Promise.resolve(data ? data.publicUrl : null);
+/* =========================================================================
+   PHOTO STORAGE
+   Photos normally go to the Supabase Storage bucket. If that upload fails
+   for any reason (permissions, connectivity, bucket config), we fall back to
+   storing a heavily-compressed copy inline in the database record so the
+   photo is never silently lost. A "photo reference" is therefore either a
+   storage object id, or a data: URL.
+   ========================================================================= */
+let lastPhotoError = '';
+let lastPhotoMode  = '';
+
+function isInlineRef(ref){ return typeof ref === 'string' && ref.startsWith('data:'); }
+
+// Synchronous — returns a displayable URL for a photo reference.
+function getPhotoUrl(ref){
+  if(!ref) return '';
+  if(isInlineRef(ref)) return ref;
+  const {data} = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(ref);
+  return data ? data.publicUrl : '';
 }
-async function setPhoto(id, blob){
+// Kept for older call sites that awaited it.
+function getPhoto(ref){ return Promise.resolve(getPhotoUrl(ref)); }
+
+function blobToDataUrl(blob){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = e=>res(e.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+// Re-compress smaller for the inline fallback, so the database row stays light.
+function shrinkForInline(blob, maxW=760, quality=0.5){
+  return new Promise((resolve)=>{
+    if(!blob.type.startsWith('image/')){ resolve(blob); return; }
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const scale = Math.min(1, maxW/img.width);
+        const c = document.createElement('canvas');
+        c.width = img.width*scale; c.height = img.height*scale;
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        c.toBlob(b=>resolve(b||blob), 'image/jpeg', quality);
+      };
+      img.onerror = ()=>resolve(blob);
+      img.src = e.target.result;
+    };
+    reader.onerror = ()=>resolve(blob);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/* Stores a photo and returns {ref, mode, error}.
+   mode: 'storage' | 'inline' | 'failed'                              */
+async function storePhoto(blob){
+  lastPhotoError = '';
+  const id = nextId('photo');
   try{
-    const {error} = await sb.storage.from(PHOTOS_BUCKET).upload(id, blob, {upsert:true, contentType: blob.type||'application/octet-stream'});
-    if(error){ console.error('photo upload failed', error); return false; }
-    return true;
-  }catch(e){ console.error(e); return false; }
+    const {error} = await sb.storage.from(PHOTOS_BUCKET)
+      .upload(id, blob, {contentType: blob.type || 'application/octet-stream'});
+    if(!error){ lastPhotoMode='storage'; return {ref:id, mode:'storage'}; }
+    console.error('storage upload failed', error);
+    lastPhotoError = error.message || error.error || JSON.stringify(error);
+  }catch(e){
+    console.error(e);
+    lastPhotoError = e.message || String(e);
+  }
+  // Fallback: keep the photo inline so the user doesn't lose it.
+  try{
+    const small = await shrinkForInline(blob);
+    const dataUrl = await blobToDataUrl(small);
+    lastPhotoMode = 'inline';
+    return {ref:dataUrl, mode:'inline', error:lastPhotoError};
+  }catch(e){
+    lastPhotoMode = 'failed';
+    return {ref:null, mode:'failed', error:lastPhotoError || (e.message||String(e))};
+  }
 }
-async function deletePhoto(id){
-  try{ await sb.storage.from(PHOTOS_BUCKET).remove([id]); }catch(e){}
+
+async function deletePhoto(ref){
+  if(!ref || isInlineRef(ref)) return;        // inline photos vanish with the record
+  try{ await sb.storage.from(PHOTOS_BUCKET).remove([ref]); }catch(e){}
+}
+
+/* Tells the user once per session if photos are falling back to inline storage. */
+let fallbackNoticeShown = false;
+function notePhotoFallback(res){
+  if(res && res.mode==='inline' && !fallbackNoticeShown){
+    fallbackNoticeShown = true;
+    alert("Your photo was saved and will display normally.\n\nNote: it was stored inside the app rather than the photo library, because the photo storage isn't accepting uploads right now. Nothing is lost. A manager can tap \u201cTest photo storage\u201d in the menu to see the exact reason.");
+  }
+}
+
+/* Diagnostic: uploads a tiny test file so the exact storage error is visible. */async function testPhotoStorage(){
+  const testId = 'diagnostic_'+Date.now()+'.txt';
+  try{
+    const blob = new Blob(['storage test'], {type:'text/plain'});
+    const {error} = await sb.storage.from(PHOTOS_BUCKET).upload(testId, blob, {contentType:'text/plain'});
+    if(error){
+      alert('Photo storage is NOT working.\n\nBucket: "'+PHOTOS_BUCKET+'"\nError: '+(error.message||JSON.stringify(error))+
+            '\n\nPhotos will still be saved inside the app as a fallback, so nothing is lost.');
+      return;
+    }
+    await sb.storage.from(PHOTOS_BUCKET).remove([testId]);
+    alert('Photo storage is working correctly.\n\nBucket "'+PHOTOS_BUCKET+'" accepted and removed a test file.');
+  }catch(e){
+    alert('Photo storage test failed.\n\nError: '+(e.message||String(e))+
+          '\n\nPhotos will still be saved inside the app as a fallback.');
+  }
 }
 
 function nextId(prefix){ DB.seq++; return prefix+'_'+DB.seq+'_'+Math.random().toString(36).slice(2,7); }
@@ -496,6 +599,10 @@ function monthKey(dateStr){ return dateStr.slice(0,7); }
    ========================================================================= */
 function render(){
   document.querySelectorAll('.nav-item').forEach(n=> n.classList.toggle('active', n.dataset.tab===currentTab));
+  // Ideas & Capital is a manager-level section
+  const brNav = document.querySelector('.nav-item[data-tab="boardroom"]');
+  if(brNav) brNav.style.display = isManager() ? '' : 'none';
+  if(currentTab==='boardroom' && !isManager()) currentTab = 'dashboard';
   const overdueIssues = allOpenIssues().filter(i=>isOverdue(i.reminderDate));
   const overdueTasks = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
   document.querySelector('.nav-item[data-tab="tasks"]').classList.toggle('has-alert', (overdueIssues.length+overdueTasks.length)>0);
@@ -508,6 +615,7 @@ function render(){
   else if(currentTab==='team') html = renderTeam();
   else if(currentTab==='customers') html = renderCustomers();
   else if(currentTab==='reports') html = renderReports();
+  else if(currentTab==='boardroom') html = renderBoardroom();
   main.innerHTML = html;
 
   if(currentTab==='reports') drawReportCharts();
@@ -687,9 +795,25 @@ function openAddVehicle(){
   `;
   openModal(body);
 }
+function normaliseReg(r){ return (r||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function findVehicleByReg(reg, excludeId){
+  const key = normaliseReg(reg);
+  if(!key) return null;
+  return DB.vehicles.find(v => normaliseReg(v.reg)===key && v.id!==excludeId) || null;
+}
 function saveNewVehicle(){
   const reg = document.getElementById('f_reg').value.trim().toUpperCase();
   if(!reg){ alert('Registration is required'); return; }
+  // Block duplicates — ignores spacing/case so "LP19KFX" and "LP19 KFX" count as the same car.
+  const existing = findVehicleByReg(reg);
+  if(existing){
+    const status = statusLabel(existing.status);
+    const added = fmtDate(existing.dateAdded);
+    alert(`${existing.reg} is already in stock.\n\n${existing.make||''} ${existing.model||''}${existing.year?' '+existing.year:''}\nStatus: ${status}\nAdded: ${added}\n\nOpening that vehicle instead of creating a duplicate.`);
+    closeModal();
+    openVehicle(existing.id);
+    return;
+  }
   const v = {
     id: nextId('veh'),
     reg, make:document.getElementById('f_make').value, model:document.getElementById('f_model').value,
@@ -778,10 +902,10 @@ function deleteVehicle(id){
 /* ---- issues & photos ---- */
 async function vehicleIssuesTab(v){
   let photosHtml = '';
-  for(const p of (v.photos||[])){
-    const url = await getPhoto(p.id);
-    photosHtml += `<div class="photo-cell"><img class="photo-thumb" src="${url}" onclick="window.open('${url}')"/><button class="rm" onclick="removeVehiclePhoto('${v.id}','${p.id}')">✕</button></div>`;
-  }
+  (v.photos||[]).forEach((p,idx)=>{
+    const url = getPhotoUrl(p.id);
+    photosHtml += `<div class="photo-cell"><img class="photo-thumb" src="${url}" onclick="openVehiclePhoto('${v.id}',${idx})"/><button class="rm" onclick="removeVehiclePhoto('${v.id}',${idx})">✕</button></div>`;
+  });
   return `
   <div class="card" style="margin-bottom:16px;">
     <div class="flex-between"><h3 style="margin:0">General photos</h3>
@@ -802,7 +926,7 @@ async function renderIssuesList(v){
   let out = '';
   for(const i of v.issues){
     let photoHtml='';
-    if(i.photoId){ const url = await getPhoto(i.photoId); photoHtml = `<img class="photo-thumb" src="${url}" style="width:48px;height:48px;margin-left:10px" onclick="window.open('${url}')"/>`; }
+    if(i.photoId){ const url = getPhotoUrl(i.photoId); photoHtml = `<img class="photo-thumb" src="${url}" style="width:48px;height:48px;margin-left:10px" onclick="openIssuePhoto('${v.id}','${i.id}')"/>`; }
     out += `<div class="issue-row">
       <div class="issue-main">
         <div class="t">${labelForIssueType(i.type)} — ${i.desc}</div>
@@ -870,10 +994,9 @@ async function saveIssue(vId){
   saveDB(); closeModal(); renderVehicleDetail();
   if(file){
     const blob = await compressImage(file);
-    const pid = nextId('photo');
-    const ok = await setPhoto(pid, blob);
-    if(ok){ issue.photoId = pid; saveDB(); renderVehicleDetail(); }
-    else { alert("The photo didn't upload — everything else was saved, but you'll need to try attaching the photo again (check your connection, or ask your manager to check Supabase Storage permissions)."); }
+    const res = await storePhoto(blob);
+    if(res.ref){ issue.photoId = res.ref; saveDB(); renderVehicleDetail(); notePhotoFallback(res); }
+    else { alert("The photo couldn't be saved. Error: " + (res.error||'unknown')); }
   }
 }
 function openEditIssueLinks(vId, issueId){
@@ -908,17 +1031,22 @@ async function uploadVehiclePhoto(vId, input){
   const file = input.files[0]; if(!file) return;
   const v = DB.vehicles.find(x=>x.id===vId);
   const blob = await compressImage(file);
-  const pid = nextId('photo');
-  const ok = await setPhoto(pid, blob);
-  if(!ok){ alert("The photo didn't upload. Check your connection, or ask your manager to check Supabase Storage permissions for the 'photos' bucket."); return; }
+  const res = await storePhoto(blob);
+  if(!res.ref){ alert("The photo couldn't be saved. Error: " + (res.error||'unknown')); return; }
   if(!v.photos) v.photos=[];
-  v.photos.push({id:pid, addedAt: todayISO()});
-  saveDB(); renderVehicleDetail();
+  v.photos.push({id:res.ref, addedAt: todayISO()});
+  saveDB(); renderVehicleDetail(); notePhotoFallback(res);
 }
-async function removeVehiclePhoto(vId, photoId){
+function openVehiclePhoto(vId, idx){
   const v = DB.vehicles.find(x=>x.id===vId);
-  v.photos = v.photos.filter(p=>p.id!==photoId);
-  await deletePhoto(photoId);
+  const url = getPhotoUrl((v.photos||[])[idx] && v.photos[idx].id);
+  if(url) window.open(url);
+}
+async function removeVehiclePhoto(vId, idx){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const p = (v.photos||[])[idx]; if(!p) return;
+  v.photos.splice(idx,1);
+  await deletePhoto(p.id);
   saveDB(); renderVehicleDetail();
 }
 
@@ -964,10 +1092,13 @@ function updateChecklistNote(vId, idx, val){ const v=DB.vehicles.find(x=>x.id===
 async function vehicleCostsTab(v, cost){
   const c = v.costs||{};
   let invHtml = '';
-  for(const inv of (v.invoicePhotoIds||[])){
-    const url = await getPhoto(inv.id);
-    invHtml += `<div class="photo-cell">${inv.isPdf? `<a href="${url}" target="_blank" class="photo-thumb" style="display:flex;align-items:center;justify-content:center;background:#f2f2f2;text-decoration:none;font-size:11px;">PDF</a>`:`<img class="photo-thumb" src="${url}" onclick="window.open('${url}')"/>`}<button class="rm" onclick="removeInvoicePhoto('${v.id}','${inv.id}')">✕</button></div>`;
-  }
+  (v.invoicePhotoIds||[]).forEach((inv,idx)=>{
+    const url = getPhotoUrl(inv.id);
+    const thumb = inv.isPdf
+      ? `<a class="photo-thumb" style="display:flex;align-items:center;justify-content:center;background:#f2f2f2;text-decoration:none;font-size:11px;cursor:pointer;" onclick="openInvoiceFile('${v.id}',${idx})">PDF</a>`
+      : `<img class="photo-thumb" src="${url}" onclick="openInvoiceFile('${v.id}',${idx})"/>`;
+    invHtml += `<div class="photo-cell">${thumb}<button class="rm" onclick="removeInvoicePhoto('${v.id}',${idx})">✕</button></div>`;
+  });
   const fields = [['purchase','Purchase price'],['delivery','Delivery cost'],['service','Service'],['mot','MOT'],['bodywork','Bodywork'],['mechanical','Mechanical repair'],['autotrader','AutoTrader boost'],['fuel','Fuel'],['other','Other']];
   return `
   <div class="card" style="margin-bottom:16px;">
@@ -992,17 +1123,37 @@ async function uploadInvoice(vId, input){
   const v = DB.vehicles.find(x=>x.id===vId);
   const isPdf = file.type==='application/pdf';
   const blob = isPdf ? file : await compressImage(file);
-  const pid = nextId('inv');
-  const ok = await setPhoto(pid, blob);
-  if(!ok){ alert("The invoice didn't upload. Check your connection, or ask your manager to check Supabase Storage permissions for the 'photos' bucket."); return; }
+  const res = await storePhoto(blob);
+  if(!res.ref){ alert("The invoice couldn't be saved. Error: " + (res.error||'unknown')); return; }
   if(!v.invoicePhotoIds) v.invoicePhotoIds=[];
-  v.invoicePhotoIds.push({id:pid, isPdf});
-  saveDB(); renderVehicleDetail();
+  v.invoicePhotoIds.push({id:res.ref, isPdf});
+  saveDB(); renderVehicleDetail(); notePhotoFallback(res);
 }
-async function removeInvoicePhoto(vId, id){
+function openInvoiceFile(vId, idx){
   const v = DB.vehicles.find(x=>x.id===vId);
-  v.invoicePhotoIds = v.invoicePhotoIds.filter(x=>x.id!==id);
-  await deletePhoto(id); saveDB(); renderVehicleDetail();
+  const inv = (v.invoicePhotoIds||[])[idx]; if(!inv) return;
+  const url = getPhotoUrl(inv.id);
+  if(!url) return;
+  if(isInlineRef(inv.id)){
+    // data: URLs can't always be opened directly on mobile — open via a blob instead
+    try{
+      const parts = inv.id.split(',');
+      const mime = (parts[0].match(/:(.*?);/)||[])[1] || 'application/octet-stream';
+      const bin = atob(parts[1]);
+      const arr = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      const blobUrl = URL.createObjectURL(new Blob([arr],{type:mime}));
+      window.open(blobUrl);
+      return;
+    }catch(e){ /* fall through */ }
+  }
+  window.open(url);
+}
+async function removeInvoicePhoto(vId, idx){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const inv = (v.invoicePhotoIds||[])[idx]; if(!inv) return;
+  v.invoicePhotoIds.splice(idx,1);
+  await deletePhoto(inv.id); saveDB(); renderVehicleDetail();
 }
 
 /* ---- sale ---- */
@@ -1280,11 +1431,7 @@ function expenseStatusLabel(e){
   if(expensePaidAmount(e)>0) return 'partial';
   return 'owed';
 }
-function photoUrlSync(id){
-  if(!id) return '';
-  const {data} = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(id);
-  return data ? data.publicUrl : '';
-}
+function photoUrlSync(ref){ return getPhotoUrl(ref); }
 
 let teamView = 'overview';
 function renderTeam(){
@@ -1336,9 +1483,9 @@ function renderTeamOverview(){
     ${DB.team.length===0?'<div class="empty">No team members yet.</div>':`
     <table><thead><tr><th>Name</th><th>Job role</th><th>Access</th><th>Day rate</th>${isManager()?'<th></th>':''}</tr></thead><tbody>
     ${DB.team.map(m=>`<tr><td>${m.name}${m.email===currentUserEmail?' <span class="tag tag-brand">You</span>':''}</td><td>${m.role||'—'}</td>
-      <td>${isManager() ? `<select onchange="changeAccessLevel('${m.id}',this.value)" ${m.email===currentUserEmail?'disabled title="You can\'t change your own access level"':''}><option value="staff" ${m.accessLevel!=='manager'?'selected':''}>Staff</option><option value="manager" ${m.accessLevel==='manager'?'selected':''}>Manager</option></select>` : `<span class="tag ${m.accessLevel==='manager'?'tag-brand':'tag-grey'}">${m.accessLevel==='manager'?'Manager':'Staff'}</span>`}</td>
+      <td>${isSuperAdmin() ? `<select onchange="changeAccessLevel('${m.id}',this.value)" ${m.email===currentUserEmail?'disabled title="You can\'t change your own access level"':''}><option value="staff" ${normaliseRole(m.accessLevel)==='staff'?'selected':''}>Staff</option><option value="manager" ${normaliseRole(m.accessLevel)==='manager'?'selected':''}>Manager</option><option value="superadmin" ${normaliseRole(m.accessLevel)==='superadmin'?'selected':''}>Super Admin</option></select>` : `<span class="tag ${normaliseRole(m.accessLevel)==='superadmin'?'tag-red':(normaliseRole(m.accessLevel)==='manager'?'tag-brand':'tag-grey')}">${roleLabel(normaliseRole(m.accessLevel))}</span>`}</td>
       <td>${fmtMoney(m.dayRate)}</td>
-      ${isManager()?`<td><button class="btn btn-sm btn-danger" onclick="deleteTeamMember('${m.id}')" ${m.email===currentUserEmail?'disabled':''}>Remove</button></td>`:''}</tr>`).join('')}
+      ${isManager()?`<td>${isSuperAdmin()?`<button class="btn btn-sm btn-danger" onclick="deleteTeamMember('${m.id}')" ${m.email===currentUserEmail?'disabled':''}>Remove</button>`:''}</td>`:''}</tr>`).join('')}
     </tbody></table>`}
   </div>
 
@@ -1355,7 +1502,7 @@ function renderTeamOverview(){
       const statusTag = status==='paid' ? '<span class="tag tag-green">Paid back</span>' : status==='partial' ? '<span class="tag tag-amber">Partly paid</span>' : '<span class="tag tag-red">Owed</span>';
       return `<tr><td>${fmtDate(e.date)}</td><td>${e.employee}</td><td>${e.note||''}</td><td>${fmtMoney(e.amount)}</td>
       <td>${fmtMoney(expensePaidAmount(e))}</td><td style="font-weight:700;color:${bal>0?'var(--red)':'var(--green)'}">${fmtMoney(bal)}</td>
-      <td>${e.photoId?`<button class="btn btn-sm btn-ghost" onclick="viewExpensePhoto('${e.photoId}')">View</button>`:'—'}</td>
+      <td>${e.photoId?`<button class="btn btn-sm btn-ghost" onclick="viewExpensePhotoById('${e.id}')">View</button>`:'—'}</td>
       <td>${statusTag}</td>
       <td>${(bal>0 && isManager())?`<button class="btn btn-sm btn-brand" onclick="openRecordPayment('${e.id}')">Record payment</button>`:''} ${(isManager()||e.userEmail===currentUserEmail)?`<button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">✕</button>`:''}</td>
       </tr>`;
@@ -1401,7 +1548,7 @@ function renderReceiptBox(){
       const bal = expenseBalance(e), status = expenseStatusLabel(e);
       const statusTag = status==='paid' ? '<span class="tag tag-green">Paid back</span>' : status==='partial' ? '<span class="tag tag-amber">Partly paid</span>' : '<span class="tag tag-red">Owed</span>';
       return `<div class="card" style="padding:10px;">
-        <img src="${photoUrlSync(e.photoId)}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="window.open('${photoUrlSync(e.photoId)}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+        <img src="${getPhotoUrl(e.photoId)}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;" onclick="viewExpensePhotoById('${e.id}')" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
         <div style="display:none;width:100%;aspect-ratio:1;border-radius:8px;background:var(--grey-dim);align-items:center;justify-content:center;color:var(--grey);font-size:12px;text-align:center;padding:8px;">Photo unavailable</div>
         <div style="margin-top:8px;">
           <div class="tag tag-brand" style="margin-bottom:4px;">${e.employee}</div>
@@ -1415,8 +1562,15 @@ function renderReceiptBox(){
   </div>`;
 }
 function changeAccessLevel(id, level){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can change access levels.'); render(); return; }
   const m = DB.team.find(x=>x.id===id); if(!m) return;
-  m.accessLevel = level; saveDB(); render();
+  if(m.email===currentUserEmail){ alert("You can't change your own access level."); render(); return; }
+  // Don't allow the last Super Admin to be demoted — someone must keep full control.
+  if(normaliseRole(m.accessLevel)==='superadmin' && level!=='superadmin'){
+    const others = DB.team.filter(x=>x.id!==id && normaliseRole(x.accessLevel)==='superadmin').length;
+    if(others===0){ alert('There must be at least one Super Admin. Promote someone else first.'); render(); return; }
+  }
+  m.accessLevel = normaliseRole(level); saveDB(); render();
 }
 function openAddTeamMember(){
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add team member</h3>
@@ -1424,7 +1578,7 @@ function openAddTeamMember(){
     <div class="field"><label>Name</label><input id="m_name"/></div>
     <div class="field-row"><div class="field"><label>Email (must match their login)</label><input id="m_email" type="email"/></div></div>
     <div class="field-row"><div class="field"><label>Job role</label><input id="m_role" placeholder="e.g. Sales, Mechanic"/></div><div class="field"><label>Day rate (£)</label><input id="m_rate" type="number"/></div></div>
-    <div class="field"><label>Access level</label><select id="m_access"><option value="staff">Staff</option><option value="manager">Manager</option></select></div>
+    <div class="field"><label>Access level</label><select id="m_access"><option value="staff">Staff</option><option value="manager">Manager</option>${isSuperAdmin()?'<option value="superadmin">Super Admin</option>':''}</select></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveTeamMember()">Add</button></div>`);
 }
 function saveTeamMember(){
@@ -1433,8 +1587,12 @@ function saveTeamMember(){
   saveDB(); closeModal(); render();
 }
 function deleteTeamMember(id){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can remove team members.'); return; }
   const m = DB.team.find(x=>x.id===id);
   if(m && m.email===currentUserEmail){ alert("You can't remove your own profile."); return; }
+  if(m && normaliseRole(m.accessLevel)==='superadmin' && DB.team.filter(x=>normaliseRole(x.accessLevel)==='superadmin').length<=1){
+    alert('There must be at least one Super Admin.'); return;
+  }
   if(!confirm('Remove this team member?'))return; DB.team=DB.team.filter(x=>x.id!==id); saveDB(); render();
 }
 
@@ -1455,10 +1613,9 @@ async function saveExpense(){
   DB.expenses.push(expense); saveDB(); closeModal(); render();
   if(file){
     const blob = await compressImage(file);
-    const pid=nextId('photo');
-    const ok = await setPhoto(pid,blob);
-    if(ok){ expense.photoId=pid; saveDB(); render(); }
-    else { alert("The spend was logged, but the receipt photo didn't upload. You can try again — tap into this entry once photo re-attach is available, or ask your manager to check Supabase Storage permissions for the 'photos' bucket."); }
+    const res = await storePhoto(blob);
+    if(res.ref){ expense.photoId=res.ref; saveDB(); render(); notePhotoFallback(res); }
+    else { alert("The spend was logged, but the receipt photo couldn't be saved. Error: " + (res.error||'unknown')); }
   }
 }
 function openRecordPayment(id){
@@ -1492,7 +1649,16 @@ function deleteExpense(id){
   if(!isManager() && e.userEmail!==currentUserEmail) return;
   DB.expenses=DB.expenses.filter(x=>x.id!==id); saveDB(); render();
 }
-async function viewExpensePhoto(pid){ const url = await getPhoto(pid); if(url) window.open(url); }
+function viewExpensePhoto(ref){ const url = getPhotoUrl(ref); if(url) window.open(url); }
+function viewExpensePhotoById(expId){
+  const e = DB.expenses.find(x=>x.id===expId); if(!e) return;
+  const url = getPhotoUrl(e.photoId); if(url) window.open(url);
+}
+function openIssuePhoto(vId, issueId){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const i = (v.issues||[]).find(x=>x.id===issueId); if(!i) return;
+  const url = getPhotoUrl(i.photoId); if(url) window.open(url);
+}
 
 function openAddPayroll(){
   if(!isManager()) return;
@@ -1850,6 +2016,214 @@ function drawMonthlyTrendCharts(){
   }
 }
 
+
+/* =========================================================================
+   IDEAS & CAPITAL — manager-level notes board plus a record of what has
+   been put into the business (capital, equipment, other assets).
+   ========================================================================= */
+const NOTE_CATEGORIES = ['Idea','Suggestion','Issue','Decision','Reminder'];
+const NOTE_STATUSES = ['Open','Under review','Actioned','Parked'];
+const ASSET_TYPES = ['Initial investment','Partner capital','Director loan','Equipment','Fixtures & fit-out','Vehicle (non-stock)','Other asset'];
+
+let boardView = 'notes';
+let noteFilter = 'open';
+
+function renderBoardroom(){
+  return `
+  <div class="topbar">
+    <div><h1>Ideas &amp; Capital</h1><div class="date">Notes, suggestions and what's been invested in the business</div></div>
+    ${boardView==='notes'
+      ? `<button class="btn btn-brand" onclick="openAddNote()">+ Add note</button>`
+      : `<button class="btn btn-brand" onclick="openAddAsset()">+ Add entry</button>`}
+  </div>
+  <div class="chip-row">
+    <div class="chip ${boardView==='notes'?'active':''}" onclick="boardView='notes';render()">Notes &amp; Ideas${openNotesCount()?' ('+openNotesCount()+')':''}</div>
+    <div class="chip ${boardView==='capital'?'active':''}" onclick="boardView='capital';render()">Capital &amp; Assets</div>
+  </div>
+  ${boardView==='notes' ? renderNotesBoard() : renderCapitalBoard()}
+  `;
+}
+function openNotesCount(){ return (DB.notes||[]).filter(n=>n.status!=='Actioned' && n.status!=='Parked').length; }
+
+function noteStatusTag(st){
+  const cls = st==='Actioned' ? 'tag-green' : st==='Under review' ? 'tag-amber' : st==='Parked' ? 'tag-grey' : 'tag-blue';
+  return `<span class="tag ${cls}">${st}</span>`;
+}
+function noteCatTag(c){
+  const cls = c==='Issue' ? 'tag-red' : c==='Decision' ? 'tag-brand' : c==='Suggestion' ? 'tag-amber' : 'tag-blue';
+  return `<span class="tag ${cls}">${c}</span>`;
+}
+
+function renderNotesBoard(){
+  const all = (DB.notes||[]).slice();
+  const filtered = noteFilter==='all' ? all
+    : noteFilter==='open' ? all.filter(n=>n.status!=='Actioned' && n.status!=='Parked')
+    : all.filter(n=>n.status===noteFilter);
+  filtered.sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+
+  const filters = [['open','Open'],['all','All'],['Actioned','Actioned'],['Parked','Parked']];
+  return `
+  <div class="date" style="margin-bottom:10px;">Anything worth remembering — an idea for the business, something to improve, or a decision made between the directors.</div>
+  <div class="chip-row">
+    ${filters.map(([k,l])=>`<div class="chip ${noteFilter===k?'active':''}" onclick="noteFilter='${k}';render()">${l}</div>`).join('')}
+  </div>
+  ${filtered.length===0 ? `<div class="card"><div class="empty"><div class="big">Nothing here yet</div>Add the first note or idea using the button above.</div></div>` : `
+  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));">
+    ${filtered.map(n=>`
+      <div class="card" style="padding:14px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${noteCatTag(n.category)} ${noteStatusTag(n.status)}</div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px;">${escapeHtml(n.title)}</div>
+        ${n.body?`<div style="font-size:13.5px;white-space:pre-wrap;margin-bottom:8px;">${escapeHtml(n.body)}</div>`:''}
+        <div class="small-muted">${escapeHtml(n.author||'')} · ${fmtDate(n.createdAt)}</div>
+        <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
+          <select onchange="setNoteStatus('${n.id}',this.value)" style="font-size:12px;padding:4px 6px;">
+            ${NOTE_STATUSES.map(st=>`<option ${n.status===st?'selected':''}>${st}</option>`).join('')}
+          </select>
+          <button class="btn btn-sm btn-ghost" onclick="openAddNote('${n.id}')">Edit</button>
+          ${(isSuperAdmin() || n.authorEmail===currentUserEmail) ? `<button class="btn btn-sm btn-danger" onclick="deleteNote('${n.id}')">✕</button>` : ''}
+        </div>
+      </div>`).join('')}
+  </div>`}
+  `;
+}
+
+function openAddNote(id){
+  const n = id ? (DB.notes||[]).find(x=>x.id===id) : null;
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${n?'Edit note':'Add a note'}</h3>
+    ${n?'':`<div class="small-muted" style="margin-bottom:10px;">Posting as <strong>${escapeHtml(currentUserName||'')}</strong></div>`}
+    <div class="field"><label>Title</label><input id="n_title" value="${n?escapeAttr(n.title):''}" placeholder="e.g. Try video walk-arounds on every listing"/></div>
+    <div class="field-row">
+      <div class="field"><label>Category</label><select id="n_cat">${NOTE_CATEGORIES.map(c=>`<option ${n&&n.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="field"><label>Status</label><select id="n_status">${NOTE_STATUSES.map(st=>`<option ${n&&n.status===st?'selected':''}>${st}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label>Details</label><textarea id="n_body" rows="4" placeholder="What's the idea, and why?">${n?escapeHtml(n.body||''):''}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveNote(${n?`'${n.id}'`:'null'})">${n?'Save changes':'Add note'}</button>
+    </div>
+  `);
+}
+function saveNote(id){
+  const title = document.getElementById('n_title').value.trim();
+  if(!title){ alert('Give the note a title'); return; }
+  const category = document.getElementById('n_cat').value;
+  const status = document.getElementById('n_status').value;
+  const body = document.getElementById('n_body').value;
+  if(!DB.notes) DB.notes = [];
+  if(id){
+    const n = DB.notes.find(x=>x.id===id);
+    if(n){ n.title=title; n.category=category; n.status=status; n.body=body; n.updatedAt=todayISO(); }
+  } else {
+    DB.notes.push({id:nextId('note'), title, category, status, body,
+      author:currentUserName, authorEmail:currentUserEmail, createdAt:todayISO()});
+  }
+  saveDB(); closeModal(); render();
+}
+function setNoteStatus(id, status){
+  const n = (DB.notes||[]).find(x=>x.id===id); if(!n) return;
+  n.status = status; n.updatedAt = todayISO(); saveDB(); render();
+}
+function deleteNote(id){
+  const n = (DB.notes||[]).find(x=>x.id===id); if(!n) return;
+  if(!isSuperAdmin() && n.authorEmail!==currentUserEmail) return;
+  if(!confirm('Delete this note?')) return;
+  DB.notes = DB.notes.filter(x=>x.id!==id); saveDB(); render();
+}
+
+function renderCapitalBoard(){
+  const assets = (DB.assets||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const totalIn = assets.reduce((s,a)=>s+(Number(a.amount)||0),0);
+  const byType = {};
+  assets.forEach(a=>{ byType[a.type] = (byType[a.type]||0) + (Number(a.amount)||0); });
+  const byPerson = {};
+  assets.forEach(a=>{ if(a.contributor){ byPerson[a.contributor] = (byPerson[a.contributor]||0) + (Number(a.amount)||0); } });
+  const val = stockValuation();
+
+  return `
+  <div class="date" style="margin-bottom:10px;">A running record of what has been put into the business — capital, equipment and other assets.</div>
+  <div class="grid kpi-grid">
+    <div class="card kpi"><div class="label">Total put in</div><div class="value small">${fmtMoney(totalIn)}</div><div class="sub">Capital &amp; assets recorded</div></div>
+    <div class="card kpi"><div class="label">Stock at cost</div><div class="value small">${fmtMoney(val.costValue)}</div><div class="sub">${val.count} vehicles in stock now</div></div>
+    <div class="card kpi"><div class="label">Stock at selling value</div><div class="value small">${fmtMoney(val.sellValue)}</div><div class="sub">If everything sold at asking</div></div>
+    <div class="card kpi"><div class="label">Indicative total</div><div class="value small">${fmtMoney(totalIn + val.costValue)}</div><div class="sub">Recorded assets + stock at cost</div></div>
+  </div>
+
+  ${Object.keys(byPerson).length ? `
+  <div class="section-title"><h2>By contributor</h2></div>
+  <div class="card" style="padding:0;">
+    <table><thead><tr><th>Contributor</th><th>Total put in</th></tr></thead><tbody>
+      ${Object.entries(byPerson).sort((a,b)=>b[1]-a[1]).map(([p,amt])=>`<tr><td>${escapeHtml(p)}</td><td>${fmtMoney(amt)}</td></tr>`).join('')}
+    </tbody></table>
+  </div>`:''}
+
+  <div class="section-title"><h2>All entries</h2></div>
+  <div class="card" style="padding:0;">
+    ${assets.length===0 ? `<div class="empty"><div class="big">Nothing recorded yet</div>Add the initial investment, equipment or anything else put into the business.</div>` : `
+    <table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Contributor</th><th>Amount</th><th></th></tr></thead><tbody>
+    ${assets.map(a=>`<tr>
+      <td>${fmtDate(a.date)}</td>
+      <td><span class="tag tag-brand">${escapeHtml(a.type)}</span></td>
+      <td>${escapeHtml(a.desc||'')}</td>
+      <td>${escapeHtml(a.contributor||'—')}</td>
+      <td style="font-weight:700;">${fmtMoney(a.amount)}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="openAddAsset('${a.id}')">Edit</button>
+          ${isSuperAdmin()?`<button class="btn btn-sm btn-danger" onclick="deleteAsset('${a.id}')">✕</button>`:''}</td>
+    </tr>`).join('')}
+    <tr><td colspan="4" style="font-weight:700;">Total</td><td style="font-weight:700;font-size:15px;">${fmtMoney(totalIn)}</td><td></td></tr>
+    </tbody></table>`}
+  </div>
+  <div class="small-muted" style="margin-top:10px;">This is a working record for the directors, not a formal balance sheet — it doesn't account for depreciation, liabilities or drawings. Your accountant's figures are the ones that count.</div>
+  `;
+}
+
+function openAddAsset(id){
+  const a = id ? (DB.assets||[]).find(x=>x.id===id) : null;
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${a?'Edit entry':'Add capital or asset'}</h3>
+    <div class="field-row">
+      <div class="field"><label>Type</label><select id="a_type">${ASSET_TYPES.map(t=>`<option ${a&&a.type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Date</label><input id="a_date" type="date" value="${a?a.date:todayISO()}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Contributor / owner</label><input id="a_contrib" value="${a?escapeAttr(a.contributor||''):''}" placeholder="e.g. director name"/></div>
+      <div class="field"><label>Amount (£)</label><input id="a_amount" type="number" step="0.01" value="${a?a.amount:''}"/></div>
+    </div>
+    <div class="field"><label>Description</label><textarea id="a_desc" rows="2" placeholder="e.g. Initial capital at launch, ramp and tools, office fit-out">${a?escapeHtml(a.desc||''):''}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveAsset(${a?`'${a.id}'`:'null'})">${a?'Save changes':'Add entry'}</button>
+    </div>
+  `);
+}
+function saveAsset(id){
+  const amount = Number(document.getElementById('a_amount').value)||0;
+  const type = document.getElementById('a_type').value;
+  const date = document.getElementById('a_date').value;
+  const contributor = document.getElementById('a_contrib').value.trim();
+  const desc = document.getElementById('a_desc').value;
+  if(amount<=0){ alert('Enter an amount greater than zero'); return; }
+  if(!DB.assets) DB.assets = [];
+  if(id){
+    const a = DB.assets.find(x=>x.id===id);
+    if(a){ Object.assign(a,{type,date,contributor,desc,amount}); }
+  } else {
+    DB.assets.push({id:nextId('asset'), type, date, contributor, desc, amount,
+      addedBy:currentUserName, createdAt:todayISO()});
+  }
+  saveDB(); closeModal(); render();
+}
+function deleteAsset(id){
+  if(!isSuperAdmin()) return;
+  if(!confirm('Delete this entry?')) return;
+  DB.assets = (DB.assets||[]).filter(x=>x.id!==id); saveDB(); render();
+}
+
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s); }
+
 /* =========================================================================
    MODAL HELPERS
    ========================================================================= */
@@ -1885,21 +2259,30 @@ async function enterApp(user){
   await loadDB();
   document.getElementById('bizName').value = DB.bizName || 'Forecourt';
   bootstrapCurrentUserProfile();
-  document.getElementById('userEmailLabel').textContent = currentUserName + (isManager()?' (Manager)':'');
+  document.getElementById('userEmailLabel').textContent = currentUserName + ' (' + roleLabel(currentUserRole) + ')';
+  const stl = document.getElementById('storageTestLink');
+  if(stl) stl.style.display = isManager() ? 'block' : 'none';
   setupNotifications();
 }
 function bootstrapCurrentUserProfile(){
   let me = DB.team.find(m=>(m.email||'').toLowerCase()===currentUserEmail);
   if(!me){
-    // First person ever to log in becomes the manager; everyone after starts as staff
-    // and a manager can promote them from the Team & Pay page.
-    me = {id:nextId('mem'), name:currentUserEmail.split('@')[0], email:currentUserEmail, role:'', accessLevel: DB.team.length===0?'manager':'staff', dayRate:0};
+    // First person ever to log in becomes the Super Admin; everyone after starts as
+    // staff, and a Super Admin can promote them from the Team & Pay page.
+    me = {id:nextId('mem'), name:currentUserEmail.split('@')[0], email:currentUserEmail, role:'', accessLevel: DB.team.length===0?'superadmin':'staff', dayRate:0};
     DB.team.push(me);
     saveDB();
   }
+  // Migration for workspaces created before Super Admin existed: if nobody holds it,
+  // promote the existing manager(s) so the workspace isn't left without full control.
+  if(!DB.team.some(m=>normaliseRole(m.accessLevel)==='superadmin')){
+    const managers = DB.team.filter(m=>normaliseRole(m.accessLevel)==='manager');
+    if(managers.length){ managers.forEach(m=> m.accessLevel='superadmin'); saveDB(); }
+    else if(DB.team.length===1){ DB.team[0].accessLevel='superadmin'; saveDB(); }
+  }
   currentUserTeamId = me.id;
   currentUserName = me.name;
-  currentUserRole = me.accessLevel==='manager' ? 'manager' : 'staff';
+  currentUserRole = normaliseRole(me.accessLevel);
 }
 
 /* =========================================================================
