@@ -129,6 +129,7 @@
   .tag-blue{ background:var(--blue-dim); color:var(--blue); }
   .tag-grey{ background:var(--grey-dim); color:var(--grey); }
   .tag-brand{ background:var(--brand-dim); color:var(--brand); }
+  .tag-purple{ background:#7A4FB01a; color:#7A4FB0; }
 
   .section-title{ display:flex; justify-content:space-between; align-items:center; margin:26px 0 12px; gap:10px; flex-wrap:wrap; }
   .section-title h2{ font-size:20px; margin:0; }
@@ -273,6 +274,7 @@
     <div id="sidebarNavItems">
       <div class="nav-item" data-tab="dashboard" onclick="App.go('dashboard')">📊 Dashboard</div>
       <div class="nav-item" data-tab="stock" onclick="App.go('stock')">🚗 Stock</div>
+      <div class="nav-item" data-tab="leads" onclick="App.go('leads')">🎯 Leads <span class="dot"></span></div>
       <div class="nav-item has-alert" data-tab="tasks" onclick="App.go('tasks')">✅ Daily Tasks <span class="dot"></span></div>
       <div class="nav-item" data-tab="team" onclick="App.go('team')">👥 Team &amp; Pay</div>
       <div class="nav-item" data-tab="customers" onclick="App.go('customers')">🧾 Customers &amp; Sales</div>
@@ -319,6 +321,7 @@ const DEFAULT_DB = () => ({
   monthlyCosts: [],
   notes: [],
   assets: [],
+  leads: [],
   seq: 1
 });
 const CHECKLIST_TEMPLATE = [
@@ -606,6 +609,8 @@ function render(){
   const overdueIssues = allOpenIssues().filter(i=>isOverdue(i.reminderDate));
   const overdueTasks = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
   document.querySelector('.nav-item[data-tab="tasks"]').classList.toggle('has-alert', (overdueIssues.length+overdueTasks.length)>0);
+  const ldNav = document.querySelector('.nav-item[data-tab="leads"]');
+  if(ldNav) ldNav.classList.toggle('has-alert', leadsDue().length>0);
 
   const main = document.getElementById('main');
   let html = '';
@@ -614,6 +619,7 @@ function render(){
   else if(currentTab==='tasks') html = renderTasks();
   else if(currentTab==='team') html = renderTeam();
   else if(currentTab==='customers') html = renderCustomers();
+  else if(currentTab==='leads') html = renderLeads();
   else if(currentTab==='reports') html = renderReports();
   else if(currentTab==='boardroom') html = renderBoardroom();
   main.innerHTML = html;
@@ -665,6 +671,15 @@ function renderDashboard(){
     <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('team')"`:''}><div class="label">Owed to staff</div><div class="value small">${fmtMoney(owedToStaff)}</div><div class="sub">Unreimbursed company spend</div></div>
   </div>
   <div class="small-muted" style="margin:-12px 0 18px;">Tap a card above to jump straight to that section.</div>
+  ${(()=>{ const due = leadsDue(); if(!due.length) return '';
+    return `<div class="section-title"><h2>Customers to follow up today</h2><span class="small-muted" style="cursor:pointer" onclick="leadFilter='due';App.go('leads')">All leads →</span></div>
+    <div class="card" style="margin-bottom:20px;">
+      ${due.slice(0,6).map(l=>`<div class="issue-row" style="cursor:pointer" onclick="openLead('${l.id}')">
+        <div class="issue-main"><div class="t">${escapeHtml(l.name)} <span class="small-muted">· ${escapeHtml(leadVehicleLabel(l))}</span></div>
+        <div class="m"><span class="tag ${stageInfo(l.stage).tag}">${stageInfo(l.stage).label}</span> ${followUpBadge(l)}</div></div>
+      </div>`).join('')}
+      ${due.length>6?`<div class="small-muted" style="padding-top:8px;">+${due.length-6} more</div>`:''}
+    </div>`; })()}
 
   <div class="section-title"><h2>Outstanding vehicle issues</h2><span class="small-muted" onclick="App.go('stock')" style="cursor:pointer">View all stock →</span></div>
   <div class="card">
@@ -733,7 +748,7 @@ function renderStock(){
   </div>
   <div class="card" style="padding:0;overflow:auto;">
     ${list.length===0? `<div class="empty"><div class="big">No vehicles here</div>Add your first vehicle by registration to get started.</div>` : `
-    <table><thead><tr><th>Reg</th><th>Make / Model</th><th>Status</th><th>Issues</th><th>Cost so far</th><th>Asking</th><th>Margin</th><th></th></tr></thead><tbody>
+    <table><thead><tr><th>Reg</th><th>Make / Model</th><th>Status</th><th>Leads</th><th>Issues</th><th>Cost so far</th><th>Asking</th><th>Margin</th><th></th></tr></thead><tbody>
     ${list.map(v=>{
       const cost = vehicleCostTotal(v);
       const margin = v.sale? vehicleProfit(v) : (Number(v.askingPrice)||0)-cost;
@@ -741,7 +756,8 @@ function renderStock(){
       return `<tr style="cursor:pointer" onclick="openVehicle('${v.id}')">
         <td class="mono" style="font-weight:700">${v.reg}</td>
         <td>${v.make||''} ${v.model||''}<div class="small-muted">${v.year||''} ${v.color||''}</div></td>
-        <td><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span></td>
+        <td><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span>${vehicleReservation(v.id)?' <span class="tag tag-purple">Reserved</span>':''}</td>
+        <td onclick="event.stopPropagation();leadVehicleFilter='${v.id}';leadView='list';leadFilter='all';App.go('leads')">${(()=>{const a=activeLeadsForVehicle(v.id).length,t=leadsForVehicle(v.id).length;return t?`<span class="tag ${a?'tag-brand':'tag-grey'}" title="${a} active of ${t} total">${a} / ${t}</span>`:(v.status==='sold'?'—':'<span class="small-muted">0</span>');})()}</td>
         <td>${openIss>0?`<span class="tag tag-red">${openIss} open</span>`:'<span class="tag tag-green">Clear</span>'}</td>
         <td>${fmtMoney(cost)}</td>
         <td>${v.sale? fmtMoney(v.sale.salePrice)+' (sold)': fmtMoney(v.askingPrice)}</td>
@@ -840,13 +856,14 @@ async function renderVehicleDetail(){
   const cost = vehicleCostTotal(v);
   const margin = v.sale? vehicleProfit(v) : (Number(v.askingPrice)||0)-cost;
 
-  const tabs = [['overview','Overview'],['issues','Issues & Photos'+(openIssuesCount(v)?` (${openIssuesCount(v)})`:'')],['checklist','Vehicle check'],['costs','Cost & invoice'],['sale', v.sale?'Sale record':'Mark as sold']];
+  const tabs = [['overview','Overview'],['issues','Issues & Photos'+(openIssuesCount(v)?` (${openIssuesCount(v)})`:'')],['checklist','Vehicle check'],['costs','Cost & invoice'],['leads', 'Leads'+(leadsForVehicle(v.id).length?` (${leadsForVehicle(v.id).length})`:'')],['sale', v.sale?'Sale record':'Mark as sold']];
 
   let inner = '';
   if(activeVehicleTab==='overview') inner = vehicleOverviewTab(v,cost,margin);
   else if(activeVehicleTab==='issues') inner = await vehicleIssuesTab(v);
   else if(activeVehicleTab==='checklist') inner = vehicleChecklistTab(v);
   else if(activeVehicleTab==='costs') inner = await vehicleCostsTab(v,cost);
+  else if(activeVehicleTab==='leads') inner = vehicleLeadsTab(v);
   else if(activeVehicleTab==='sale') inner = vehicleSaleTab(v);
 
   document.getElementById('main').innerHTML = `
@@ -2224,6 +2241,479 @@ function deleteAsset(id){
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s){ return escapeHtml(s); }
 
+
+/* =========================================================================
+   LEADS — enquiries, viewings, interested deals, reservations and sales,
+   each linked to a stock vehicle, with follow-up reminders and a note log.
+   ========================================================================= */
+const LEAD_STAGES = [
+  {key:'new',        label:'New enquiry', color:'var(--blue)',  tag:'tag-blue'},
+  {key:'viewing',    label:'Viewing booked', color:'var(--brand)', tag:'tag-brand'},
+  {key:'interested', label:'Interested / negotiating', color:'var(--amber)', tag:'tag-amber'},
+  {key:'reserved',   label:'Reserved', color:'#7A4FB0', tag:'tag-purple'},
+  {key:'sold',       label:'Sold', color:'var(--green)', tag:'tag-green'},
+  {key:'lost',       label:'Lost', color:'var(--grey)',  tag:'tag-grey'},
+];
+const LEAD_SOURCES = ['AutoTrader','CarGurus','Cazoo','Facebook','Instagram','TikTok','Website','Phone call','Walk-in','Referral','Repeat customer','Other'];
+const LOST_REASONS = ['Bought elsewhere','Price','Finance declined','Car sold to someone else','No response','Changed mind','Part-exchange value','Other'];
+const ACTIVE_STAGES = ['new','viewing','interested','reserved'];
+
+function stageInfo(k){ return LEAD_STAGES.find(s=>s.key===k) || LEAD_STAGES[0]; }
+function leadVehicle(l){ return l.vehicleId ? DB.vehicles.find(v=>v.id===l.vehicleId) : null; }
+function leadVehicleLabel(l){
+  const v = leadVehicle(l);
+  if(v) return `${v.reg} · ${[v.make,v.model].filter(Boolean).join(' ')}`;
+  return l.vehicleText ? l.vehicleText : 'No car linked';
+}
+function leadsForVehicle(vId){ return (DB.leads||[]).filter(l=>l.vehicleId===vId); }
+function activeLeadsForVehicle(vId){ return leadsForVehicle(vId).filter(l=>ACTIVE_STAGES.includes(l.stage)); }
+function vehicleReservation(vId){ return (DB.leads||[]).find(l=>l.vehicleId===vId && l.stage==='reserved') || null; }
+function followUpState(l){
+  if(!ACTIVE_STAGES.includes(l.stage) || !l.nextFollowUp) return 'none';
+  const t = todayISO();
+  if(l.nextFollowUp < t) return 'overdue';
+  if(l.nextFollowUp === t) return 'today';
+  return 'upcoming';
+}
+function leadsDue(){ return (DB.leads||[]).filter(l=>['overdue','today'].includes(followUpState(l))); }
+function addDays(iso, n){ const d = new Date(iso||todayISO()); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function phoneDigits(p){ return (p||'').replace(/[^\d+]/g,''); }
+function waLink(p){
+  let d = (p||'').replace(/\D/g,'');
+  if(d.startsWith('0')) d = '44' + d.slice(1);   // UK mobiles: 07... -> 447...
+  return d ? `https://wa.me/${d}` : '';
+}
+function logLeadEvent(l, text){
+  if(!l.notes) l.notes = [];
+  l.notes.push({text, author: currentUserName||'', at: new Date().toISOString(), system:true});
+}
+
+let leadView = 'board';     // 'board' | 'list'
+let leadFilter = 'active';  // 'active' | 'due' | 'all' | stage key
+let leadSearch = '';
+let leadVehicleFilter = '';
+
+function renderLeads(){
+  const leads = DB.leads || [];
+  const active = leads.filter(l=>ACTIVE_STAGES.includes(l.stage));
+  const due = leadsDue();
+  const overdue = due.filter(l=>followUpState(l)==='overdue');
+  const reserved = leads.filter(l=>l.stage==='reserved');
+  const depositsHeld = reserved.reduce((s,l)=>s+(Number(l.deposit)||0),0);
+  const monthStart = todayISO().slice(0,7);
+  const monthLeads = leads.filter(l=>(l.createdAt||'').slice(0,7)===monthStart);
+  const monthSold = leads.filter(l=>l.stage==='sold' && (l.closedAt||'').slice(0,7)===monthStart);
+  const conv = monthLeads.length ? Math.round(monthSold.length / monthLeads.length * 100) : 0;
+
+  return `
+  <div class="topbar">
+    <div><h1>Leads</h1><div class="date">Every enquiry, viewing, reservation and sale &mdash; with follow-ups</div></div>
+    <button class="btn btn-brand" onclick="openLeadForm()">+ New lead</button>
+  </div>
+
+  ${overdue.length ? `<div class="overdue-banner"><span>⚠ ${overdue.length} follow-up${overdue.length===1?'':'s'} overdue &mdash; these customers are waiting to hear from us.</span><button class="btn btn-sm btn-ghost" onclick="leadFilter='due';render()">Show</button></div>` : ''}
+
+  <div class="grid kpi-grid">
+    <div class="card kpi" style="cursor:pointer" onclick="leadFilter='active';render()"><div class="label">Active leads</div><div class="value">${active.length}</div><div class="sub">In the pipeline now</div></div>
+    <div class="card kpi" style="cursor:pointer" onclick="leadFilter='due';render()"><div class="label">Follow up today</div><div class="value">${due.length}</div><div class="sub">${overdue.length} overdue</div></div>
+    <div class="card kpi" style="cursor:pointer" onclick="leadFilter='reserved';render()"><div class="label">Reserved</div><div class="value">${reserved.length}</div><div class="sub">${fmtMoney(depositsHeld)} deposits held</div></div>
+    <div class="card kpi"><div class="label">This month</div><div class="value">${monthSold.length}<span style="font-size:15px;color:var(--grey)"> / ${monthLeads.length}</span></div><div class="sub">Sold / new leads &middot; ${conv}% conversion</div></div>
+  </div>
+
+  <div class="chip-row">
+    <div class="chip ${leadView==='board'?'active':''}" onclick="leadView='board';render()">Pipeline</div>
+    <div class="chip ${leadView==='list'?'active':''}" onclick="leadView='list';render()">List</div>
+    <div class="chip ${leadView==='bycar'?'active':''}" onclick="leadView='bycar';render()">By car</div>
+    <div class="chip ${leadView==='sources'?'active':''}" onclick="leadView='sources';render()">Sources</div>
+  </div>
+
+  ${leadView==='bycar' ? renderLeadsByCar() : leadView==='sources' ? renderLeadSources() : `
+  <div class="toolbar">
+    <input placeholder="Search name, phone, reg&hellip;" value="${escapeAttr(leadSearch)}" oninput="leadSearch=this.value;render()" style="flex:1;min-width:180px;"/>
+    <select onchange="leadFilter=this.value;render()">
+      <option value="active" ${leadFilter==='active'?'selected':''}>Active only</option>
+      <option value="due" ${leadFilter==='due'?'selected':''}>Follow-ups due</option>
+      <option value="all" ${leadFilter==='all'?'selected':''}>All leads</option>
+      ${LEAD_STAGES.map(s=>`<option value="${s.key}" ${leadFilter===s.key?'selected':''}>${s.label}</option>`).join('')}
+    </select>
+    ${leadVehicleFilter ? `<span class="tag tag-brand" style="cursor:pointer" onclick="leadVehicleFilter='';render()">Car: ${escapeHtml((DB.vehicles.find(v=>v.id===leadVehicleFilter)||{}).reg||'')} ✕</span>` : ''}
+  </div>
+  ${leadView==='board' ? renderLeadBoard(filteredLeads()) : renderLeadList(filteredLeads())}`}
+  `;
+}
+
+function filteredLeads(){
+  let list = (DB.leads||[]).slice();
+  if(leadVehicleFilter) list = list.filter(l=>l.vehicleId===leadVehicleFilter);
+  if(leadFilter==='active') list = list.filter(l=>ACTIVE_STAGES.includes(l.stage));
+  else if(leadFilter==='due') list = list.filter(l=>['overdue','today'].includes(followUpState(l)));
+  else if(leadFilter!=='all') list = list.filter(l=>l.stage===leadFilter);
+  if(leadSearch){
+    const q = leadSearch.toLowerCase();
+    list = list.filter(l=> [l.name,l.phone,l.email,leadVehicleLabel(l)].join(' ').toLowerCase().includes(q));
+  }
+  // Overdue first, then due today, then by next follow-up, then newest
+  const rank = l => ({overdue:0,today:1,upcoming:2,none:3})[followUpState(l)];
+  list.sort((a,b)=> rank(a)-rank(b) || (a.nextFollowUp||'9').localeCompare(b.nextFollowUp||'9') || (b.createdAt||'').localeCompare(a.createdAt||''));
+  return list;
+}
+
+function followUpBadge(l){
+  const st = followUpState(l);
+  if(st==='overdue') return `<span class="tag tag-red">Overdue &middot; ${fmtDate(l.nextFollowUp)}</span>`;
+  if(st==='today') return `<span class="tag tag-amber">Follow up today</span>`;
+  if(st==='upcoming') return `<span class="tag tag-grey">Next: ${fmtDate(l.nextFollowUp)}</span>`;
+  return '';
+}
+
+function leadCard(l){
+  const lastNote = (l.notes||[]).filter(n=>!n.system).slice(-1)[0];
+  return `
+  <div class="task-card" style="cursor:pointer;border-left:3px solid ${stageInfo(l.stage).color}" onclick="openLead('${l.id}')">
+    <div class="tt">${escapeHtml(l.name||'Unnamed')}</div>
+    <div class="small-muted">${escapeHtml(leadVehicleLabel(l))}</div>
+    <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap;">
+      ${followUpBadge(l)}
+      ${l.stage==='reserved' && l.deposit ? `<span class="tag tag-purple">${fmtMoney(l.deposit)} deposit</span>` : ''}
+      ${l.source ? `<span class="tag tag-grey">${escapeHtml(l.source)}</span>` : ''}
+    </div>
+    ${lastNote ? `<div class="notes">&ldquo;${escapeHtml(lastNote.text.length>80?lastNote.text.slice(0,80)+'…':lastNote.text)}&rdquo;</div>` : ''}
+  </div>`;
+}
+
+function renderLeadBoard(list){
+  // 'all' shows every column, a single stage shows just that column, otherwise the active pipeline.
+  const stages = leadFilter==='all' ? LEAD_STAGES
+    : LEAD_STAGES.some(s=>s.key===leadFilter) ? LEAD_STAGES.filter(s=>s.key===leadFilter)
+    : LEAD_STAGES.filter(s=>ACTIVE_STAGES.includes(s.key));
+  return `<div class="board">
+    ${stages.map(s=>{
+      const items = list.filter(l=>l.stage===s.key);
+      return `<div class="day-col">
+        <div class="flex-between" style="margin-bottom:6px;">
+          <strong style="color:${s.color}">${s.label}</strong><span class="tag tag-grey">${items.length}</span>
+        </div>
+        ${items.length ? items.map(leadCard).join('') : '<div class="small-muted">None</div>'}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderLeadList(list){
+  if(!list.length) return `<div class="card"><div class="empty"><div class="big">No leads here</div>Add a lead with the button above.</div></div>`;
+  return `<div class="card" style="padding:0;">
+    <table><thead><tr><th>Customer</th><th>Car</th><th>Stage</th><th>Follow-up</th><th>Source</th></tr></thead><tbody>
+    ${list.map(l=>`<tr style="cursor:pointer" onclick="openLead('${l.id}')">
+      <td><b>${escapeHtml(l.name||'')}</b><div class="small-muted">${escapeHtml(l.phone||'')}</div></td>
+      <td>${escapeHtml(leadVehicleLabel(l))}</td>
+      <td><span class="tag ${stageInfo(l.stage).tag}">${stageInfo(l.stage).label}</span></td>
+      <td>${followUpBadge(l)||'—'}</td>
+      <td>${escapeHtml(l.source||'—')}</td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+function renderLeadsByCar(){
+  const rows = DB.vehicles.filter(v=>v.status!=='scrap').map(v=>{
+    const all = leadsForVehicle(v.id);
+    const count = k => all.filter(l=>l.stage===k).length;
+    return {v, total:all.length, active:all.filter(l=>ACTIVE_STAGES.includes(l.stage)).length,
+      viewing:count('viewing'), interested:count('interested'), reserved:count('reserved'), sold:count('sold'), lost:count('lost')};
+  }).filter(r=>r.total>0 || r.v.status!=='sold')
+    .sort((a,b)=> b.active-a.active || b.total-a.total);
+  if(!rows.length) return `<div class="card"><div class="empty">No stock yet.</div></div>`;
+  return `
+  <div class="date" style="margin-bottom:10px;">How much interest each car is getting. Cars with no leads may need a price review or better listing.</div>
+  <div class="card" style="padding:0;">
+    <table><thead><tr><th>Car</th><th>Active</th><th>Viewing</th><th>Interested</th><th>Reserved</th><th>Total</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr style="cursor:pointer" onclick="leadVehicleFilter='${r.v.id}';leadView='list';leadFilter='all';render()">
+      <td><b class="mono">${escapeHtml(r.v.reg)}</b><div class="small-muted">${escapeHtml([r.v.make,r.v.model].filter(Boolean).join(' '))} &middot; ${statusLabel(r.v.status)}</div></td>
+      <td>${r.active ? `<span class="tag tag-brand">${r.active}</span>` : (r.v.status!=='sold' ? '<span class="tag tag-red">0</span>' : '0')}</td>
+      <td>${r.viewing}</td><td>${r.interested}</td>
+      <td>${r.reserved ? '<span class="tag tag-purple">'+r.reserved+'</span>' : '0'}</td>
+      <td><b>${r.total}</b></td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+function renderLeadSources(){
+  const leads = DB.leads || [];
+  if(!leads.length) return `<div class="card"><div class="empty">No leads yet.</div></div>`;
+  const by = {};
+  leads.forEach(l=>{ const k = l.source||'Unknown'; by[k] = by[k] || {total:0, sold:0}; by[k].total++; if(l.stage==='sold') by[k].sold++; });
+  const rows = Object.entries(by).sort((a,b)=>b[1].total-a[1].total);
+  const lost = {};
+  leads.filter(l=>l.stage==='lost').forEach(l=>{ const k=l.lostReason||'Not recorded'; lost[k]=(lost[k]||0)+1; });
+  return `
+  <div class="date" style="margin-bottom:10px;">Which channels bring in leads, and which actually turn into sales.</div>
+  <div class="card" style="padding:0;margin-bottom:16px;">
+    <table><thead><tr><th>Source</th><th>Leads</th><th>Sold</th><th>Conversion</th></tr></thead><tbody>
+    ${rows.map(([k,v])=>`<tr><td><b>${escapeHtml(k)}</b></td><td>${v.total}</td><td>${v.sold}</td><td>${Math.round(v.sold/v.total*100)}%</td></tr>`).join('')}
+    </tbody></table></div>
+  ${Object.keys(lost).length ? `
+  <div class="section-title"><h2>Why deals were lost</h2></div>
+  <div class="card" style="padding:0;">
+    <table><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>
+    ${Object.entries(lost).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<tr><td>${escapeHtml(k)}</td><td>${n}</td></tr>`).join('')}
+    </tbody></table></div>` : ''}`;
+}
+
+/* ---- create / edit ---- */
+function vehicleOptions(selectedId){
+  const avail = DB.vehicles.filter(v=>v.status!=='scrap' && (v.status!=='sold' || v.id===selectedId))
+    .sort((a,b)=>(a.reg||'').localeCompare(b.reg||''));
+  return `<option value="">— Not linked to a car yet —</option>` +
+    avail.map(v=>`<option value="${v.id}" ${v.id===selectedId?'selected':''}>${escapeHtml(v.reg)} · ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}${v.status==='sold'?' (sold)':''}</option>`).join('');
+}
+function openLeadForm(id, presetVehicleId){
+  const l = id ? (DB.leads||[]).find(x=>x.id===id) : null;
+  const vId = l ? l.vehicleId : (presetVehicleId||'');
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${l?'Edit lead':'New lead'}</h3>
+    <div class="field-row">
+      <div class="field"><label>Customer name *</label><input id="ld_name" value="${l?escapeAttr(l.name||''):''}"/></div>
+      <div class="field"><label>Phone</label><input id="ld_phone" type="tel" value="${l?escapeAttr(l.phone||''):''}"/></div>
+    </div>
+    <div class="field"><label>Email</label><input id="ld_email" type="email" value="${l?escapeAttr(l.email||''):''}"/></div>
+    <div class="field"><label>Car they&rsquo;re interested in</label><select id="ld_vehicle">${vehicleOptions(vId)}</select></div>
+    <div class="field"><label>Or describe what they want (if not in stock)</label><input id="ld_vtext" value="${l?escapeAttr(l.vehicleText||''):''}" placeholder="e.g. Automatic hatchback under £6k"/></div>
+    <div class="field-row">
+      <div class="field"><label>Source</label><select id="ld_source">${LEAD_SOURCES.map(s=>`<option ${l&&l.source===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>Stage</label><select id="ld_stage">${LEAD_STAGES.map(s=>`<option value="${s.key}" ${(l?l.stage:'new')===s.key?'selected':''}>${s.label}</option>`).join('')}</select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Budget (£)</label><input id="ld_budget" type="number" value="${l&&l.budget?l.budget:''}"/></div>
+      <div class="field"><label>Next follow-up</label><input id="ld_fu" type="date" value="${l?(l.nextFollowUp||''):todayISO()}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Part-exchange?</label><input id="ld_px" value="${l?escapeAttr(l.partEx||''):''}" placeholder="e.g. 2014 Corsa, 80k miles"/></div>
+      <div class="field"><label>Finance?</label><select id="ld_fin">${['Not asked','Cash buyer','Wants finance'].map(f=>`<option ${l&&l.finance===f?'selected':''}>${f}</option>`).join('')}</select></div>
+    </div>
+    ${l?'':`<div class="field"><label>First note</label><textarea id="ld_note" rows="2" placeholder="What did they ask about?"></textarea></div>`}
+    <div class="modal-actions">
+      ${l && isManager() ? `<button class="btn btn-danger" onclick="deleteLead('${l.id}')" style="margin-right:auto">Delete</button>` : ''}
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveLead(${l?`'${l.id}'`:'null'})">${l?'Save':'Add lead'}</button>
+    </div>
+  `);
+}
+function saveLead(id){
+  const name = document.getElementById('ld_name').value.trim();
+  if(!name){ alert('Customer name is required'); return; }
+  const data = {
+    name,
+    phone: document.getElementById('ld_phone').value.trim(),
+    email: document.getElementById('ld_email').value.trim(),
+    vehicleId: document.getElementById('ld_vehicle').value || null,
+    vehicleText: document.getElementById('ld_vtext').value.trim(),
+    source: document.getElementById('ld_source').value,
+    budget: Number(document.getElementById('ld_budget').value)||0,
+    nextFollowUp: document.getElementById('ld_fu').value || '',
+    partEx: document.getElementById('ld_px').value.trim(),
+    finance: document.getElementById('ld_fin').value,
+  };
+  const newStage = document.getElementById('ld_stage').value;
+  if(!DB.leads) DB.leads = [];
+  let l;
+  if(id){
+    l = DB.leads.find(x=>x.id===id); if(!l) return;
+    Object.assign(l, data);
+    if(l.stage!==newStage){ changeLeadStage(l, newStage, true); }
+  } else {
+    // Warn about a likely duplicate (same phone or email already active)
+    const dup = DB.leads.find(x=> ACTIVE_STAGES.includes(x.stage) &&
+      ((data.phone && phoneDigits(x.phone)===phoneDigits(data.phone)) || (data.email && (x.email||'').toLowerCase()===data.email.toLowerCase())));
+    if(dup && !confirm(`${dup.name} already has an active lead (${leadVehicleLabel(dup)}).\n\nAdd a separate lead anyway?`)) { closeModal(); openLead(dup.id); return; }
+    l = {id:nextId('lead'), ...data, stage:'new', createdAt:todayISO(), createdBy:currentUserName, assignedTo:currentUserName, notes:[]};
+    DB.leads.push(l);
+    logLeadEvent(l, 'Lead created');
+    const first = document.getElementById('ld_note').value.trim();
+    if(first) l.notes.push({text:first, author:currentUserName, at:new Date().toISOString()});
+    if(newStage!=='new') changeLeadStage(l, newStage, true);
+  }
+  saveDB(); closeModal(); openLead(l.id);
+}
+function deleteLead(id){
+  if(!isManager()) return;
+  if(!confirm('Delete this lead and its notes?')) return;
+  DB.leads = (DB.leads||[]).filter(x=>x.id!==id); saveDB(); closeModal(); render();
+}
+
+/* ---- stage changes ---- */
+function changeLeadStage(l, stage, silent){
+  if(l.stage===stage) return;
+  if(stage==='reserved'){
+    const other = l.vehicleId ? (DB.leads||[]).find(x=>x.id!==l.id && x.vehicleId===l.vehicleId && x.stage==='reserved') : null;
+    if(other && !silent && !confirm(`This car is already reserved by ${other.name}. Reserve it for ${l.name} as well?`)) return false;
+    if(!silent){
+      const dep = prompt('Deposit taken (£)? Leave blank if none.', l.deposit||'');
+      if(dep===null) return false;
+      l.deposit = Number(dep)||0;
+      const until = prompt('Reserved until (YYYY-MM-DD)? Leave blank for no expiry.', l.reservedUntil||addDays(todayISO(),7));
+      if(until!==null) l.reservedUntil = until;
+    }
+  }
+  if(stage==='lost' && !silent){
+    const opts = LOST_REASONS.map((r,i)=>`${i+1}. ${r}`).join('\n');
+    const pick = prompt(`Why was it lost?\n\n${opts}\n\nEnter a number:`, '');
+    if(pick===null) return false;
+    l.lostReason = LOST_REASONS[(Number(pick)||LOST_REASONS.length)-1] || 'Other';
+  }
+  const from = stageInfo(l.stage).label;
+  l.stage = stage;
+  if(stage==='sold' || stage==='lost'){ l.closedAt = todayISO(); l.nextFollowUp=''; }
+  logLeadEvent(l, `Stage: ${from} → ${stageInfo(stage).label}${stage==='reserved'&&l.deposit?` (${fmtMoney(l.deposit)} deposit)`:''}${stage==='lost'&&l.lostReason?` (${l.lostReason})`:''}`);
+  return true;
+}
+function setLeadStage(id, stage){
+  const l = (DB.leads||[]).find(x=>x.id===id); if(!l) return;
+  const ok = changeLeadStage(l, stage, false);
+  if(ok===false) return;
+  saveDB();
+  if(stage==='sold' && l.vehicleId){
+    const v = leadVehicle(l);
+    if(v && !v.sale && confirm(`Record the sale of ${v.reg} to ${l.name} now?\n\nThis creates the customer record and opens the sale form.`)){
+      recordSaleFromLead(l); return;
+    }
+  }
+  openLead(id);
+}
+function recordSaleFromLead(l){
+  if(!DB.customers) DB.customers = [];
+  let c = DB.customers.find(x=> (l.phone && phoneDigits(x.phone)===phoneDigits(l.phone)) || (l.email && (x.email||'').toLowerCase()===l.email.toLowerCase()));
+  if(!c){ c = {id:nextId('cust'), name:l.name, phone:l.phone, email:l.email, address:'', notes:'Created from lead'}; DB.customers.push(c); }
+  l.customerId = c.id;
+  saveDB(); closeModal();
+  activeVehicleId = l.vehicleId; currentTab = 'stock'; activeVehicleTab = 'sale';
+  renderVehicleDetail().then(()=>{
+    const sel = document.getElementById('s_customer');
+    if(sel) sel.value = c.id;
+    // Pre-fill part-exchange details captured on the lead
+    const px = document.getElementById('s_pxdesc');
+    if(px && l.partEx && !px.value) px.value = l.partEx;
+  });
+}
+
+/* ---- follow-ups & notes ---- */
+function setFollowUp(id, days){
+  const l = (DB.leads||[]).find(x=>x.id===id); if(!l) return;
+  l.nextFollowUp = days===null ? '' : addDays(todayISO(), days);
+  logLeadEvent(l, l.nextFollowUp ? `Follow-up set for ${fmtDate(l.nextFollowUp)}` : 'Follow-up cleared');
+  saveDB(); openLead(id);
+}
+function setFollowUpDate(id, date){
+  const l = (DB.leads||[]).find(x=>x.id===id); if(!l) return;
+  l.nextFollowUp = date; logLeadEvent(l, `Follow-up set for ${fmtDate(date)}`); saveDB(); openLead(id);
+}
+function addLeadNote(id){
+  const el = document.getElementById('lead_note_input');
+  const text = (el ? el.value : '').trim(); if(!text) return;
+  const l = (DB.leads||[]).find(x=>x.id===id); if(!l) return;
+  if(!l.notes) l.notes = [];
+  l.notes.push({text, author: currentUserName||'', at: new Date().toISOString()});
+  l.lastContact = todayISO();
+  saveDB(); openLead(id);
+}
+function logContact(id, how){
+  const l = (DB.leads||[]).find(x=>x.id===id); if(!l) return;
+  l.lastContact = todayISO();
+  logLeadEvent(l, `${how}`);
+  saveDB();
+}
+
+/* ---- lead detail ---- */
+function openLead(id){
+  const l = (DB.leads||[]).find(x=>x.id===id); if(!l) { render(); return; }
+  const v = leadVehicle(l);
+  const s = stageInfo(l.stage);
+  const tel = phoneDigits(l.phone), wa = waLink(l.phone);
+  const history = (l.notes||[]).slice().reverse();
+  openModal(`
+    <button class="close-x" onclick="closeModal();render()">✕</button>
+    <h3 style="margin-bottom:4px;">${escapeHtml(l.name)}</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      <span class="tag ${s.tag}">${s.label}</span> ${followUpBadge(l)}
+      ${l.source?`<span class="tag tag-grey">${escapeHtml(l.source)}</span>`:''}
+    </div>
+
+    ${l.phone||l.email ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      ${tel?`<a class="btn btn-sm btn-brand" href="tel:${tel}" onclick="logContact('${l.id}','Called')">📞 Call</a>`:''}
+      ${wa?`<a class="btn btn-sm btn-ghost" href="${wa}" target="_blank" onclick="logContact('${l.id}','WhatsApp message')">💬 WhatsApp</a>`:''}
+      ${tel?`<a class="btn btn-sm btn-ghost" href="sms:${tel}" onclick="logContact('${l.id}','Text sent')">✉️ Text</a>`:''}
+      ${l.email?`<a class="btn btn-sm btn-ghost" href="mailto:${escapeAttr(l.email)}" onclick="logContact('${l.id}','Email sent')">📧 Email</a>`:''}
+    </div>`:''}
+
+    <div class="card" style="padding:12px;margin-bottom:12px;background:var(--paper);box-shadow:none;">
+      <div class="small-muted">Car</div>
+      <div style="font-weight:700;">${v ? `<span class="mono">${escapeHtml(v.reg)}</span> · ${escapeHtml([v.make,v.model,v.year].filter(Boolean).join(' '))}` : escapeHtml(l.vehicleText||'Not linked to a car')}</div>
+      ${v ? `<div class="small-muted">Asking ${fmtMoney(v.sale?v.sale.salePrice:v.askingPrice)} · ${statusLabel(v.status)} · ${activeLeadsForVehicle(v.id).length} active lead${activeLeadsForVehicle(v.id).length===1?'':'s'} on this car</div>
+      <a class="link" style="cursor:pointer" onclick="closeModal();openVehicle('${v.id}')">Open vehicle →</a>`:''}
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:13px;">
+        ${l.phone?`<span>📱 ${escapeHtml(l.phone)}</span>`:''}
+        ${l.budget?`<span>💷 Budget ${fmtMoney(l.budget)}</span>`:''}
+        ${l.finance&&l.finance!=='Not asked'?`<span>🏦 ${escapeHtml(l.finance)}</span>`:''}
+        ${l.partEx?`<span>🔄 PX: ${escapeHtml(l.partEx)}</span>`:''}
+        ${l.stage==='reserved'?`<span>🔒 ${l.deposit?fmtMoney(l.deposit)+' deposit':'No deposit'}${l.reservedUntil?' · until '+fmtDate(l.reservedUntil):''}</span>`:''}
+        ${l.stage==='lost'&&l.lostReason?`<span>✕ ${escapeHtml(l.lostReason)}</span>`:''}
+      </div>
+    </div>
+
+    <label>Move to stage</label>
+    <div class="chip-row" style="margin-bottom:12px;">
+      ${LEAD_STAGES.map(st=>`<div class="chip ${l.stage===st.key?'active':''}" onclick="setLeadStage('${l.id}','${st.key}')">${st.label}</div>`).join('')}
+    </div>
+
+    ${ACTIVE_STAGES.includes(l.stage) ? `
+    <label>Next follow-up</label>
+    <div class="chip-row" style="margin-bottom:12px;align-items:center;">
+      <div class="chip" onclick="setFollowUp('${l.id}',0)">Today</div>
+      <div class="chip" onclick="setFollowUp('${l.id}',1)">Tomorrow</div>
+      <div class="chip" onclick="setFollowUp('${l.id}',3)">3 days</div>
+      <div class="chip" onclick="setFollowUp('${l.id}',7)">1 week</div>
+      <input type="date" value="${l.nextFollowUp||''}" onchange="setFollowUpDate('${l.id}',this.value)" style="padding:5px 8px;"/>
+    </div>` : ''}
+
+    <label>Add a note</label>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">
+      <textarea id="lead_note_input" rows="2" style="flex:1;" placeholder="What happened? What did they say?"></textarea>
+      <button class="btn btn-brand" onclick="addLeadNote('${l.id}')">Add</button>
+    </div>
+
+    <label>History</label>
+    <div style="max-height:260px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:4px 10px;">
+      ${history.length ? history.map(n=>`
+        <div style="padding:8px 0;border-bottom:1px solid #EEEFED;">
+          <div style="font-size:${n.system?'12.5px':'14px'};${n.system?'color:var(--grey);font-style:italic;':''}white-space:pre-wrap;">${escapeHtml(n.text)}</div>
+          <div class="small-muted" style="font-size:11.5px;">${escapeHtml(n.author||'')} · ${new Date(n.at).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+        </div>`).join('') : '<div class="small-muted" style="padding:8px 0;">No history yet.</div>'}
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="openLeadForm('${l.id}')">Edit details</button>
+      <button class="btn btn-brand" onclick="closeModal();render()">Done</button>
+    </div>
+  `);
+}
+
+/* ---- vehicle detail tab ---- */
+function vehicleLeadsTab(v){
+  const list = leadsForVehicle(v.id).slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const res = vehicleReservation(v.id);
+  return `
+  ${res ? `<div class="overdue-banner" style="background:#7A4FB014;border-color:#7A4FB033;color:#7A4FB0;"><span>🔒 Reserved for ${escapeHtml(res.name)}${res.deposit?' · '+fmtMoney(res.deposit)+' deposit':''}${res.reservedUntil?' · until '+fmtDate(res.reservedUntil):''}</span></div>` : ''}
+  <div class="card">
+    <div class="flex-between" style="margin-bottom:8px;"><h3 style="margin:0">Leads on this car (${list.length})</h3>
+      <button class="btn btn-sm btn-brand" onclick="openLeadForm(null,'${v.id}')">+ Add lead</button></div>
+    ${list.length ? list.map(l=>`
+      <div class="issue-row" style="cursor:pointer" onclick="openLead('${l.id}')">
+        <div class="issue-main">
+          <div class="t">${escapeHtml(l.name)} ${l.phone?'<span class="small-muted">· '+escapeHtml(l.phone)+'</span>':''}</div>
+          <div class="m"><span class="tag ${stageInfo(l.stage).tag}">${stageInfo(l.stage).label}</span> ${followUpBadge(l)} ${l.source?'· '+escapeHtml(l.source):''}</div>
+        </div>
+      </div>`).join('') : '<div class="empty">No leads on this car yet.</div>'}
+  </div>`;
+}
 /* =========================================================================
    MODAL HELPERS
    ========================================================================= */
@@ -2298,8 +2788,8 @@ function setupNotifications(){
   updateNotifyToggleLabel();
   if(notificationsEnabledLocally() && typeof Notification!=='undefined' && Notification.permission==='granted'){
     if(notifyInterval) clearInterval(notifyInterval);
-    notifyInterval = setInterval(checkAndNotify, 30*60*1000); // every 30 min while the tab is open
-    setTimeout(checkAndNotify, 4000); // and once shortly after load
+    notifyInterval = setInterval(()=>{ checkAndNotify(); checkLeadReminders(); }, 30*60*1000); // every 30 min while the tab is open
+    setTimeout(()=>{ checkAndNotify(); checkLeadReminders(); }, 4000); // and once shortly after load
   }
 }
 async function toggleNotifications(){
@@ -2348,6 +2838,27 @@ function checkAndNotify(){
     n.onclick = ()=>{ window.focus(); App.go('tasks'); taskView='board'; };
   }catch(e){ console.error('notify failed', e); }
   due.forEach(t=>{ t.lastNotifiedAt = today; });
+  saveDB();
+}
+
+/* Lead follow-ups get their own reminder, at most once a day per lead. */
+function checkLeadReminders(){
+  if(!notificationsEnabledLocally() || typeof Notification==='undefined' || Notification.permission!=='granted') return;
+  const today = todayISO();
+  const due = leadsDue().filter(l=>{
+    const mine = !l.assignedTo || (l.assignedTo||'').trim().toLowerCase() === (currentUserName||'').trim().toLowerCase();
+    if(!isManager() && !mine) return false;
+    return l.lastNotifiedAt !== today;
+  });
+  if(!due.length) return;
+  const overdue = due.filter(l=>followUpState(l)==='overdue').length;
+  const title = overdue ? `📞 ${due.length} customer follow-up${due.length===1?'':'s'} (${overdue} overdue)` : `📞 ${due.length} customer follow-up${due.length===1?'':'s'} today`;
+  const body = due.slice(0,4).map(l=>`• ${l.name} — ${leadVehicleLabel(l)}`).join('\n') + (due.length>4?`\n+${due.length-4} more`:'');
+  try{
+    const n = new Notification(title, {body});
+    n.onclick = ()=>{ window.focus(); leadFilter='due'; App.go('leads'); };
+  }catch(e){ console.error('lead notify failed', e); }
+  due.forEach(l=>{ l.lastNotifiedAt = today; });
   saveDB();
 }
 
