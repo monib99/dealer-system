@@ -285,6 +285,7 @@
       <div class="nav-item" data-tab="reports" onclick="App.go('reports')">📈 Reports</div>
       <div class="nav-item" data-tab="boardroom" onclick="App.go('boardroom')">💡 Ideas &amp; Capital</div>
       <div class="nav-item" data-tab="muzaribat" onclick="App.go('muzaribat')">🤝 Muzaribat</div>
+      <div class="nav-item" data-tab="website" onclick="App.go('website')">🌐 Website</div>
       <div class="nav-item" data-tab="audit" onclick="App.go('audit')">🔍 Change log</div>
       <div class="foot">
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
@@ -330,6 +331,7 @@ const DEFAULT_DB = () => ({
   assets: [],
   leads: [],
   muzaribs: [],
+  site: null,
   muzaribTx: [],
   audit: [],
   seq: 1
@@ -618,10 +620,12 @@ function render(){
   if(brNav) brNav.style.display = isManager() ? '' : 'none';
   const mzNav = document.querySelector('.nav-item[data-tab="muzaribat"]');
   if(mzNav) mzNav.style.display = isManager() ? '' : 'none';
+  const wsNav = document.querySelector('.nav-item[data-tab="website"]');
+  if(wsNav) wsNav.style.display = isManager() ? '' : 'none';
   const auNav = document.querySelector('.nav-item[data-tab="audit"]');
   if(auNav) auNav.style.display = isSuperAdmin() ? '' : 'none';
   if(currentTab==='audit' && !isSuperAdmin()) currentTab = 'dashboard';
-  if((currentTab==='boardroom'||currentTab==='muzaribat') && !isManager()) currentTab = 'dashboard';
+  if(['boardroom','muzaribat','website'].includes(currentTab) && !isManager()) currentTab = 'dashboard';
   const overdueIssues = allOpenIssues().filter(i=>isOverdue(i.reminderDate));
   const overdueTasks = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
   document.querySelector('.nav-item[data-tab="tasks"]').classList.toggle('has-alert', (overdueIssues.length+overdueTasks.length)>0);
@@ -639,10 +643,12 @@ function render(){
   else if(currentTab==='reports') html = renderReports();
   else if(currentTab==='boardroom') html = renderBoardroom();
   else if(currentTab==='muzaribat') html = renderMuzaribat();
+  else if(currentTab==='website') html = renderSiteBuilder();
   else if(currentTab==='audit') html = renderAudit();
   main.innerHTML = html;
 
   if(currentTab==='reports') drawReportCharts();
+  if(currentTab==='website' && typeof initSectionDrag==='function') initSectionDrag();
 }
 const App = {
   go(tab){ currentTab = tab; closeModal(); closeMobileMenu(); render(); },
@@ -4200,6 +4206,658 @@ function workHistorySection(v){
       <tr><td colspan="4" style="font-weight:700;">Total spent</td><td style="font-weight:700;">${fmtMoney(spent)}</td></tr>
     </tbody></table>` : '<div class="empty" style="padding:22px;">Nothing recorded yet.</div>'}
   </div>`;
+}
+
+
+/* =========================================================================
+   WEBSITE BUILDER — pages, sections, sliders, photos and text, all edited
+   here and published to the public site. Drag to reorder on a desktop;
+   arrow buttons do the same on a phone.
+   ========================================================================= */
+
+const SECTION_TYPES = {
+  hero:     {label:'Hero slider',      icon:'🖼', desc:'Full-width slides with a heading and button'},
+  cars:     {label:'Car listings',     icon:'🚗', desc:'Pulls live from your stock'},
+  text:     {label:'Text block',       icon:'📝', desc:'Heading and paragraphs'},
+  features: {label:'Feature columns',  icon:'✅', desc:'Icons with short descriptions'},
+  gallery:  {label:'Photo gallery',    icon:'📷', desc:'Grid of photos'},
+  video:    {label:'Video',            icon:'🎬', desc:'YouTube or uploaded video'},
+  steps:    {label:'Numbered steps',   icon:'🔢', desc:'How your process works'},
+  reviews:  {label:'Reviews',          icon:'⭐', desc:'Customer quotes'},
+  contact:  {label:'Contact block',    icon:'📞', desc:'Phone, WhatsApp, email, map'},
+  cta:      {label:'Call to action',   icon:'📣', desc:'A band with a button'},
+};
+
+function siteData(){
+  if(!DB.site) DB.site = defaultSite();
+  return DB.site;
+}
+function defaultSite(){
+  return {
+    settings: {
+      name:'Car Express', tagline:'Quality used cars in Hemel Hempstead',
+      phone:'', whatsapp:'', email:'', address:['',''], mapsQuery:'',
+      hours:'Mon – Sat 9:00 – 18:00 · Sun 10:00 – 16:00',
+      social:{facebook:'',instagram:'',tiktok:'',youtube:''},
+      primaryColour:'#DC2226', darkColour:'#17428C'
+    },
+    menu: [
+      {id:nextId('mi'), label:'Home', page:'home'},
+      {id:nextId('mi'), label:'Cars For Sale', page:'stock'},
+      {id:nextId('mi'), label:'About Us', page:'about'},
+      {id:nextId('mi'), label:'Contact', page:'contact'},
+    ],
+    pages: [
+      {id:'home', name:'Home', slug:'home', sections:[
+        {id:nextId('sec'), type:'hero', visible:true, slides:[
+          {id:nextId('sl'), heading:"Every car ready before it's advertised",
+           sub:'Serviced, MOT\u2019d and HPI checked before it reaches the forecourt.',
+           buttonText:'View our cars', buttonPage:'stock', photoId:null, videoUrl:''}
+        ]},
+        {id:nextId('sec'), type:'cars', visible:true, title:'Our latest stock', limit:6, showAll:true},
+        {id:nextId('sec'), type:'steps', visible:true, title:'How we prepare every car', items:[
+          {id:nextId('it'), title:'Sourced & checked', text:'History, mileage and condition verified before we buy.'},
+          {id:nextId('it'), title:'Mechanical work',   text:'Servicing, MOT and any repairs completed and recorded.'},
+          {id:nextId('it'), title:'Full inspection',   text:'A point-by-point check before it goes on sale.'},
+          {id:nextId('it'), title:'Cleaned & listed',  text:'Valeted, photographed and advertised.'},
+        ]},
+        {id:nextId('sec'), type:'contact', visible:true, title:'Get in touch'},
+      ]},
+      {id:'stock', name:'Cars For Sale', slug:'stock', sections:[
+        {id:nextId('sec'), type:'cars', visible:true, title:'Cars for sale', limit:0, showAll:false},
+      ]},
+      {id:'about', name:'About Us', slug:'about', sections:[
+        {id:nextId('sec'), type:'text', visible:true, title:'About us',
+         body:'We\u2019re an independent used car dealer in Hemel Hempstead.'},
+      ]},
+      {id:'contact', name:'Contact', slug:'contact', sections:[
+        {id:nextId('sec'), type:'contact', visible:true, title:'Get in touch'},
+      ]},
+    ]
+  };
+}
+
+let sbPage = 'home', sbTab = 'pages';
+
+function renderSiteBuilder(){
+  const S = siteData();
+  const page = S.pages.find(p=>p.id===sbPage) || S.pages[0];
+  if(page) sbPage = page.id;
+  return `
+  <div class="topbar">
+    <div><h1>Website</h1><div class="date">Build and update your public site &mdash; then publish</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-ghost" onclick="previewSite()">👁 Preview</button>
+      <button class="btn btn-brand" onclick="publishSite()">🌐 Publish site</button>
+    </div>
+  </div>
+  ${DB.sitePublishedAt?`<div class="small-muted" style="margin:-6px 0 12px;">Last published ${fmtDate(DB.sitePublishedAt.slice(0,10))}${siteHasChanges()?' &middot; <b style="color:var(--amber)">unpublished changes</b>':' &middot; up to date'}</div>`:'<div class="overdue-banner"><span>Not published yet &mdash; press Publish site when you\u2019re ready for it to go live.</span></div>'}
+
+  <div class="chip-row">
+    <div class="chip ${sbTab==='pages'?'active':''}" onclick="sbTab='pages';render()">Pages &amp; sections</div>
+    <div class="chip ${sbTab==='menu'?'active':''}" onclick="sbTab='menu';render()">Menu</div>
+    <div class="chip ${sbTab==='settings'?'active':''}" onclick="sbTab='settings';render()">Details &amp; branding</div>
+  </div>
+
+  ${sbTab==='pages' ? renderSbPages(S, page)
+   : sbTab==='menu' ? renderSbMenu(S)
+   : renderSbSettings(S)}
+  `;
+}
+
+function siteHasChanges(){
+  if(!DB.sitePublishedAt) return true;
+  return (DB.siteChangedAt||'') > DB.sitePublishedAt;
+}
+function touchSite(){ DB.siteChangedAt = new Date().toISOString(); }
+
+/* ---------- pages & sections ---------- */
+function renderSbPages(S, page){
+  return `
+  <div class="card" style="margin-bottom:14px;">
+    <div class="flex-between" style="flex-wrap:wrap;gap:8px;">
+      <strong>Pages</strong>
+      <button class="btn btn-sm btn-brand" onclick="addSitePage()">+ Add page</button>
+    </div>
+    <div class="chip-row" style="margin-top:10px;">
+      ${S.pages.map(p=>`<div class="chip ${p.id===sbPage?'active':''}" onclick="sbPage='${p.id}';render()">${escapeHtml(p.name)}</div>`).join('')}
+    </div>
+  </div>
+
+  ${!page?'':`
+  <div class="card" style="margin-bottom:14px;">
+    <div class="flex-between" style="flex-wrap:wrap;gap:8px;">
+      <div>
+        <strong>${escapeHtml(page.name)}</strong>
+        <div class="small-muted">Address: /${escapeHtml(page.slug)}.html &middot; ${page.sections.length} section${page.sections.length===1?'':'s'}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-ghost" onclick="renameSitePage('${page.id}')">Rename</button>
+        ${['home','stock'].includes(page.id)?'':`<button class="btn btn-sm btn-danger" onclick="deleteSitePage('${page.id}')">Delete page</button>`}
+      </div>
+    </div>
+  </div>
+
+  <div class="small-muted" style="margin-bottom:8px;">Drag a section to reorder, or use the arrows. Tap a section to edit it.</div>
+  <div id="sbSections">
+    ${page.sections.map((s,i)=>sectionCard(page, s, i)).join('') ||
+      '<div class="card"><div class="empty">No sections yet. Add one below.</div></div>'}
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <strong>Add a section</strong>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:10px;">
+      ${Object.entries(SECTION_TYPES).map(([k,t])=>`
+        <div class="card" style="padding:12px;cursor:pointer;box-shadow:none;border:1px solid var(--line);"
+             onclick="addSiteSection('${page.id}','${k}')">
+          <div style="font-size:20px;">${t.icon}</div>
+          <div style="font-weight:700;font-size:14px;">${t.label}</div>
+          <div class="small-muted" style="font-size:12px;">${t.desc}</div>
+        </div>`).join('')}
+    </div>
+  </div>`}
+  `;
+}
+
+function sectionCard(page, s, i){
+  const t = SECTION_TYPES[s.type] || {label:s.type, icon:'▫'};
+  let summary = '';
+  if(s.type==='hero')      summary = `${(s.slides||[]).length} slide${(s.slides||[]).length===1?'':'s'}`;
+  else if(s.type==='cars') summary = s.showAll ? 'All available cars' : `Up to ${s.limit||6} cars`;
+  else if(s.type==='gallery') summary = `${(s.photoIds||[]).length} photos`;
+  else if(s.type==='steps'||s.type==='features') summary = `${(s.items||[]).length} items`;
+  else if(s.type==='reviews') summary = `${(s.items||[]).length} reviews`;
+  else if(s.type==='text') summary = (s.title||'Text');
+  return `
+  <div class="card sb-sec" draggable="true" data-sec="${s.id}" data-idx="${i}"
+       style="margin-bottom:8px;padding:12px 14px;${s.visible===false?'opacity:.5;':''}">
+    <div class="flex-between" style="gap:10px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer" onclick="editSiteSection('${page.id}','${s.id}')">
+        <span style="font-size:20px;cursor:grab;">☰</span>
+        <div style="min-width:0;">
+          <div style="font-weight:700;">${t.icon} ${t.label}</div>
+          <div class="small-muted">${escapeHtml(summary)}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-ghost" onclick="moveSiteSection('${page.id}','${s.id}',-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="btn btn-sm btn-ghost" onclick="moveSiteSection('${page.id}','${s.id}',1)" ${i===page.sections.length-1?'disabled':''}>↓</button>
+        <button class="btn btn-sm btn-ghost" onclick="toggleSiteSection('${page.id}','${s.id}')">${s.visible===false?'Show':'Hide'}</button>
+        <button class="btn btn-sm btn-ghost" onclick="editSiteSection('${page.id}','${s.id}')">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteSiteSection('${page.id}','${s.id}')">✕</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* drag and drop, with touch falling back to the arrow buttons */
+function initSectionDrag(){
+  const wrap = document.getElementById('sbSections'); if(!wrap) return;
+  let dragId = null;
+  wrap.querySelectorAll('.sb-sec').forEach(el=>{
+    el.addEventListener('dragstart', e=>{ dragId = el.dataset.sec; el.style.opacity='.4'; });
+    el.addEventListener('dragend',   e=>{ el.style.opacity=''; });
+    el.addEventListener('dragover',  e=>{ e.preventDefault(); el.style.borderTop='3px solid var(--brand)'; });
+    el.addEventListener('dragleave', e=>{ el.style.borderTop=''; });
+    el.addEventListener('drop', e=>{
+      e.preventDefault(); el.style.borderTop='';
+      if(dragId && dragId!==el.dataset.sec) dropSiteSection(dragId, el.dataset.sec);
+    });
+  });
+}
+function dropSiteSection(fromId, toId){
+  const page = siteData().pages.find(p=>p.id===sbPage); if(!page) return;
+  const from = page.sections.findIndex(s=>s.id===fromId);
+  const to   = page.sections.findIndex(s=>s.id===toId);
+  if(from<0||to<0) return;
+  const [m] = page.sections.splice(from,1);
+  page.sections.splice(to,0,m);
+  touchSite(); saveDB(); render();
+}
+function moveSiteSection(pid, sid, dir){
+  const page = siteData().pages.find(p=>p.id===pid); if(!page) return;
+  const i = page.sections.findIndex(s=>s.id===sid);
+  const j = i+dir;
+  if(i<0||j<0||j>=page.sections.length) return;
+  [page.sections[i], page.sections[j]] = [page.sections[j], page.sections[i]];
+  touchSite(); saveDB(); render();
+}
+function toggleSiteSection(pid, sid){
+  const page = siteData().pages.find(p=>p.id===pid);
+  const s = page && page.sections.find(x=>x.id===sid); if(!s) return;
+  s.visible = s.visible===false;
+  touchSite(); saveDB(); render();
+}
+function deleteSiteSection(pid, sid){
+  if(!confirm('Remove this section from the page?')) return;
+  const page = siteData().pages.find(p=>p.id===pid); if(!page) return;
+  page.sections = page.sections.filter(s=>s.id!==sid);
+  touchSite(); saveDB(); render();
+}
+function addSiteSection(pid, type){
+  const page = siteData().pages.find(p=>p.id===pid); if(!page) return;
+  const base = {id:nextId('sec'), type, visible:true};
+  if(type==='hero') base.slides = [{id:nextId('sl'), heading:'New slide', sub:'', buttonText:'', buttonPage:'stock', photoId:null, videoUrl:''}];
+  if(type==='cars'){ base.title='Our cars'; base.limit=6; base.showAll=true; }
+  if(type==='text'){ base.title='New section'; base.body=''; }
+  if(type==='steps'||type==='features') base.items = [{id:nextId('it'), title:'Item one', text:''}];
+  if(type==='reviews') base.items = [{id:nextId('it'), title:'Customer', text:'', stars:5}];
+  if(type==='gallery') base.photoIds = [];
+  if(type==='video'){ base.videoUrl=''; base.title='Video'; }
+  if(type==='cta'){ base.title='Ready to find your next car?'; base.buttonText='View our cars'; base.buttonPage='stock'; }
+  if(type==='contact') base.title='Get in touch';
+  page.sections.push(base);
+  touchSite(); saveDB(); render();
+  setTimeout(()=>editSiteSection(pid, base.id), 60);
+}
+
+/* ---------- pages ---------- */
+function addSitePage(){
+  const name = prompt('Page name (e.g. Finance, Warranty, Reviews)');
+  if(!name) return;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const S = siteData();
+  if(S.pages.some(p=>p.slug===slug)){ alert('A page with that address already exists.'); return; }
+  const id = nextId('pg');
+  S.pages.push({id, name, slug, sections:[{id:nextId('sec'), type:'text', visible:true, title:name, body:''}]});
+  S.menu.push({id:nextId('mi'), label:name, page:id});
+  sbPage = id; touchSite(); saveDB(); render();
+}
+function renameSitePage(pid){
+  const p = siteData().pages.find(x=>x.id===pid); if(!p) return;
+  const name = prompt('Page name', p.name); if(!name) return;
+  p.name = name;
+  const mi = siteData().menu.find(m=>m.page===pid); if(mi) mi.label = name;
+  touchSite(); saveDB(); render();
+}
+function deleteSitePage(pid){
+  if(!confirm('Delete this page and everything on it?')) return;
+  const S = siteData();
+  S.pages = S.pages.filter(p=>p.id!==pid);
+  S.menu  = S.menu.filter(m=>m.page!==pid);
+  sbPage = S.pages[0] ? S.pages[0].id : null;
+  touchSite(); saveDB(); render();
+}
+
+/* ---------- section editors ---------- */
+function editSiteSection(pid, sid){
+  const page = siteData().pages.find(p=>p.id===pid);
+  const s = page && page.sections.find(x=>x.id===sid); if(!s) return;
+  const pageOpts = siteData().pages.map(p=>`<option value="${p.id}" ${'' }>${escapeHtml(p.name)}</option>`).join('');
+  let body = '';
+
+  if(s.type==='hero'){
+    body = `
+      <div class="small-muted" style="margin-bottom:8px;">Slides rotate automatically. Add a photo or a video background to each.</div>
+      <div id="heroSlides">
+        ${(s.slides||[]).map((sl,i)=>`
+          <div class="card" style="padding:12px;margin-bottom:8px;">
+            <div class="flex-between"><strong>Slide ${i+1}</strong>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-sm btn-ghost" onclick="moveSlide('${pid}','${sid}','${sl.id}',-1)" ${i===0?'disabled':''}>↑</button>
+                <button class="btn btn-sm btn-ghost" onclick="moveSlide('${pid}','${sid}','${sl.id}',1)" ${i===(s.slides.length-1)?'disabled':''}>↓</button>
+                ${s.slides.length>1?`<button class="btn btn-sm btn-danger" onclick="deleteSlide('${pid}','${sid}','${sl.id}')">✕</button>`:''}
+              </div></div>
+            <div class="field"><label>Heading</label><input id="sl_h_${sl.id}" value="${escapeAttr(sl.heading||'')}"/></div>
+            <div class="field"><label>Sub-heading</label><input id="sl_s_${sl.id}" value="${escapeAttr(sl.sub||'')}"/></div>
+            <div class="field-row">
+              <div class="field"><label>Button text</label><input id="sl_bt_${sl.id}" value="${escapeAttr(sl.buttonText||'')}"/></div>
+              <div class="field"><label>Button goes to</label>
+                <select id="sl_bp_${sl.id}">${siteData().pages.map(p=>`<option value="${p.id}" ${sl.buttonPage===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select></div>
+            </div>
+            <div class="field"><label>Background photo</label>
+              ${sl.photoId?`<img src="${getPhotoUrl(sl.photoId)}" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;margin-bottom:6px;">`:''}
+              <input type="file" accept="image/*" onchange="uploadSlidePhoto(event,'${pid}','${sid}','${sl.id}')"/></div>
+            <div class="field"><label>Or a video (YouTube link or MP4)</label>
+              <input id="sl_v_${sl.id}" value="${escapeAttr(sl.videoUrl||'')}" placeholder="https://youtube.com/watch?v=..."/></div>
+          </div>`).join('')}
+      </div>
+      <button class="btn btn-ghost" onclick="addSlide('${pid}','${sid}')">+ Add slide</button>`;
+  }
+  else if(s.type==='cars'){
+    body = `
+      <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
+      <div class="field"><label>How many to show</label>
+        <select id="sec_showall">
+          <option value="all" ${s.showAll?'selected':''}>A few, with a "view all" button</option>
+          <option value="every" ${!s.showAll?'selected':''}>Every available car</option>
+        </select></div>
+      <div class="field"><label>Number shown (when not showing every car)</label>
+        <input id="sec_limit" type="number" value="${s.limit||6}"/></div>
+      <div class="small-muted">Cars come from your stock automatically &mdash; publish stock separately from the Stock page.</div>`;
+  }
+  else if(s.type==='text'){
+    body = `
+      <div class="field"><label>Heading</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
+      <div class="field"><label>Text</label><textarea id="sec_body" rows="7">${escapeHtml(s.body||'')}</textarea>
+        <div class="small-muted" style="margin-top:4px;">Leave a blank line between paragraphs.</div></div>`;
+  }
+  else if(s.type==='steps' || s.type==='features' || s.type==='reviews'){
+    const label = s.type==='reviews' ? 'Review' : 'Item';
+    body = `
+      <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
+      ${(s.items||[]).map((it,i)=>`
+        <div class="card" style="padding:12px;margin-bottom:8px;">
+          <div class="flex-between"><strong>${label} ${i+1}</strong>
+            <div style="display:flex;gap:4px;">
+              <button class="btn btn-sm btn-ghost" onclick="moveItem('${pid}','${sid}','${it.id}',-1)" ${i===0?'disabled':''}>↑</button>
+              <button class="btn btn-sm btn-ghost" onclick="moveItem('${pid}','${sid}','${it.id}',1)" ${i===s.items.length-1?'disabled':''}>↓</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteItem('${pid}','${sid}','${it.id}')">✕</button>
+            </div></div>
+          <div class="field"><label>${s.type==='reviews'?'Customer name':'Title'}</label><input id="it_t_${it.id}" value="${escapeAttr(it.title||'')}"/></div>
+          <div class="field"><label>${s.type==='reviews'?'What they said':'Description'}</label><textarea id="it_d_${it.id}" rows="3">${escapeHtml(it.text||'')}</textarea></div>
+          ${s.type==='reviews'?`<div class="field"><label>Stars</label><select id="it_s_${it.id}">${[5,4,3].map(n=>`<option ${Number(it.stars||5)===n?'selected':''}>${n}</option>`).join('')}</select></div>`:''}
+        </div>`).join('')}
+      <button class="btn btn-ghost" onclick="addItem('${pid}','${sid}')">+ Add ${label.toLowerCase()}</button>`;
+  }
+  else if(s.type==='gallery'){
+    body = `
+      <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:10px;">
+        ${(s.photoIds||[]).map(id=>`<div style="position:relative;">
+          <img src="${getPhotoUrl(id)}" style="width:100%;height:90px;object-fit:cover;border-radius:8px;">
+          <button class="btn btn-sm btn-danger" style="position:absolute;top:4px;right:4px;padding:2px 7px;"
+                  onclick="removeGalleryPhoto('${pid}','${sid}','${id}')">✕</button></div>`).join('')}
+      </div>
+      <div class="field"><label>Add photos</label><input type="file" accept="image/*" multiple onchange="uploadGalleryPhotos(event,'${pid}','${sid}')"/></div>`;
+  }
+  else if(s.type==='video'){
+    body = `
+      <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
+      <div class="field"><label>YouTube link or MP4 address</label><input id="sec_video" value="${escapeAttr(s.videoUrl||'')}" placeholder="https://www.youtube.com/watch?v=..."/></div>
+      <div class="small-muted">A YouTube link is easiest &mdash; upload the video there, then paste the link here.</div>`;
+  }
+  else if(s.type==='cta'){
+    body = `
+      <div class="field"><label>Heading</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
+      <div class="field-row">
+        <div class="field"><label>Button text</label><input id="sec_bt" value="${escapeAttr(s.buttonText||'')}"/></div>
+        <div class="field"><label>Button goes to</label>
+          <select id="sec_bp">${siteData().pages.map(p=>`<option value="${p.id}" ${s.buttonPage===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select></div>
+      </div>`;
+  }
+  else if(s.type==='contact'){
+    body = `<div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
+      <div class="small-muted">Your phone, WhatsApp, email and address come from the Details tab, so you only enter them once.</div>`;
+  }
+
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${SECTION_TYPES[s.type].icon} ${SECTION_TYPES[s.type].label}</h3>
+    ${body}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveSiteSection('${pid}','${sid}')">Save</button>
+    </div>`);
+}
+
+function saveSiteSection(pid, sid){
+  const page = siteData().pages.find(p=>p.id===pid);
+  const s = page && page.sections.find(x=>x.id===sid); if(!s) return;
+  const val = id => { const e=document.getElementById(id); return e?e.value:undefined; };
+
+  if(s.type==='hero'){
+    (s.slides||[]).forEach(sl=>{
+      sl.heading = val('sl_h_'+sl.id) ?? sl.heading;
+      sl.sub = val('sl_s_'+sl.id) ?? sl.sub;
+      sl.buttonText = val('sl_bt_'+sl.id) ?? sl.buttonText;
+      sl.buttonPage = val('sl_bp_'+sl.id) ?? sl.buttonPage;
+      sl.videoUrl = val('sl_v_'+sl.id) ?? sl.videoUrl;
+    });
+  } else if(s.type==='cars'){
+    s.title = val('sec_title'); s.showAll = val('sec_showall')==='all';
+    s.limit = Number(val('sec_limit'))||6;
+  } else if(s.type==='text'){
+    s.title = val('sec_title'); s.body = val('sec_body');
+  } else if(['steps','features','reviews'].includes(s.type)){
+    s.title = val('sec_title');
+    (s.items||[]).forEach(it=>{
+      it.title = val('it_t_'+it.id) ?? it.title;
+      it.text  = val('it_d_'+it.id) ?? it.text;
+      const st = val('it_s_'+it.id); if(st) it.stars = Number(st);
+    });
+  } else if(s.type==='video'){
+    s.title = val('sec_title'); s.videoUrl = val('sec_video');
+  } else if(s.type==='cta'){
+    s.title = val('sec_title'); s.buttonText = val('sec_bt'); s.buttonPage = val('sec_bp');
+  } else {
+    if(val('sec_title')!==undefined) s.title = val('sec_title');
+  }
+  touchSite(); saveDB(); closeModal(); render();
+}
+
+/* slides & items */
+function addSlide(pid,sid){
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  s.slides.push({id:nextId('sl'), heading:'New slide', sub:'', buttonText:'', buttonPage:'stock', photoId:null, videoUrl:''});
+  touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+function deleteSlide(pid,sid,slid){
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  s.slides = s.slides.filter(x=>x.id!==slid); touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+function moveSlide(pid,sid,slid,dir){
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  const i = s.slides.findIndex(x=>x.id===slid), j=i+dir;
+  if(j<0||j>=s.slides.length) return;
+  [s.slides[i],s.slides[j]]=[s.slides[j],s.slides[i]];
+  touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+function addItem(pid,sid){
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  s.items.push({id:nextId('it'), title:'', text:'', stars:5}); touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+function deleteItem(pid,sid,iid){
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  s.items = s.items.filter(x=>x.id!==iid); touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+function moveItem(pid,sid,iid,dir){
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  const i = s.items.findIndex(x=>x.id===iid), j=i+dir;
+  if(j<0||j>=s.items.length) return;
+  [s.items[i],s.items[j]]=[s.items[j],s.items[i]];
+  touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+async function uploadSlidePhoto(ev, pid, sid, slid){
+  const f = ev.target.files && ev.target.files[0]; if(!f) return;
+  const id = await setPhoto(f);
+  if(!id){ alert('Photo upload failed: ' + (lastPhotoError||'unknown error')); return; }
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  const sl = s.slides.find(x=>x.id===slid); sl.photoId = id;
+  touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+async function uploadGalleryPhotos(ev, pid, sid){
+  const files = Array.from(ev.target.files||[]); if(!files.length) return;
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  if(!s.photoIds) s.photoIds = [];
+  for(const f of files){
+    const id = await setPhoto(f);
+    if(id) s.photoIds.push(id);
+  }
+  touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+function removeGalleryPhoto(pid,sid,photoId){
+  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
+  s.photoIds = (s.photoIds||[]).filter(x=>x!==photoId);
+  touchSite(); saveDB(); editSiteSection(pid,sid);
+}
+
+/* ---------- menu ---------- */
+function renderSbMenu(S){
+  return `
+  <div class="small-muted" style="margin-bottom:8px;">The links across the top of your website. Use the arrows to reorder.</div>
+  <div class="card" style="padding:0;">
+    <table><thead><tr><th>Label</th><th>Goes to</th><th></th></tr></thead><tbody>
+    ${S.menu.map((m,i)=>`<tr>
+      <td><input value="${escapeAttr(m.label)}" onchange="updateMenuItem('${m.id}','label',this.value)" style="max-width:200px;"/></td>
+      <td><select onchange="updateMenuItem('${m.id}','page',this.value)">
+        ${S.pages.map(p=>`<option value="${p.id}" ${m.page===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
+      </select></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-sm btn-ghost" onclick="moveMenu('${m.id}',-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="btn btn-sm btn-ghost" onclick="moveMenu('${m.id}',1)" ${i===S.menu.length-1?'disabled':''}>↓</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteMenuItem('${m.id}')">✕</button>
+      </td></tr>`).join('')}
+    </tbody></table>
+  </div>
+  <button class="btn btn-ghost" style="margin-top:10px;" onclick="addMenuItem()">+ Add menu link</button>`;
+}
+function updateMenuItem(id, field, v){
+  const m = siteData().menu.find(x=>x.id===id); if(!m) return;
+  m[field]=v; touchSite(); saveDB();
+}
+function moveMenu(id,dir){
+  const S=siteData(); const i=S.menu.findIndex(m=>m.id===id), j=i+dir;
+  if(j<0||j>=S.menu.length) return;
+  [S.menu[i],S.menu[j]]=[S.menu[j],S.menu[i]]; touchSite(); saveDB(); render();
+}
+function deleteMenuItem(id){
+  const S=siteData(); S.menu=S.menu.filter(m=>m.id!==id); touchSite(); saveDB(); render();
+}
+function addMenuItem(){
+  const S=siteData();
+  S.menu.push({id:nextId('mi'), label:'New link', page:S.pages[0].id});
+  touchSite(); saveDB(); render();
+}
+
+/* ---------- settings ---------- */
+function renderSbSettings(S){
+  const st = S.settings;
+  return `
+  <div class="card">
+    <h3 style="margin-bottom:12px;">Business details</h3>
+    <div class="field-row">
+      <div class="field"><label>Business name</label><input id="st_name" value="${escapeAttr(st.name||'')}" onchange="saveSiteSettings()"/></div>
+      <div class="field"><label>Tagline</label><input id="st_tag" value="${escapeAttr(st.tagline||'')}" onchange="saveSiteSettings()"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Phone</label><input id="st_phone" value="${escapeAttr(st.phone||'')}" onchange="saveSiteSettings()"/></div>
+      <div class="field"><label>WhatsApp <span class="small-muted">(e.g. 447700900123)</span></label><input id="st_wa" value="${escapeAttr(st.whatsapp||'')}" onchange="saveSiteSettings()"/></div>
+      <div class="field"><label>Email</label><input id="st_email" value="${escapeAttr(st.email||'')}" onchange="saveSiteSettings()"/></div>
+    </div>
+    <div class="field"><label>Address</label><textarea id="st_addr" rows="3" onchange="saveSiteSettings()">${escapeHtml((st.address||[]).join('\n'))}</textarea>
+      <div class="small-muted">One line each.</div></div>
+    <div class="field-row">
+      <div class="field"><label>Opening hours</label><input id="st_hours" value="${escapeAttr(st.hours||'')}" onchange="saveSiteSettings()"/></div>
+      <div class="field"><label>Google Maps search</label><input id="st_maps" value="${escapeAttr(st.mapsQuery||'')}" placeholder="Car Express Hemel Hempstead" onchange="saveSiteSettings()"/></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h3 style="margin-bottom:12px;">Social links</h3>
+    <div class="field-row">
+      <div class="field"><label>Facebook</label><input id="st_fb" value="${escapeAttr((st.social||{}).facebook||'')}" onchange="saveSiteSettings()"/></div>
+      <div class="field"><label>Instagram</label><input id="st_ig" value="${escapeAttr((st.social||{}).instagram||'')}" onchange="saveSiteSettings()"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>TikTok</label><input id="st_tt" value="${escapeAttr((st.social||{}).tiktok||'')}" onchange="saveSiteSettings()"/></div>
+      <div class="field"><label>YouTube</label><input id="st_yt" value="${escapeAttr((st.social||{}).youtube||'')}" onchange="saveSiteSettings()"/></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h3 style="margin-bottom:12px;">Colours</h3>
+    <div class="field-row">
+      <div class="field"><label>Main colour</label><input id="st_c1" type="color" value="${st.primaryColour||'#DC2226'}" onchange="saveSiteSettings()" style="height:48px;"/></div>
+      <div class="field"><label>Dark colour</label><input id="st_c2" type="color" value="${st.darkColour||'#17428C'}" onchange="saveSiteSettings()" style="height:48px;"/></div>
+    </div>
+  </div>`;
+}
+function saveSiteSettings(){
+  const S = siteData(), st = S.settings;
+  const v = id => { const e=document.getElementById(id); return e?e.value:undefined; };
+  st.name = v('st_name'); st.tagline = v('st_tag');
+  st.phone = v('st_phone'); st.whatsapp = (v('st_wa')||'').replace(/\D/g,''); st.email = v('st_email');
+  st.address = (v('st_addr')||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  st.hours = v('st_hours'); st.mapsQuery = v('st_maps');
+  st.social = {facebook:v('st_fb'), instagram:v('st_ig'), tiktok:v('st_tt'), youtube:v('st_yt')};
+  st.primaryColour = v('st_c1'); st.darkColour = v('st_c2');
+  touchSite(); saveDB();
+}
+
+/* ---------- publish ---------- */
+function sitePayload(){
+  const S = JSON.parse(JSON.stringify(siteData()));
+  // swap photo ids for public URLs so the website can load them
+  S.pages.forEach(p => p.sections.forEach(sec => {
+    if(sec.slides) sec.slides.forEach(sl => { sl.photo = sl.photoId ? photoUrlSync(sl.photoId) : null; delete sl.photoId; });
+    if(sec.photoIds){ sec.photos = sec.photoIds.map(id=>photoUrlSync(id)).filter(Boolean); delete sec.photoIds; }
+  }));
+  return S;
+}
+async function publishSite(){
+  if(!isManager()) return;
+  const S = siteData();
+  if(!S.settings.phone || !S.settings.whatsapp){
+    if(!confirm("Your phone or WhatsApp number is missing, so customers won't be able to contact you.\n\nPublish anyway?")) return;
+  }
+  try{
+    const {error} = await sb.from('public_site').upsert({
+      id:'site', data: sitePayload(), updated_at: new Date().toISOString()
+    });
+    if(error) throw error;
+    DB.sitePublishedAt = new Date().toISOString();
+    logChange('stock','Published website', {id:'site',label:'Website'}, '', '',
+      S.pages.length + ' pages');
+    saveDB(); render();
+    alert('Website published. Your changes are live within a few seconds.');
+  }catch(e){
+    alert('Could not publish the site.\n\n' + (e.message||e) +
+          '\n\nIf this is the first time, the public_site table may not be set up yet — see WEBSITE-SETUP.md.');
+  }
+}
+function previewSite(){
+  const S = siteData();
+  const page = S.pages.find(p=>p.id===sbPage) || S.pages[0];
+  const w = window.open('','_blank');
+  const st = S.settings;
+  const esc = escapeHtml;
+  const sec = s => {
+    if(s.visible===false) return '';
+    if(s.type==='hero') return (s.slides||[]).map(sl=>`
+      <div style="background:${st.darkColour};color:#fff;padding:60px 24px;text-align:center;
+        ${sl.photoId?`background-image:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),url('${getPhotoUrl(sl.photoId)}');background-size:cover;background-position:center;`:''}">
+        <h1 style="margin:0 0 10px;font-size:32px;">${esc(sl.heading||'')}</h1>
+        <p style="margin:0 0 18px;opacity:.9">${esc(sl.sub||'')}</p>
+        ${sl.buttonText?`<span style="background:${st.primaryColour};color:#fff;padding:12px 24px;border-radius:4px;display:inline-block;">${esc(sl.buttonText)}</span>`:''}
+      </div>`).join('');
+    if(s.type==='cars') return `<div style="padding:30px 24px;text-align:center;background:#f4f6fa">
+      <h2>${esc(s.title||'Cars')}</h2><p style="color:#667">${s.showAll?'A few cars with a view-all button':'Every available car'} — pulled live from your stock</p></div>`;
+    if(s.type==='text') return `<div style="padding:30px 24px;"><h2>${esc(s.title||'')}</h2>
+      ${(s.body||'').split('\\n\\n').map(p=>`<p>${esc(p)}</p>`).join('')}</div>`;
+    if(s.type==='steps'||s.type==='features') return `<div style="padding:30px 24px;background:#f4f6fa">
+      <h2>${esc(s.title||'')}</h2>${(s.items||[]).map((it,i)=>`<div style="margin:14px 0;">
+      <strong style="color:${st.primaryColour}">${s.type==='steps'?('Step '+(i+1)):''}</strong>
+      <div style="font-weight:700">${esc(it.title||'')}</div><div style="color:#667">${esc(it.text||'')}</div></div>`).join('')}</div>`;
+    if(s.type==='reviews') return `<div style="padding:30px 24px;"><h2>${esc(s.title||'Reviews')}</h2>
+      ${(s.items||[]).map(it=>`<div style="border:1px solid #ddd;border-radius:8px;padding:14px;margin:10px 0;">
+      <div style="color:#E8B33A">${'★'.repeat(Number(it.stars||5))}</div><p>${esc(it.text||'')}</p>
+      <div style="color:#667">— ${esc(it.title||'')}</div></div>`).join('')}</div>`;
+    if(s.type==='gallery') return `<div style="padding:30px 24px;background:#f4f6fa"><h2>${esc(s.title||'Gallery')}</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;">
+      ${(s.photoIds||[]).map(id=>`<img src="${getPhotoUrl(id)}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;">`).join('')}</div></div>`;
+    if(s.type==='video') return `<div style="padding:30px 24px;text-align:center;"><h2>${esc(s.title||'Video')}</h2>
+      <div style="background:#000;color:#fff;padding:50px;border-radius:8px;">${s.videoUrl?esc(s.videoUrl):'No video set'}</div></div>`;
+    if(s.type==='cta') return `<div style="padding:40px 24px;text-align:center;background:${st.primaryColour};color:#fff;">
+      <h2 style="color:#fff">${esc(s.title||'')}</h2>
+      ${s.buttonText?`<span style="background:#fff;color:${st.primaryColour};padding:12px 24px;border-radius:4px;display:inline-block;font-weight:700;">${esc(s.buttonText)}</span>`:''}</div>`;
+    if(s.type==='contact') return `<div style="padding:30px 24px;background:${st.darkColour};color:#fff;">
+      <h2 style="color:#fff">${esc(s.title||'Get in touch')}</h2>
+      <p>📞 ${esc(st.phone||'—')}<br>✉️ ${esc(st.email||'—')}<br>📍 ${esc((st.address||[]).join(', '))}</p>
+      <p style="opacity:.8">${esc(st.hours||'')}</p></div>`;
+    return '';
+  };
+  w.document.write(`<html><head><title>Preview — ${esc(page?page.name:'')}</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <style>body{margin:0;font-family:system-ui,sans-serif;line-height:1.6}h1,h2{font-family:system-ui}</style></head><body>
+    <div style="background:${st.darkColour};color:#fff;padding:12px 18px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+      <strong>${esc(st.name||'')}</strong>
+      ${S.menu.map(m=>`<span style="opacity:.85;font-size:14px">${esc(m.label)}</span>`).join('')}
+    </div>
+    <div style="background:#FFF3CD;padding:8px 18px;font-size:13px;">Preview of <b>${esc(page?page.name:'')}</b> — this is a rough guide, the live site uses your full template design.</div>
+    ${page ? page.sections.map(sec).join('') : ''}
+  </body></html>`);
+  w.document.close();
 }
 
 function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
