@@ -1209,6 +1209,7 @@ async function vehicleIssuesTab(v){
   <div class="card" style="margin-bottom:16px;">
     <div class="flex-between"><h3 style="margin:0">General photos</h3>
       <label class="btn btn-sm btn-ghost" style="cursor:pointer;">+ Upload photo<input type="file" accept="image/*" style="display:none" onchange="uploadVehiclePhoto('${v.id}', this)"/></label>
+      <button class="btn btn-sm btn-ghost" onclick="openMediaGuide('vehicle')">📷 Photo guide</button>
     </div>
     <div class="photo-row">${photosHtml || '<span class="small-muted">No general photos yet.</span>'}</div>
   </div>
@@ -1329,7 +1330,8 @@ function issueSourceLinksHtml(i){
 async function uploadVehiclePhoto(vId, input){
   const file = input.files[0]; if(!file) return;
   const v = DB.vehicles.find(x=>x.id===vId);
-  const blob = await compressImage(file);
+  // Car photos go on the website, so keep them large enough to look sharp there.
+  const blob = await compressImage(file, 1600, 0.82);
   const res = await storePhoto(blob);
   if(!res.ref){ alert("The photo couldn't be saved. Error: " + (res.error||'unknown')); return; }
   if(!v.photos) v.photos=[];
@@ -4505,7 +4507,7 @@ function editSiteSection(pid, sid){
               <div class="field"><label>Button goes to</label>
                 <select id="sl_bp_${sl.id}">${siteData().pages.map(p=>`<option value="${p.id}" ${sl.buttonPage===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select></div>
             </div>
-            <div class="field"><label>Background photo</label>
+            <div class="field"><label>Background photo <span class="link" style="cursor:pointer;font-weight:400" onclick="openMediaGuide('hero')">(size guide)</span></label>
               ${sl.photoId?`<img src="${getPhotoUrl(sl.photoId)}" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;margin-bottom:6px;">`:''}
               <input type="file" accept="image/*" onchange="uploadSlidePhoto(event,'${pid}','${sid}','${sl.id}')"/></div>
             <div class="field"><label>Or a video (YouTube link or MP4)</label>
@@ -4559,12 +4561,12 @@ function editSiteSection(pid, sid){
           <button class="btn btn-sm btn-danger" style="position:absolute;top:4px;right:4px;padding:2px 7px;"
                   onclick="removeGalleryPhoto('${pid}','${sid}','${id}')">✕</button></div>`).join('')}
       </div>
-      <div class="field"><label>Add photos</label><input type="file" accept="image/*" multiple onchange="uploadGalleryPhotos(event,'${pid}','${sid}')"/></div>`;
+      <div class="field"><label>Add photos <span class="link" style="cursor:pointer;font-weight:400" onclick="openMediaGuide('gallery')">(size guide)</span></label><input type="file" accept="image/*" multiple onchange="uploadGalleryPhotos(event,'${pid}','${sid}')"/></div>`;
   }
   else if(s.type==='video'){
     body = `
       <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
-      <div class="field"><label>YouTube link or MP4 address</label><input id="sec_video" value="${escapeAttr(s.videoUrl||'')}" placeholder="https://www.youtube.com/watch?v=..."/></div>
+      <div class="field"><label>YouTube link or MP4 address <span class="link" style="cursor:pointer;font-weight:400" onclick="openMediaGuide('video')">(what works best)</span></label><input id="sec_video" value="${escapeAttr(s.videoUrl||'')}" placeholder="https://www.youtube.com/watch?v=..."/></div>
       <div class="small-muted">A YouTube link is easiest &mdash; upload the video there, then paste the link here.</div>`;
   }
   else if(s.type==='cta'){
@@ -4660,10 +4662,12 @@ function moveItem(pid,sid,iid,dir){
 }
 async function uploadSlidePhoto(ev, pid, sid, slid){
   const f = ev.target.files && ev.target.files[0]; if(!f) return;
-  const id = await setPhoto(f);
-  if(!id){ alert('Photo upload failed: ' + (lastPhotoError||'unknown error')); return; }
+  const blob = await compressImage(f, 1920, 0.82);   // full-width banner
+  const res = await storePhoto(blob);
+  if(!res.ref){ alert("The photo couldn't be saved. Error: " + (res.error||'unknown')); return; }
+  notePhotoFallback(res);
   const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  const sl = s.slides.find(x=>x.id===slid); sl.photoId = id;
+  const sl = s.slides.find(x=>x.id===slid); sl.photoId = res.ref;
   touchSite(); saveDB(); editSiteSection(pid,sid);
 }
 async function uploadGalleryPhotos(ev, pid, sid){
@@ -4671,8 +4675,10 @@ async function uploadGalleryPhotos(ev, pid, sid){
   const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
   if(!s.photoIds) s.photoIds = [];
   for(const f of files){
-    const id = await setPhoto(f);
-    if(id) s.photoIds.push(id);
+    const blob = await compressImage(f, 1400, 0.82);
+    const res = await storePhoto(blob);
+    if(res.ref){ s.photoIds.push(res.ref); notePhotoFallback(res); }
+    else alert("A photo couldn't be saved. Error: " + (res.error||'unknown'));
   }
   touchSite(); saveDB(); editSiteSection(pid,sid);
 }
@@ -4858,6 +4864,151 @@ function previewSite(){
     ${page ? page.sections.map(sec).join('') : ''}
   </body></html>`);
   w.document.close();
+}
+
+
+/* =========================================================================
+   PHOTO & VIDEO GUIDE — what to upload where, and how to shoot it.
+   ========================================================================= */
+const MEDIA_SPECS = {
+  vehicle: {
+    title:'Car photos',
+    where:'Vehicle → Issues &amp; Photos',
+    size:'1600 × 1200 or larger (landscape)',
+    ratio:'4:3 landscape — hold the phone sideways',
+    weight:'Any size; the app shrinks it to 1600px wide',
+    format:'JPG or HEIC straight from your phone',
+    notes:'The first photo becomes the main image everywhere — on the website, the stock list and the car page. Make it the best one.'
+  },
+  hero: {
+    title:'Website banner (hero slide)',
+    where:'Website → Hero slider',
+    size:'1920 × 1080 minimum (landscape)',
+    ratio:'16:9 wide',
+    weight:'Shrunk to 1920px wide',
+    format:'JPG',
+    notes:'Text sits over this image, so leave space and avoid a busy middle. A wide shot of your forecourt works well.'
+  },
+  gallery: {
+    title:'Website gallery photos',
+    where:'Website → Photo gallery',
+    size:'1400 × 1000 or larger',
+    ratio:'4:3 or 16:9, all the same shape',
+    weight:'Shrunk to 1400px wide',
+    format:'JPG',
+    notes:'Mixing portrait and landscape makes the grid look untidy. Pick one and stick to it.'
+  },
+  receipt: {
+    title:'Receipts &amp; invoices',
+    where:'Log my spend / Cost &amp; invoice',
+    size:'Whatever your phone takes',
+    ratio:'Any',
+    weight:'Shrunk automatically',
+    format:'JPG or PDF',
+    notes:'Flat, well lit, all four corners in shot. It only needs to be readable.'
+  },
+  logo: {
+    title:'Logo',
+    where:'Branding',
+    size:'At least 800px wide',
+    ratio:'Whatever the logo is',
+    weight:'Under 1 MB',
+    format:'PNG with a transparent background, or SVG',
+    notes:'A JPG logo carries a white box behind it. Ask your designer for PNG or SVG.'
+  },
+  video: {
+    title:'Video',
+    where:'Website → Video section',
+    size:'1080p (1920 × 1080)',
+    ratio:'16:9 landscape',
+    weight:'YouTube link preferred; direct MP4 under 30 MB',
+    format:'MP4 (H.264), or a YouTube link',
+    notes:'Upload to YouTube and paste the link. Videos stored directly are slow to load and eat your storage.'
+  },
+  spin: {
+    title:'360° spin',
+    where:'360° View page',
+    size:'1200 × 900 each',
+    ratio:'4:3, identical for every frame',
+    weight:'Under 300 KB each',
+    format:'JPG, named car-1.jpg to car-24.jpg',
+    notes:'24 photos at even intervals around the car. The camera must not move — only the car. Realistically this needs a turntable.'
+  }
+};
+
+const SHOT_LIST = [
+  'Front three-quarter (the main photo — front and one side visible)',
+  'Rear three-quarter from the opposite corner',
+  'Straight side profile',
+  'Straight front',
+  'Straight rear',
+  'Interior from the driver\u2019s door, showing seats and dash',
+  'Dashboard with the mileage clearly readable',
+  'Rear seats',
+  'Boot space, empty',
+  'One wheel, showing tyre condition',
+  'Engine bay',
+  'Service book or history',
+  'Any damage, honestly — a scuff shown upfront prevents a complaint later'
+];
+
+function openMediaGuide(which){
+  const rows = Object.entries(MEDIA_SPECS).map(([k,s])=>`
+    <div class="card" style="padding:14px;margin-bottom:8px;${which===k?'border:2px solid var(--brand);':''}">
+      <div style="font-weight:700;font-size:15px;">${s.title}</div>
+      <div class="small-muted" style="margin-bottom:8px;">${s.where}</div>
+      <table style="font-size:13.5px;">
+        <tr><td style="width:96px;color:var(--grey)">Size</td><td><b>${s.size}</b></td></tr>
+        <tr><td style="color:var(--grey)">Shape</td><td>${s.ratio}</td></tr>
+        <tr><td style="color:var(--grey)">File size</td><td>${s.weight}</td></tr>
+        <tr><td style="color:var(--grey)">Format</td><td>${s.format}</td></tr>
+      </table>
+      <div style="margin-top:8px;font-size:13.5px;">${s.notes}</div>
+    </div>`).join('');
+
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>📷 Photo &amp; video guide</h3>
+    <div class="small-muted" style="margin-bottom:12px;">
+      The app shrinks photos automatically, so you can upload straight from your phone.
+      These are the sizes worth aiming for so nothing looks soft on a big screen.
+    </div>
+
+    <div class="card" style="background:var(--brand-dim);box-shadow:none;padding:14px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:6px;">The four that matter most</div>
+      <ul style="margin:0;padding-left:18px;font-size:13.5px;line-height:1.7;">
+        <li><b>Landscape, always.</b> Turn the phone sideways. Portrait photos crop badly on the website.</li>
+        <li><b>Bright, overcast days are best.</b> Direct sun creates hard shadows and blown-out panels.</li>
+        <li><b>Clean the car first.</b> It makes more difference than any camera setting.</li>
+        <li><b>Plain background.</b> Park away from bins, other cars and clutter.</li>
+      </ul>
+    </div>
+
+    <div style="font-weight:700;margin:14px 0 8px;">Shot list for every car</div>
+    <div class="card" style="padding:14px;margin-bottom:12px;">
+      <ol style="margin:0;padding-left:20px;font-size:13.5px;line-height:1.8;">
+        ${SHOT_LIST.map(s=>`<li>${s}</li>`).join('')}
+      </ol>
+      <div class="small-muted" style="margin-top:10px;">
+        Around 12 photos is the sweet spot. Fewer looks like you're hiding something; many more and buyers stop scrolling.
+      </div>
+    </div>
+
+    <div style="font-weight:700;margin:14px 0 8px;">Sizes by type</div>
+    ${rows}
+
+    <div class="card" style="background:var(--amber-dim);box-shadow:none;padding:14px;">
+      <div style="font-weight:700;margin-bottom:6px;">Worth knowing</div>
+      <div style="font-size:13.5px;line-height:1.7;">
+        Photos are compressed when you upload, so a 5 MB phone photo becomes a few hundred KB.
+        That keeps the app quick and the website fast. It also means uploading a tiny photo
+        can't be undone &mdash; it stays small. When in doubt, upload the bigger version.
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-brand" onclick="closeModal()">Got it</button>
+    </div>`);
 }
 
 function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
