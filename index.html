@@ -331,6 +331,7 @@ const DEFAULT_DB = () => ({
   assets: [],
   leads: [],
   muzaribs: [],
+  floats: [],
   site: null,
   muzaribTx: [],
   audit: [],
@@ -669,7 +670,8 @@ function renderDashboard(){
   const thisWeek = soldVehicles.filter(v=> weekKey(v.sale.date)===weekKey(todayISO()));
   const weekRevenue = thisWeek.reduce((s,v)=>s+vehicleNetSale(v),0);
   const weekProfit = thisWeek.reduce((s,v)=>s+vehicleProfit(v),0);
-  const owedToStaff = DB.expenses.filter(e=>e.status==='owed').reduce((s,e)=>s+Number(e.amount||0),0);
+  const owedToStaff = DB.expenses.filter(e=>e.status==='owed' && e.fundedBy!=='float')
+    .reduce((s,e)=>s+Number(e.amount||0),0);
 
   const byStatus = {};
   DB.vehicles.forEach(v=>{ byStatus[v.status]=(byStatus[v.status]||0)+1; });
@@ -1765,6 +1767,8 @@ function expensePaidAmount(e){
 }
 function expenseBalance(e){ return Math.max(0, (Number(e.amount)||0) - expensePaidAmount(e)); }
 function expenseStatusLabel(e){
+  // Spent from the company's own money — nothing to reimburse.
+  if(e.fundedBy==='float') return 'float';
   const bal = expenseBalance(e);
   if(bal<=0) return 'paid';
   if(expensePaidAmount(e)>0) return 'partial';
@@ -1829,6 +1833,8 @@ function renderTeamOverview(){
   </div>
 
   ${summaryHtml}
+
+  ${floatSection()}
 
   <div class="section-title"><h2>Company spend by staff</h2>
     <button class="btn btn-amber btn-sm" onclick="openAddExpense()">+ Log my spend</button>
@@ -1939,7 +1945,15 @@ function deleteTeamMember(id){
 
 function openAddExpense(){
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Log my spend</h3>
-    <div class="small-muted" style="margin-bottom:10px;">Logged as <strong>${currentUserName}</strong> — for fuel, parts, or anything paid from your own pocket to be reimbursed.</div>
+    <div class="small-muted" style="margin-bottom:10px;">Logged as <strong>${currentUserName}</strong> — fuel, parts, or anything you've paid for.</div>
+    ${(()=>{ const f = floatPosition(currentUserEmail);
+      return `<div class="field"><label>Whose money was it?</label>
+        <select id="e_funded">
+          <option value="own">My own money &mdash; company to pay me back</option>
+          <option value="float" ${f.balance>0?'selected':''}>Money the company gave me${f.balance>0?` (${fmtMoney(f.balance)} left)`:''}</option>
+        </select>
+        ${f.balance>0?`<div class="small-muted" style="margin-top:6px;">You're holding ${fmtMoney(f.balance)} of company money.</div>`:''}
+      </div>`;})()}
     <div class="field-row">
       <div class="field"><label>Date</label><input id="e_date" type="date" value="${todayISO()}"/></div>
       <div class="field"><label>Amount (£)</label><input id="e_amount" type="number"/></div>
@@ -1949,7 +1963,14 @@ function openAddExpense(){
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveExpense()">Log spend</button></div>`);
 }
 async function saveExpense(){
-  const expense = {id:nextId('exp'), employee:currentUserName, userEmail:currentUserEmail, date:document.getElementById('e_date').value, amount:Number(document.getElementById('e_amount').value)||0, note:document.getElementById('e_note').value, status:'owed', paidAmount:0, payments:[], photoId:null};
+  const funded = (document.getElementById('e_funded')||{value:'own'}).value;
+  const expense = {id:nextId('exp'), employee:currentUserName, userEmail:currentUserEmail,
+    date:document.getElementById('e_date').value, amount:Number(document.getElementById('e_amount').value)||0,
+    note:document.getElementById('e_note').value,
+    fundedBy: funded,
+    // Spends from the company float aren't owed back — they come off the float instead.
+    status: funded==='float' ? 'float' : 'owed',
+    paidAmount:0, payments:[], photoId:null};
   const file = document.getElementById('e_photo').files[0];
   DB.expenses.push(expense); saveDB(); closeModal(); render();
   if(file){
@@ -5008,6 +5029,198 @@ function openMediaGuide(which){
 
     <div class="modal-actions">
       <button class="btn btn-brand" onclick="closeModal()">Got it</button>
+    </div>`);
+}
+
+
+/* =========================================================================
+   CASH FLOAT — money handed to staff up front (e.g. £1,000 for parts).
+   Spends logged against the float reduce it; the balance shows what's left,
+   or what the company owes them if they've gone over.
+   ========================================================================= */
+
+function floats(){ return DB.floats || []; }
+function floatsFor(email){ return floats().filter(f=>f.userEmail===email); }
+
+/* Spends paid out of the float, rather than the person's own pocket. */
+function floatSpends(email){
+  return (DB.expenses||[]).filter(e=>e.userEmail===email && e.fundedBy==='float');
+}
+function floatPosition(email){
+  const received = floatsFor(email).reduce((s,f)=>s+(Number(f.amount)||0),0);
+  const returned = floatsFor(email).filter(f=>f.type==='return')
+                    .reduce((s,f)=>s+(Number(f.amount)||0),0);
+  const spent = floatSpends(email).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  // "received" already includes returns as negative amounts, so don't subtract twice
+  return {received, spent, balance: received - spent, returned};
+}
+function floatPeople(){
+  const set = new Set();
+  floats().forEach(f=>set.add(f.userEmail));
+  (DB.expenses||[]).filter(e=>e.fundedBy==='float').forEach(e=>set.add(e.userEmail));
+  return [...set].filter(Boolean);
+}
+function nameForEmail(email){
+  const m = (DB.team||[]).find(t=>t.email===email);
+  if(m) return m.name;
+  const f = floats().find(x=>x.userEmail===email);
+  if(f) return f.userName || email;
+  const e = (DB.expenses||[]).find(x=>x.userEmail===email);
+  return (e && (e.employee||e.userName)) || email;
+}
+
+function floatSection(){
+  const people = floatPeople();
+  const totalOut = people.reduce((s,p)=>s+floatPosition(p).balance,0);
+  return `
+  <div class="section-title"><h2>Money given to staff</h2>
+    ${isManager()?`<button class="btn btn-sm btn-brand" onclick="openGiveFloat()">+ Give money</button>`:''}
+  </div>
+  <div class="card" style="padding:0;margin-bottom:16px;">
+    ${people.length ? `<table><thead><tr><th>Person</th><th>Given</th><th>Spent</th><th>Balance</th><th>Status</th><th></th></tr></thead><tbody>
+      ${people.map(p=>{ const f = floatPosition(p);
+        const neg = f.balance < 0;
+        return `<tr>
+          <td><b>${escapeHtml(nameForEmail(p))}</b></td>
+          <td>${fmtMoney(f.received)}</td>
+          <td>${fmtMoney(f.spent)}</td>
+          <td style="font-weight:700;color:${neg?'var(--red)':(f.balance>0?'var(--ink)':'var(--green)')}">${neg?'&minus; ':''}${fmtMoney(Math.abs(f.balance))}</td>
+          <td>${neg
+              ? `<span class="tag tag-red">Company owes ${fmtMoney(Math.abs(f.balance))}</span>`
+              : (f.balance>0 ? `<span class="tag tag-amber">${fmtMoney(f.balance)} still held</span>`
+                             : `<span class="tag tag-green">Settled</span>`)}</td>
+          <td><button class="btn btn-sm btn-ghost" onclick="openFloatDetail('${escapeAttr(p)}')">History</button></td>
+        </tr>`;}).join('')}
+      <tr style="border-top:2px solid var(--ink)">
+        <td style="font-weight:700">Total held by staff</td><td></td><td></td>
+        <td style="font-weight:700;color:${totalOut<0?'var(--red)':'inherit'}">${fmtMoney(totalOut)}</td><td colspan="2"></td></tr>
+    </tbody></table>`
+    : `<div class="empty">No money handed out yet. Use "Give money" when you hand someone cash for parts or fuel.</div>`}
+  </div>`;
+}
+
+function openGiveFloat(){
+  if(!isManager()) return;
+  const team = (DB.team||[]).filter(t=>t.email);
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Give money to staff</h3>
+    <div class="small-muted" style="margin-bottom:12px;">
+      Records cash or a transfer handed over for parts, fuel or other costs.
+      Their spends come off this, and the balance shows what's left.
+    </div>
+    <div class="field"><label>Who *</label>
+      <select id="gf_person">
+        ${team.map(t=>`<option value="${escapeAttr(t.email)}">${escapeHtml(t.name)}</option>`).join('')}
+      </select></div>
+    <div class="field-row">
+      <div class="field"><label>Amount (£) *</label><input id="gf_amount" type="number" step="0.01" placeholder="1000"/></div>
+      <div class="field"><label>Date</label><input id="gf_date" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div class="field"><label>Given as</label>
+      <select id="gf_method"><option>Cash</option><option>Bank transfer</option><option>Company card</option></select></div>
+    <div class="field"><label>What it's for</label><input id="gf_note" placeholder="e.g. parts for the Fiesta and Corsa"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveFloat('give')">Record</button>
+    </div>`);
+}
+
+function openReturnFloat(email){
+  if(!isManager()) return;
+  const f = floatPosition(email);
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Money returned</h3>
+    <div class="small-muted" style="margin-bottom:12px;">
+      ${escapeHtml(nameForEmail(email))} currently holds <b>${fmtMoney(f.balance)}</b>.
+      Record what they've handed back.
+    </div>
+    <input type="hidden" id="gf_person" value="${escapeAttr(email)}"/>
+    <div class="field-row">
+      <div class="field"><label>Amount returned (£) *</label><input id="gf_amount" type="number" step="0.01" value="${f.balance>0?f.balance.toFixed(2):''}"/></div>
+      <div class="field"><label>Date</label><input id="gf_date" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div class="field"><label>Returned as</label>
+      <select id="gf_method"><option>Cash</option><option>Bank transfer</option></select></div>
+    <div class="field"><label>Note</label><input id="gf_note" placeholder="optional"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveFloat('return')">Record return</button>
+    </div>`);
+}
+
+function saveFloat(kind){
+  if(!isManager()) return;
+  const email = document.getElementById('gf_person').value;
+  const amt = Number(document.getElementById('gf_amount').value)||0;
+  if(!email){ alert('Choose who the money is for.'); return; }
+  if(amt<=0){ alert('Enter an amount greater than zero.'); return; }
+  if(!DB.floats) DB.floats = [];
+  const signed = kind==='return' ? -amt : amt;
+  DB.floats.push({
+    id: nextId('float'), userEmail: email, userName: nameForEmail(email),
+    amount: signed, type: kind, date: document.getElementById('gf_date').value || todayISO(),
+    method: document.getElementById('gf_method').value,
+    note: document.getElementById('gf_note').value.trim(), givenBy: currentUserName
+  });
+  logChange('money', kind==='return' ? 'Money returned by' : 'Gave money to',
+    {id:email, label:nameForEmail(email)}, 'Amount', '', fmtMoney(amt),
+    document.getElementById('gf_method').value + (document.getElementById('gf_note').value?' · '+document.getElementById('gf_note').value:''));
+  saveDB(); closeModal(); render();
+}
+
+function deleteFloat(id){
+  if(!isSuperAdmin()) return;
+  const f = floats().find(x=>x.id===id); if(!f) return;
+  if(!confirm('Delete this entry?')) return;
+  logChange('money','Deleted money entry for', {id:f.userEmail,label:f.userName}, '', fmtMoney(Math.abs(f.amount)), '', f.note||'');
+  DB.floats = floats().filter(x=>x.id!==id);
+  saveDB(); closeModal(); render();
+}
+
+/* Full history for one person: money in, money spent, running balance. */
+function openFloatDetail(email){
+  const f = floatPosition(email);
+  const rows = [];
+  floatsFor(email).forEach(x=>rows.push({
+    date:x.date, kind: x.amount<0 ? 'Returned' : 'Given',
+    detail: (x.method||'') + (x.note?' · '+x.note:''), in: x.amount>0?x.amount:0,
+    out: x.amount<0?-x.amount:0, id:x.id, isFloat:true
+  }));
+  floatSpends(email).forEach(e=>rows.push({
+    date:e.date, kind:'Spent', detail: e.note||e.description||'', in:0, out:Number(e.amount)||0, id:e.id
+  }));
+  rows.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  let run = 0;
+  const body = rows.map(r=>{
+    run += (r.in||0) - (r.out||0);
+    return `<tr>
+      <td>${fmtDate(r.date)}</td>
+      <td><span class="tag ${r.kind==='Given'?'tag-green':(r.kind==='Spent'?'tag-amber':'tag-grey')}">${r.kind}</span></td>
+      <td>${escapeHtml(r.detail)}</td>
+      <td>${r.in?fmtMoney(r.in):''}</td>
+      <td>${r.out?fmtMoney(r.out):''}</td>
+      <td style="font-weight:700;color:${run<0?'var(--red)':'inherit'}">${fmtMoney(run)}</td>
+      <td>${(r.isFloat && isSuperAdmin())?`<button class="btn btn-sm btn-danger" onclick="deleteFloat('${r.id}')">✕</button>`:''}</td>
+    </tr>`;}).join('');
+
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${escapeHtml(nameForEmail(email))} — money held</h3>
+    <div class="grid kpi-grid" style="margin-bottom:12px;">
+      <div class="card kpi"><div class="label">Given</div><div class="value small">${fmtMoney(f.received)}</div></div>
+      <div class="card kpi"><div class="label">Spent</div><div class="value small">${fmtMoney(f.spent)}</div></div>
+      <div class="card kpi"><div class="label">Balance</div>
+        <div class="value small" style="color:${f.balance<0?'var(--red)':'inherit'}">${fmtMoney(f.balance)}</div>
+        <div class="sub">${f.balance<0?'Company owes them':(f.balance>0?'Still holding':'Settled')}</div></div>
+    </div>
+    ${rows.length?`<div class="card" style="padding:0;"><table>
+      <thead><tr><th>Date</th><th>Type</th><th>Detail</th><th>In</th><th>Out</th><th>Balance</th><th></th></tr></thead>
+      <tbody>${body}</tbody></table></div>`:'<div class="empty">Nothing recorded yet.</div>'}
+    <div class="modal-actions">
+      ${isManager()?`<button class="btn btn-ghost" onclick="openReturnFloat('${escapeAttr(email)}')" style="margin-right:auto">Record money returned</button>`:''}
+      <button class="btn btn-brand" onclick="closeModal()">Close</button>
     </div>`);
 }
 
