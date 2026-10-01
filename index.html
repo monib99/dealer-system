@@ -679,8 +679,19 @@ function renderDashboard(){
   return `
   <div class="topbar">
     <div><h1>Dashboard</h1><div class="date">${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div></div>
-    <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${isManager()?`<button class="btn btn-ghost" onclick="openBackupPanel()">💾 Backup</button>`:''}
+      <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
+    </div>
   </div>
+
+  ${isManager() && (backupAgeDays()===null || backupAgeDays()>=7) ? `
+  <div class="overdue-banner">
+    <span>${backupAgeDays()===null
+      ? 'You have never downloaded a backup you keep yourself.'
+      : 'Your last downloaded backup was ' + backupAgeDays() + ' days ago.'}
+      <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="openBackupPanel()">Take one now</button></span>
+  </div>` : ''}
 
   ${(overdueIssues.length||overdueTasks.length) ? `
   <div class="overdue-banner">
@@ -1192,11 +1203,16 @@ function updateVehicleField(id, field, value){
   saveDB();
 }
 function deleteVehicle(id){
-  if(!isManager()) return;
-  if(!confirm('Delete this vehicle and all its records? This cannot be undone.')) return;
+  // Deleting a car removes its costs, its sale and its investor settlement, so
+  // this is Super Admin only — and it goes to the recycle bin, not into thin air.
+  if(!isSuperAdmin()){ alert('Only a Super Admin can delete a vehicle.\n\nIf it was added by mistake, ask them to remove it.'); return; }
   const v = DB.vehicles.find(x=>x.id===id);
-  if(v) logChange('stock','Deleted vehicle', vehRef(v), '', '', '',
-    'Cost was ' + fmtMoney(vehicleCostTotal(v)) + (isMuzaribCar(v) ? ' · funded by ' + muzaribName(v.muzaribId) : ''));
+  if(!v) return;
+  if(v.sale && !confirm('This car has a recorded sale. Deleting it removes that sale from your figures and from any investor settlement.\n\nDelete anyway?')) return;
+  if(!confirm('Move this vehicle to the recycle bin?\n\nIt can be put back for 30 days.')) return;
+  logChange('stock','Deleted vehicle', vehRef(v), '', '', '',
+    'Cost was ' + fmtMoney(vehicleCostTotal(v)) + (isMuzaribCar(v) ? ' · funded by ' + muzaribName(v.muzaribId) : '') + ' · moved to the recycle bin');
+  sendToTrash('vehicle', v, v.reg + ' ' + (v.make||'') + ' ' + (v.model||''));
   DB.vehicles = DB.vehicles.filter(x=>x.id!==id); saveDB(); App.go('stock');
 }
 
@@ -3122,12 +3138,10 @@ function carSettlement(v){
   const cost = vehicleCostTotal(v);
   if(!v.sale) return {sold:false, cost, gross:0, admin:0, net:0, investor:0, company:0};
   const gross = vehicleProfit(v);
-  let admin;
-  const policy = m.adminOnLoss || 'cap';
-  if(policy === 'always')      admin = adminRate;
-  else if(policy === 'waive')  admin = gross > 0 ? Math.min(adminRate, gross) : 0;
-  else /* cap */               admin = gross > 0 ? Math.min(adminRate, gross) : 0;
-  if(policy === 'always') admin = adminRate;
+  // The admin charge is fixed and always taken, whether the car made money or
+  // lost it. On a thin or loss-making car it deepens the loss, and that loss
+  // is then shared in the same proportion as a profit would be.
+  const admin = adminRate;
   const net = gross - admin;
   const investor = net * split;
   const company = admin + (net - investor);
@@ -3387,13 +3401,10 @@ function openMuzaribForm(id){
       <div class="field"><label>Investor's share of net (%)</label><input id="mz_split" type="number" value="${m?(m.splitPct??50):50}"/></div>
       <div class="field"><label>Prep reserve (%)</label><input id="mz_reserve" type="number" value="${m?(m.reservePct??10):10}"/></div>
     </div>
-    <div class="field"><label>If a car makes less than the admin charge</label>
-      <select id="mz_policy">
-        <option value="cap" ${(!m||m.adminOnLoss!=='always'&&m.adminOnLoss!=='waive')?'selected':''}>Take only what the margin allows (recommended)</option>
-        <option value="waive" ${m&&m.adminOnLoss==='waive'?'selected':''}>Waive the admin charge</option>
-        <option value="always" ${m&&m.adminOnLoss==='always'?'selected':''}>Always take the full charge</option>
-      </select>
-      <div class="small-muted" style="margin-top:6px;">On a loss-making car the remaining loss is shared in the same proportion as profit.</div></div>
+    <div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:4px;">How each car settles</div>
+      <div class="small-muted">The admin charge is taken on <b>every</b> car, whether it made money or
+      lost it. What's left after it — profit or loss — is then shared in the proportion above.</div></div>
     ${m?`<div class="field"><label>Status</label><select id="mz_active"><option value="yes" ${m.active!==false?'selected':''}>Active</option><option value="no" ${m.active===false?'selected':''}>Inactive</option></select></div>`:''}
     <div class="field"><label>Notes</label><textarea id="mz_notes" rows="2">${m?escapeHtml(m.notes||''):''}</textarea></div>
     ${m?'':`<div class="field"><label>Opening capital (£)</label><input id="mz_open" type="number" placeholder="e.g. 20000"/>
@@ -3414,7 +3425,6 @@ function saveMuzarib(id){
     adminCharge: Number(document.getElementById('mz_admin').value)||0,
     splitPct: Math.min(100, Math.max(0, Number(document.getElementById('mz_split').value)||0)),
     reservePct: Math.min(90, Math.max(0, Number(document.getElementById('mz_reserve').value)||0)),
-    adminOnLoss: document.getElementById('mz_policy').value,
     notes: document.getElementById('mz_notes').value
   };
   if(!DB.muzaribs) DB.muzaribs = [];
@@ -3424,7 +3434,7 @@ function saveMuzarib(id){
     const act = document.getElementById('mz_active');
     // Terms affect every future settlement, so record any change to them.
     [['adminCharge','Admin charge',true],['splitPct','Investor share %',false],
-     ['reservePct','Prep reserve %',false],['adminOnLoss','Loss policy',false]].forEach(([k,lbl,isMoney])=>{
+     ['reservePct','Prep reserve %',false]].forEach(([k,lbl,isMoney])=>{
       const b = m[k], a2 = data[k];
       if(String(b)!==String(a2))
         logChange('muzarib','Changed terms for', mzRef(m), lbl,
@@ -5224,6 +5234,298 @@ function openFloatDetail(email){
     </div>`);
 }
 
+
+/* =========================================================================
+   BACKUPS & SAFETY NET
+   - Download a full backup as a file you keep yourself
+   - Restore from one if something goes badly wrong
+   - Deleted records go to a recycle bin for 30 days rather than vanishing
+   ========================================================================= */
+
+function backupPayload(){
+  return {
+    app: 'forecourt-backup', version: 1,
+    business: DB.bizName || '', takenAt: new Date().toISOString(),
+    takenBy: currentUserName || '', data: DB
+  };
+}
+
+function downloadBackup(){
+  if(!isManager()) return;
+  const blob = new Blob([JSON.stringify(backupPayload(), null, 1)], {type:'application/json'});
+  const name = (DB.bizName||'forecourt').replace(/[^a-z0-9]+/gi,'-').toLowerCase()
+             + '-backup-' + todayISO() + '.json';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  DB.lastBackupAt = new Date().toISOString();
+  saveDB();
+  logChange('settings','Downloaded a backup', {id:'backup',label:'Backup'}, '', '', name, '');
+}
+
+function backupAgeDays(){
+  if(!DB.lastBackupAt) return null;
+  return Math.floor((Date.now() - new Date(DB.lastBackupAt).getTime()) / 86400000);
+}
+
+function openBackupPanel(){
+  if(!isManager()) return;
+  const age = backupAgeDays();
+  const counts = {
+    Vehicles: (DB.vehicles||[]).length,
+    Sales: (DB.vehicles||[]).filter(v=>v.sale).length,
+    Customers: (DB.customers||[]).length,
+    Leads: (DB.leads||[]).length,
+    Investors: (DB.muzaribs||[]).length,
+    'Investor entries': (DB.muzaribTx||[]).length,
+    'Change log': (DB.changeLog||[]).length
+  };
+  const bin = (DB.trash||[]).length;
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Backups</h3>
+    ${age===null
+      ? '<div class="overdue-banner"><span>You have never taken a backup. Take one now and keep it somewhere outside this app.</span></div>'
+      : age >= 7
+        ? `<div class="overdue-banner"><span>Your last backup was ${age} days ago. Worth taking a fresh one.</span></div>`
+        : `<div class="small-muted" style="margin-bottom:10px;">Last backup ${age===0?'today':age+' day'+(age===1?'':'s')+' ago'}.</div>`}
+
+    <div class="card" style="padding:14px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:8px;">What's in the backup</div>
+      <table>${Object.entries(counts).map(([k,v])=>`<tr><td>${k}</td><td class="num" style="text-align:right">${v}</td></tr>`).join('')}</table>
+    </div>
+
+    <div class="row" style="gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-brand" onclick="downloadBackup();closeModal();">⬇ Download backup now</button>
+      ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="document.getElementById('restoreFile').click()">⬆ Restore from a backup</button>`:''}
+      ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="openCloudBackups()">☁ Backup history</button>`:''}
+      ${bin?`<button class="btn btn-ghost" onclick="openRecycleBin()">🗑 Recycle bin (${bin})</button>`:''}
+    </div>
+    <input type="file" id="restoreFile" accept="application/json" style="display:none" onchange="restoreFromFile(event)"/>
+
+    <div class="card" style="padding:14px;margin-top:14px;background:var(--brand-dim);box-shadow:none;">
+      <div style="font-weight:700;margin-bottom:6px;">Where to keep it</div>
+      <div class="small-muted">The file downloads to your phone or computer. Put a copy somewhere else as well
+      &mdash; email it to yourself, or save it to Google Drive. A backup stored only on the device you
+      use every day is not much of a backup.</div>
+    </div>`);
+}
+
+async function restoreFromFile(ev){
+  if(!isSuperAdmin()) return;
+  const f = ev.target.files && ev.target.files[0]; if(!f) return;
+  let payload;
+  try { payload = JSON.parse(await f.text()); }
+  catch(e){ alert("That file couldn't be read. Make sure it's a backup file from this app."); return; }
+  const d = payload && payload.data;
+  if(!d || !Array.isArray(d.vehicles)){ alert("That doesn't look like a backup from this app."); return; }
+
+  const taken = payload.takenAt ? fmtDate(payload.takenAt.slice(0,10)) : 'unknown date';
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Restore from backup</h3>
+    <div class="overdue-banner"><span><b>This replaces everything currently in the app.</b>
+    Anything added since this backup was taken will be lost.</span></div>
+    <table style="margin:12px 0;">
+      <tr><td>Backup taken</td><td><b>${taken}</b></td></tr>
+      <tr><td>By</td><td>${escapeHtml(payload.takenBy||'—')}</td></tr>
+      <tr><td>Business</td><td>${escapeHtml(payload.business||'—')}</td></tr>
+      <tr><td>Vehicles in backup</td><td><b>${d.vehicles.length}</b> (you have ${(DB.vehicles||[]).length} now)</td></tr>
+      <tr><td>Investors in backup</td><td><b>${(d.muzaribs||[]).length}</b> (you have ${(DB.muzaribs||[]).length} now)</td></tr>
+    </table>
+    <div class="field"><label>Type RESTORE to confirm</label><input id="rst_confirm" placeholder="RESTORE"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="doRestore()">Replace everything</button>
+    </div>`);
+  window._restorePayload = d;
+}
+
+function doRestore(){
+  if(!isSuperAdmin()) return;
+  if((document.getElementById('rst_confirm').value||'').trim().toUpperCase() !== 'RESTORE'){
+    alert('Type RESTORE to confirm.'); return;
+  }
+  const d = window._restorePayload; if(!d) return;
+  // keep a copy of what we are about to overwrite, in case it was a mistake
+  try { localStorage.setItem('preRestoreSnapshot', JSON.stringify(DB)); } catch(e){}
+  Object.keys(DB).forEach(k=>{ delete DB[k]; });
+  Object.assign(DB, d);
+  logChange('settings','Restored from a backup', {id:'backup',label:'Backup'}, '', '',
+            (d.vehicles||[]).length + ' vehicles', 'Everything was replaced');
+  saveDB(); closeModal(); render();
+  alert('Restored.\n\nIf this was a mistake, do not make any further changes — tell whoever set this up, the previous data is still recoverable from this device.');
+}
+
+/* ---------- recycle bin ---------- */
+function sendToTrash(kind, record, label){
+  if(!DB.trash) DB.trash = [];
+  DB.trash.unshift({id:nextId('bin'), kind, label, record,
+                    deletedAt:new Date().toISOString(), deletedBy:currentUserName});
+  // keep 30 days
+  const cutoff = Date.now() - 30*86400000;
+  DB.trash = DB.trash.filter(t=> new Date(t.deletedAt).getTime() > cutoff).slice(0,300);
+}
+
+function openRecycleBin(){
+  if(!isManager()) return;
+  const items = DB.trash || [];
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Recycle bin</h3>
+    <div class="small-muted" style="margin-bottom:10px;">
+      Anything deleted is kept here for 30 days. ${isSuperAdmin()?'You can put it back.':'Ask a Super Admin to restore anything you need.'}
+    </div>
+    ${items.length ? `<div class="card" style="padding:0;"><table>
+      <thead><tr><th>What</th><th>Type</th><th>Deleted</th><th>By</th><th></th></tr></thead><tbody>
+      ${items.map(t=>`<tr>
+        <td><b>${escapeHtml(t.label||'—')}</b></td>
+        <td>${escapeHtml(t.kind)}</td>
+        <td>${fmtDate(t.deletedAt.slice(0,10))}</td>
+        <td>${escapeHtml(t.deletedBy||'—')}</td>
+        <td>${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="restoreFromBin('${t.id}')">Put back</button>`:''}</td>
+      </tr>`).join('')}</tbody></table></div>`
+     : '<div class="empty">Nothing has been deleted in the last 30 days.</div>'}
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Close</button></div>`);
+}
+
+function restoreFromBin(binId){
+  if(!isSuperAdmin()) return;
+  const t = (DB.trash||[]).find(x=>x.id===binId); if(!t) return;
+  const target = {vehicle:'vehicles', customer:'customers', lead:'leads',
+                  investor:'muzaribs', expense:'expenses', payroll:'payroll'}[t.kind];
+  if(!target){ alert('That record type cannot be restored automatically.'); return; }
+  if(!DB[target]) DB[target] = [];
+  if(DB[target].some(x=>x.id===t.record.id)){ alert('That record is already back in the app.'); return; }
+  DB[target].push(t.record);
+  DB.trash = DB.trash.filter(x=>x.id!==binId);
+  logChange('settings','Restored from the recycle bin', {id:t.record.id,label:t.label}, '', '', t.kind, '');
+  saveDB(); closeModal(); render();
+}
+
+
+/* =========================================================================
+   AUTOMATIC WEEKLY BACKUPS, stored in your own database.
+   Runs quietly in the background once a week. Only a Super Admin can see
+   the history or restore from it.
+   ========================================================================= */
+
+async function saveCloudBackup(kind, note){
+  try{
+    const row = {
+      taken_by: currentUserName || '',
+      kind: kind || 'auto',
+      vehicles: (DB.vehicles||[]).length,
+      note: note || '',
+      data: DB
+    };
+    const {error} = await sb.from('app_backups').insert(row);
+    if(error) throw error;
+    DB.lastCloudBackupAt = new Date().toISOString();
+    saveDB();
+    return {ok:true};
+  }catch(e){
+    return {ok:false, error: (e && e.message) || String(e)};
+  }
+}
+
+/* Checked after sign-in. Takes one if today's snapshot hasn't been made yet. */
+async function maybeWeeklyBackup(){
+  if(!isManager()) return;
+  const last = DB.lastCloudBackupAt ? DB.lastCloudBackupAt.slice(0,10) : '';
+  if(last === todayISO()) return;          // already backed up today
+  const r = await saveCloudBackup('auto', 'Automatic daily backup');
+  if(r.ok) console.log('Daily backup saved.');
+}
+
+async function openCloudBackups(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can see the backup history.'); return; }
+  openModal('<h3>Backup history</h3><div class="small-muted">Loading…</div>');
+  let rows = [], err = null;
+  try{
+    const {data, error} = await sb.from('app_backups')
+      .select('id,taken_at,taken_by,kind,vehicles,note').order('taken_at',{ascending:false}).limit(30);
+    if(error) throw error; rows = data || [];
+  }catch(e){ err = (e && e.message) || String(e); }
+
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Backup history</h3>
+    ${err ? `<div class="overdue-banner"><span>Couldn't load the history: ${escapeHtml(err)}<br>
+      If this is the first time, the <b>app_backups</b> table may not be set up yet.</span></div>`
+    : rows.length ? `
+      <div class="small-muted" style="margin-bottom:10px;">A snapshot is taken automatically once a day,
+      the first time anyone signs in. The most recent 30 are kept &mdash; about a month of history.</div>
+      <div class="card" style="padding:0;"><table>
+        <thead><tr><th>Taken</th><th>Type</th><th>Vehicles</th><th>By</th><th></th></tr></thead><tbody>
+        ${rows.map(r=>`<tr>
+          <td>${fmtDate(r.taken_at.slice(0,10))} <span class="small-muted">${r.taken_at.slice(11,16)}</span></td>
+          <td><span class="tag ${r.kind==='auto'?'tag-grey':'tag-green'}">${r.kind==='auto'?'Daily':'Manual'}</span></td>
+          <td>${r.vehicles ?? '—'}</td>
+          <td>${escapeHtml(r.taken_by||'—')}</td>
+          <td><button class="btn btn-sm btn-ghost" onclick="restoreCloudBackup(${r.id})">Restore</button></td>
+        </tr>`).join('')}
+      </tbody></table></div>`
+    : '<div class="empty">No backups stored yet. Take one now and it will then run weekly.</div>'}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="takeManualCloudBackup()" style="margin-right:auto">Take one now</button>
+      <button class="btn btn-brand" onclick="closeModal()">Close</button>
+    </div>`);
+}
+
+async function takeManualCloudBackup(){
+  if(!isSuperAdmin()) return;
+  const r = await saveCloudBackup('manual', 'Taken by hand');
+  if(r.ok){ alert('Backup saved to your database.'); openCloudBackups(); }
+  else alert("Couldn't save the backup.\n\n" + r.error +
+             "\n\nIf this is the first time, run backup-table.sql in Supabase.");
+}
+
+async function restoreCloudBackup(id){
+  if(!isSuperAdmin()) return;
+  let row;
+  try{
+    const {data, error} = await sb.from('app_backups').select('*').eq('id', id).single();
+    if(error) throw error; row = data;
+  }catch(e){ alert("Couldn't load that backup.\n\n" + ((e&&e.message)||e)); return; }
+  if(!row || !row.data || !Array.isArray(row.data.vehicles)){ alert('That backup looks incomplete.'); return; }
+
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Restore this backup?</h3>
+    <div class="overdue-banner"><span><b>Everything currently in the app is replaced.</b>
+      Anything added since this snapshot will be lost.</span></div>
+    <table style="margin:12px 0;">
+      <tr><td>Taken</td><td><b>${fmtDate(row.taken_at.slice(0,10))} at ${row.taken_at.slice(11,16)}</b></td></tr>
+      <tr><td>By</td><td>${escapeHtml(row.taken_by||'—')}</td></tr>
+      <tr><td>Vehicles in it</td><td><b>${row.data.vehicles.length}</b> (you have ${(DB.vehicles||[]).length} now)</td></tr>
+      <tr><td>Investors in it</td><td><b>${(row.data.muzaribs||[]).length}</b> (you have ${(DB.muzaribs||[]).length} now)</td></tr>
+    </table>
+    <div class="field"><label>Type RESTORE to confirm</label><input id="cb_confirm" placeholder="RESTORE"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="openCloudBackups()">Back</button>
+      <button class="btn btn-danger" onclick="doCloudRestore(${id})">Replace everything</button>
+    </div>`);
+  window._cloudRestore = row.data;
+}
+
+async function doCloudRestore(id){
+  if(!isSuperAdmin()) return;
+  if((document.getElementById('cb_confirm').value||'').trim().toUpperCase() !== 'RESTORE'){
+    alert('Type RESTORE to confirm.'); return;
+  }
+  const d = window._cloudRestore; if(!d) return;
+  // snapshot what we're about to overwrite, so a wrong restore is survivable
+  await saveCloudBackup('manual', 'Taken automatically just before a restore');
+  Object.keys(DB).forEach(k=>{ delete DB[k]; });
+  Object.assign(DB, d);
+  logChange('settings','Restored from a stored backup', {id:'backup',label:'Backup #'+id}, '', '',
+            (d.vehicles||[]).length + ' vehicles', 'Everything was replaced');
+  saveDB(); closeModal(); render();
+  alert('Restored from the backup.');
+}
+
 function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
@@ -5283,6 +5585,8 @@ function bootstrapCurrentUserProfile(){
   currentUserTeamId = me.id;
   currentUserName = me.name;
   currentUserRole = normaliseRole(me.accessLevel);
+  // Quietly take the weekly snapshot if one is due. Never blocks sign-in.
+  setTimeout(()=>{ try{ maybeWeeklyBackup(); }catch(e){} }, 4000);
 }
 
 /* =========================================================================
