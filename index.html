@@ -579,11 +579,15 @@ function vehicleCostTotal(v){
   return base + partsTotal(v) + worksTotal(v);
 }
 function vehicleNetSale(v){
+  // What the car itself sold for. The admin fee charged to the customer is NOT
+  // part of this — it belongs to the company alone and is never shared with an
+  // investor, so it is added to the company side in carSettlement instead.
   if(!v.sale) return 0;
   const s = v.sale;
   return (Number(s.salePrice)||0) - (Number(s.discount)||0) - (Number(s.partExValue)||0)
-    + (Number(s.adminCharge)||0) + (Number(s.deliveryCharge)||0) + (Number(s.warranty)||0) + (Number(s.extraPackage)||0);
+    + (Number(s.deliveryCharge)||0) + (Number(s.warranty)||0) + (Number(s.extraPackage)||0);
 }
+function customerAdminFee(v){ return v.sale ? (Number(v.sale.adminCharge)||0) : 0; }
 function vehicleProfit(v){ return vehicleNetSale(v) - vehicleCostTotal(v); }
 function openIssuesCount(v){ return (v.issues||[]).filter(i=>i.status!=='done').length; }
 function stockValuation(){
@@ -684,6 +688,12 @@ function renderDashboard(){
       <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
     </div>
   </div>
+
+  ${isManager() && gapCount(true) ? `
+  <div class="overdue-banner">
+    <span><b>${gapCount(true)}</b> record${gapCount(true)===1?'':'s'} missing a purchase price, sale price or customer.
+      <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="openGapList()">Show me</button></span>
+  </div>` : ''}
 
   ${isManager() && (backupAgeDays()===null || backupAgeDays()>=7) ? `
   <div class="overdue-banner">
@@ -861,7 +871,7 @@ function renderStock(){
   <div class="toolbar">
     <input placeholder="Search reg, make or model…" value="${stockSearch}" oninput="stockSearch=this.value;render()" style="width:260px"/>
     <button class="btn btn-ghost btn-sm" onclick="exportStockCSV()">⬇ Export CSV</button>
-    ${isManager()?`<button class="btn btn-ghost btn-sm" onclick="openSourcingCheck()">💷 Check a car before buying</button><button class="btn btn-brand btn-sm" onclick="publishToWebsite()">🌐 Publish to website</button><button class="btn btn-ghost btn-sm" onclick="exportStockForWebsite()">⬇ stock.json</button><span class="small-muted">${DB.websitePublishedAt?`Last published ${fmtDate(DB.websitePublishedAt.slice(0,10))} · ${DB.websitePublishedCount||0} cars`:'Not published yet'}</span>`:''}
+    ${isManager()?`<button class="btn btn-ghost btn-sm" onclick="openSourcingCheck()">💷 Check a car before buying</button><button class="btn btn-brand btn-sm" onclick="publishToWebsite()">🌐 Publish to website</button><button class="btn btn-ghost btn-sm" onclick="openGapList()">⚠ Incomplete (${gapCount(false)})</button><button class="btn btn-ghost btn-sm" onclick="exportStockForWebsite()">⬇ stock.json</button><span class="small-muted">${DB.websitePublishedAt?`Last published ${fmtDate(DB.websitePublishedAt.slice(0,10))} · ${DB.websitePublishedCount||0} cars`:'Not published yet'}</span>`:''}
   </div>
   <div class="card" style="padding:0;overflow:auto;">
     ${list.length===0? `<div class="empty"><div class="big">No vehicles here</div>Add your first vehicle by registration to get started.</div>` : `
@@ -871,7 +881,7 @@ function renderStock(){
       const margin = v.sale? vehicleProfit(v) : (Number(v.askingPrice)||0)-cost;
       const openIss = openIssuesCount(v);
       return `<tr style="cursor:pointer" onclick="openVehicle('${v.id}')">
-        <td class="mono" style="font-weight:700">${v.reg}</td>
+        <td class="mono" style="font-weight:700">${v.reg} ${gapBadge(v)}</td>
         <td>${v.make||''} ${v.model||''}<div class="small-muted">${v.year||''} ${v.color||''}</div></td>
         <td>${isMuzaribCar(v)?`<span class="tag tag-amber">${escapeHtml(muzaribName(v.muzaribId))}</span>`:'<span class="small-muted">Company</span>'}</td>
         <td><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span>${vehicleReservation(v.id)?' <span class="tag tag-purple">Reserved</span>':''}</td>
@@ -2173,8 +2183,17 @@ function renderReports(){
     <div class="card kpi"><div class="label">Stock valuation</div><div class="value small">${fmtMoney(val.costValue)} cost</div><div class="sub">${fmtMoney(val.sellValue)} selling value</div></div>
   </div>
 
+  ${renderPeriodReport()}
+
   <div class="section-title"><h2>Weekly sales &amp; profit (last 8 weeks)</h2></div>
   <div class="card"><canvas id="weeklyChart" height="90"></canvas></div>
+
+  <div class="section-title"><h2>Net profit by month — after everything</h2></div>
+  <div class="card"><canvas id="netChart" height="100"></canvas></div>
+  <div class="small-muted" style="margin-top:6px;">
+    What the company kept after the investor split, less that month's running costs.
+    Above the line is profit, below it is a loss.
+  </div>
 
   <div class="section-title"><h2>Monthly sales &amp; profit (last 12 months)</h2></div>
   <div class="card"><canvas id="monthlyChart" height="90"></canvas></div>
@@ -2368,6 +2387,38 @@ function last12Months(){
 }
 function drawMonthlyTrendCharts(){
   const months = last12Months();
+
+  // Net profit per month — company share less that month's overheads
+  const netCtx = document.getElementById('netChart');
+  if(netCtx && typeof Chart!=='undefined'){
+    if(window.netChartInstance) window.netChartInstance.destroy();
+    const vals = months.map(m=>{
+      let comp = 0;
+      (DB.vehicles||[]).filter(v=>v.sale && monthKey(v.sale.date)===m).forEach(v=>{
+        const s = carSettlement(v);
+        comp += isMuzaribCar(v) ? s.company : (vehicleProfit(v) + customerAdminFee(v));
+      });
+      const oh = (DB.monthlyCosts||[]).filter(c=>c.month===m)
+                  .reduce((a,c)=>a+Number(c.amount||0),0);
+      return Math.round((comp - oh)*100)/100;
+    });
+    window.netChartInstance = new Chart(netCtx, {
+      type:'line',
+      data:{ labels: months.map(m=>monthLabel(m)), datasets:[{
+        label:'Net profit', data: vals, borderWidth:2.5, tension:.3,
+        borderColor:'#1f8a5b', pointRadius:4, pointBackgroundColor: vals.map(v=>v<0?'#c0392b':'#1f8a5b'),
+        pointBorderColor: vals.map(v=>v<0?'#c0392b':'#1f8a5b'),
+        segment:{ borderColor: ctx => (ctx.p0.parsed.y<0 || ctx.p1.parsed.y<0) ? '#c0392b' : '#1f8a5b' },
+        fill:{ target:{value:0}, above:'rgba(31,138,91,.12)', below:'rgba(192,57,43,.12)' }
+      }]},
+      options:{ responsive:true, maintainAspectRatio:true,
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ label: c => (c.parsed.y<0?'Loss ':'Profit ') + fmtMoney(Math.abs(c.parsed.y)) } } },
+        scales:{ y:{ ticks:{ callback: v => fmtMoney(v) },
+                     grid:{ color: c => c.tick.value===0 ? '#999' : 'rgba(0,0,0,.06)',
+                            lineWidth: c => c.tick.value===0 ? 2 : 1 } } } }
+    });
+  }
 
   // Monthly sales & profit
   const mCtx = document.getElementById('monthlyChart');
@@ -3136,7 +3187,7 @@ function carSettlement(v){
   const adminRate = Number(m.adminCharge ?? 500);
   const split = Number(m.splitPct ?? 50) / 100;
   const cost = vehicleCostTotal(v);
-  if(!v.sale) return {sold:false, cost, gross:0, admin:0, net:0, investor:0, company:0};
+  if(!v.sale) return {sold:false, cost, gross:0, admin:0, net:0, investor:0, company:0, fee:0};
   const gross = vehicleProfit(v);
   // The admin charge is fixed and always taken, whether the car made money or
   // lost it. On a thin or loss-making car it deepens the loss, and that loss
@@ -3144,8 +3195,10 @@ function carSettlement(v){
   const admin = adminRate;
   const net = gross - admin;
   const investor = net * split;
-  const company = admin + (net - investor);
-  return {sold:true, cost, gross, admin, net, investor, company};
+  // The customer admin fee goes to the company in full.
+  const fee = customerAdminFee(v);
+  const company = admin + (net - investor) + fee;
+  return {sold:true, cost, gross, admin, net, investor, company, fee};
 }
 
 function muzaribTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id); }
@@ -5430,8 +5483,9 @@ async function saveCloudBackup(kind, note){
   }
 }
 
-/* Checked after sign-in. Takes one if today's snapshot hasn't been made yet. */
-async function maybeWeeklyBackup(){
+/* DAILY BACKUP. Checked a few seconds after sign-in: if no snapshot has been
+   taken today, one is saved to the database. Runs once a day, not once per login. */
+async function maybeDailyBackup(){
   if(!isManager()) return;
   const last = DB.lastCloudBackupAt ? DB.lastCloudBackupAt.slice(0,10) : '';
   if(last === todayISO()) return;          // already backed up today
@@ -5526,6 +5580,243 @@ async function doCloudRestore(id){
   alert('Restored from the backup.');
 }
 
+
+/* =========================================================================
+   PERIOD REPORTS — month, quarter and year, with the Muzaribat split.
+   ========================================================================= */
+let reportPeriod = 'month';
+
+function periodBuckets(kind){
+  const out = [];
+  const now = new Date();
+  if(kind==='month'){
+    for(let i=0;i<12;i++){
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const key = d.toISOString().slice(0,7);
+      out.push({key, label: d.toLocaleDateString('en-GB',{month:'short',year:'numeric'}),
+                test: v => (v.sale.date||'').slice(0,7) === key});
+    }
+  } else if(kind==='quarter'){
+    for(let i=0;i<8;i++){
+      const d = new Date(now.getFullYear(), now.getMonth()-i*3, 1);
+      const q = Math.floor(d.getMonth()/3), y = d.getFullYear();
+      const key = y+'-Q'+(q+1);
+      if(out.some(o=>o.key===key)) continue;
+      out.push({key, label:'Q'+(q+1)+' '+y,
+                test: v => { const dd=new Date(v.sale.date);
+                  return dd.getFullYear()===y && Math.floor(dd.getMonth()/3)===q; }});
+    }
+  } else {
+    for(let i=0;i<4;i++){
+      const y = now.getFullYear()-i;
+      out.push({key:String(y), label:String(y),
+                test: v => (v.sale.date||'').slice(0,4) === String(y)});
+    }
+  }
+  return out;
+}
+
+function periodFigures(test){
+  const sold = (DB.vehicles||[]).filter(v=>v.sale && test(v));
+  let revenue=0, cost=0, gross=0, admin=0, investor=0, company=0;
+  sold.forEach(v=>{
+    revenue += vehicleNetSale(v);
+    cost    += vehicleCostTotal(v);
+    const g  = vehicleProfit(v); gross += g;
+    if(isMuzaribCar(v)){
+      const s = carSettlement(v);
+      admin += s.admin; investor += s.investor; company += s.company;
+    } else company += g;
+  });
+  return {cars:sold.length, revenue, cost, gross, admin, investor, company};
+}
+
+function overheadsFor(kind, key){
+  const list = DB.monthlyCosts || [];
+  const inPeriod = c => {
+    if(kind==='month')   return c.month === key;
+    if(kind==='year')    return (c.month||'').slice(0,4) === key;
+    const [y,q] = key.split('-Q');
+    const m = Number((c.month||'').slice(5,7));
+    return (c.month||'').slice(0,4)===y && Math.ceil(m/3)===Number(q);
+  };
+  return list.filter(inPeriod).reduce((s,c)=>s+Number(c.amount||0),0);
+}
+
+function renderPeriodReport(){
+  const kind = reportPeriod;
+  const buckets = periodBuckets(kind);
+  const rows = buckets.map(b=>{
+    const f = periodFigures(b.test);
+    const oh = overheadsFor(kind, b.key);
+    return {...b, ...f, overheads:oh, net: f.company - oh};
+  }).filter(r=>r.cars>0 || r.overheads>0);
+
+  const tot = rows.reduce((a,r)=>({cars:a.cars+r.cars, revenue:a.revenue+r.revenue,
+    cost:a.cost+r.cost, gross:a.gross+r.gross, admin:a.admin+r.admin,
+    investor:a.investor+r.investor, company:a.company+r.company,
+    overheads:a.overheads+r.overheads, net:a.net+r.net}),
+    {cars:0,revenue:0,cost:0,gross:0,admin:0,investor:0,company:0,overheads:0,net:0});
+
+  return `
+  <div class="section-title" style="margin-top:24px;">
+    <h2>Performance by period</h2>
+    <div class="chip-row" style="margin:0;">
+      <div class="chip ${kind==='month'?'active':''}" onclick="reportPeriod='month';render()">Monthly</div>
+      <div class="chip ${kind==='quarter'?'active':''}" onclick="reportPeriod='quarter';render()">Quarterly</div>
+      <div class="chip ${kind==='year'?'active':''}" onclick="reportPeriod='year';render()">Yearly</div>
+    </div>
+  </div>
+
+  ${rows.length ? `
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>${kind==='month'?'Month':kind==='quarter'?'Quarter':'Year'}</th>
+        <th style="text-align:right">Sold</th>
+        <th style="text-align:right">Revenue</th>
+        <th style="text-align:right">Cost</th>
+        <th style="text-align:right">Gross profit</th>
+        <th style="text-align:right">Admin</th>
+        <th style="text-align:right">Investors</th>
+        <th style="text-align:right">Company</th>
+        <th style="text-align:right">Overheads</th>
+        <th style="text-align:right">Net</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r=>`<tr>
+          <td><b>${r.label}</b></td>
+          <td style="text-align:right">${r.cars}</td>
+          <td style="text-align:right">${fmtMoney(r.revenue)}</td>
+          <td style="text-align:right">${fmtMoney(r.cost)}</td>
+          <td style="text-align:right;color:${r.gross<0?'var(--red)':'inherit'}">${fmtMoney(r.gross)}</td>
+          <td style="text-align:right">${fmtMoney(r.admin)}</td>
+          <td style="text-align:right">${fmtMoney(r.investor)}</td>
+          <td style="text-align:right">${fmtMoney(r.company)}</td>
+          <td style="text-align:right">${r.overheads?fmtMoney(r.overheads):'—'}</td>
+          <td style="text-align:right;font-weight:700;color:${r.net<0?'var(--red)':'var(--green)'}">${fmtMoney(r.net)}</td>
+        </tr>`).join('')}
+        <tr style="border-top:2px solid var(--ink)">
+          <td><b>Total</b></td>
+          <td style="text-align:right"><b>${tot.cars}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.revenue)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.cost)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.gross)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.admin)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.investor)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.company)}</b></td>
+          <td style="text-align:right"><b>${tot.overheads?fmtMoney(tot.overheads):'—'}</b></td>
+          <td style="text-align:right;font-weight:700;color:${tot.net<0?'var(--red)':'var(--green)'}"><b>${fmtMoney(tot.net)}</b></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="small-muted" style="margin-top:8px;">
+    Gross profit is the sale less everything the car cost. Admin is the &pound;500 taken on each
+    investor-funded car. Company is what you keep before overheads; Net is after them.
+  </div>
+  <div class="row" style="margin-top:10px;">
+    <button class="btn btn-ghost btn-sm" onclick="exportPeriodCSV()">⬇ Export this table</button>
+  </div>`
+  : '<div class="card"><div class="empty">No sales recorded in this period yet.</div></div>'}`;
+}
+
+function exportPeriodCSV(){
+  const kind = reportPeriod;
+  const rows = periodBuckets(kind).map(b=>{
+    const f = periodFigures(b.test); const oh = overheadsFor(kind,b.key);
+    return [b.label, f.cars, f.revenue, f.cost, f.gross, f.admin, f.investor, f.company, oh, f.company-oh];
+  }).filter(r=>r[1]>0 || r[8]>0);
+  const head = ['Period','Cars sold','Revenue','Cost','Gross profit','Admin','Investors','Company','Overheads','Net'];
+  const csv = [head].concat(rows).map(r=>r.map(x=>
+    typeof x==='number' ? x.toFixed(2) : '"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=(DB.bizName||'forecourt').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+kind+'-report-'+todayISO()+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+
+/* =========================================================================
+   INCOMPLETE RECORDS — flags anything missing that matters.
+   ========================================================================= */
+function recordGaps(v){
+  const out = [];
+  const cost = vehicleCostTotal(v);
+  if(!(cost > 0)) out.push({w:'No purchase price', why:'The margin on this car is meaningless until a cost is entered', hard:true});
+  if(v.sale){
+    const s = v.sale;
+    if(!(Number(s.salePrice) > 0)) out.push({w:'No sale price', why:'Sold, but nothing recorded as received', hard:true});
+    if(!s.date) out.push({w:'No sale date', why:'Will not appear in any month', hard:true});
+    if(!s.invoiceNo) out.push({w:'No invoice number', hard:false});
+    const c = s.customerId ? (DB.customers||[]).find(x=>x.id===s.customerId) : null;
+    if(!c) out.push({w:'No customer', why:'Sold with no buyer recorded', hard:true});
+    else {
+      const miss = [];
+      if(!c.name) miss.push('name');
+      if(!c.phone) miss.push('phone');
+      if(!c.email) miss.push('email');
+      if(!(c.postcode||c.address)) miss.push('address');
+      if(miss.length) out.push({w:'Customer missing ' + miss.join(', '), hard: miss.includes('name')||miss.length>2});
+    }
+    if(s.paperInvoiceOnly) out.push({w:'Paper invoice only', why:'No digital copy was found', hard:false});
+  } else {
+    if(!(Number(v.price) > 0)) out.push({w:'No asking price', why:'In stock but not priced', hard:false});
+  }
+  if(!v.mileage) out.push({w:'No mileage', hard:false});
+  return out;
+}
+function gapCount(hardOnly){
+  return (DB.vehicles||[]).reduce((n,v)=>{
+    const g=recordGaps(v);
+    return n + (hardOnly ? (g.some(x=>x.hard)?1:0) : (g.length?1:0));
+  },0);
+}
+function gapBadge(v){
+  const g=recordGaps(v); if(!g.length) return '';
+  const hard=g.some(x=>x.hard);
+  return `<span class="tag ${hard?'tag-red':'tag-amber'}" title="${escapeAttr(g.map(x=>x.w).join(' · '))}"
+    onclick="event.stopPropagation();openGaps('${v.id}')" style="cursor:pointer">${hard?'⚠':'•'} ${g.length}</span>`;
+}
+function openGaps(id){
+  const v=(DB.vehicles||[]).find(x=>x.id===id); if(!v) return;
+  const g=recordGaps(v);
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${escapeHtml(v.reg)} — what's missing</h3>
+    <div class="small-muted" style="margin-bottom:10px;">${escapeHtml(((v.make||'')+' '+(v.model||'')).trim())}</div>
+    ${g.length ? `<div class="list">${g.map(x=>`
+      <div class="li"><div class="t">
+        <div><b>${x.hard?'⚠ ':''}${escapeHtml(x.w)}</b>${x.why?`<small>${escapeHtml(x.why)}</small>`:''}</div>
+      </div></div>`).join('')}</div>`
+     : '<div class="empty">Nothing missing.</div>'}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+      <button class="btn btn-brand" onclick="closeModal();openVehicle('${v.id}')">Open the record</button>
+    </div>`);
+}
+function openGapList(){
+  if(!isManager()) return;
+  const rows=(DB.vehicles||[]).map(v=>({v, g:recordGaps(v)})).filter(x=>x.g.length)
+    .sort((a,b)=> (b.g.filter(x=>x.hard).length - a.g.filter(x=>x.hard).length) || (b.g.length - a.g.length));
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Incomplete records</h3>
+    <div class="small-muted" style="margin-bottom:10px;">
+      ⚠ means a figure your reports depend on is missing. • is a detail worth filling in.
+    </div>
+    ${rows.length ? `<div class="card" style="padding:0;max-height:420px;overflow:auto;"><table>
+      <thead><tr><th>Reg</th><th>Vehicle</th><th>Status</th><th>What's missing</th></tr></thead><tbody>
+      ${rows.map(({v,g})=>`<tr onclick="closeModal();openVehicle('${v.id}')" style="cursor:pointer">
+        <td><b>${escapeHtml(v.reg)}</b></td>
+        <td>${escapeHtml(((v.make||'')+' '+(v.model||'')).trim())}</td>
+        <td>${v.sale?'<span class="tag tag-grey">Sold</span>':'<span class="tag tag-green">In stock</span>'}</td>
+        <td>${g.map(x=>`<span class="tag ${x.hard?'tag-red':'tag-amber'}" style="margin:1px">${escapeHtml(x.w)}</span>`).join(' ')}</td>
+      </tr>`).join('')}</tbody></table></div>`
+     : '<div class="empty">Every record is complete.</div>'}
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Close</button></div>`);
+}
+
 function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
@@ -5585,8 +5876,8 @@ function bootstrapCurrentUserProfile(){
   currentUserTeamId = me.id;
   currentUserName = me.name;
   currentUserRole = normaliseRole(me.accessLevel);
-  // Quietly take the weekly snapshot if one is due. Never blocks sign-in.
-  setTimeout(()=>{ try{ maybeWeeklyBackup(); }catch(e){} }, 4000);
+  // Take the day's snapshot if one has not been made yet. Never blocks sign-in.
+  setTimeout(()=>{ try{ maybeDailyBackup(); }catch(e){} }, 4000);
 }
 
 /* =========================================================================
