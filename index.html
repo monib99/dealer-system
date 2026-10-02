@@ -579,15 +579,11 @@ function vehicleCostTotal(v){
   return base + partsTotal(v) + worksTotal(v);
 }
 function vehicleNetSale(v){
-  // What the car itself sold for. The admin fee charged to the customer is NOT
-  // part of this — it belongs to the company alone and is never shared with an
-  // investor, so it is added to the company side in carSettlement instead.
   if(!v.sale) return 0;
   const s = v.sale;
   return (Number(s.salePrice)||0) - (Number(s.discount)||0) - (Number(s.partExValue)||0)
-    + (Number(s.deliveryCharge)||0) + (Number(s.warranty)||0) + (Number(s.extraPackage)||0);
+    + (Number(s.adminCharge)||0) + (Number(s.deliveryCharge)||0) + (Number(s.warranty)||0) + (Number(s.extraPackage)||0);
 }
-function customerAdminFee(v){ return v.sale ? (Number(v.sale.adminCharge)||0) : 0; }
 function vehicleProfit(v){ return vehicleNetSale(v) - vehicleCostTotal(v); }
 function openIssuesCount(v){ return (v.issues||[]).filter(i=>i.status!=='done').length; }
 function stockValuation(){
@@ -683,25 +679,8 @@ function renderDashboard(){
   return `
   <div class="topbar">
     <div><h1>Dashboard</h1><div class="date">${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      ${isManager()?`<button class="btn btn-ghost" onclick="openBackupPanel()">💾 Backup</button>`:''}
-      <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
-    </div>
+    <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
   </div>
-
-  ${isManager() && gapCount(true) ? `
-  <div class="overdue-banner">
-    <span><b>${gapCount(true)}</b> record${gapCount(true)===1?'':'s'} missing a purchase price, sale price or customer.
-      <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="openGapList()">Show me</button></span>
-  </div>` : ''}
-
-  ${isManager() && (backupAgeDays()===null || backupAgeDays()>=7) ? `
-  <div class="overdue-banner">
-    <span>${backupAgeDays()===null
-      ? 'You have never downloaded a backup you keep yourself.'
-      : 'Your last downloaded backup was ' + backupAgeDays() + ' days ago.'}
-      <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="openBackupPanel()">Take one now</button></span>
-  </div>` : ''}
 
   ${(overdueIssues.length||overdueTasks.length) ? `
   <div class="overdue-banner">
@@ -871,7 +850,7 @@ function renderStock(){
   <div class="toolbar">
     <input placeholder="Search reg, make or model…" value="${stockSearch}" oninput="stockSearch=this.value;render()" style="width:260px"/>
     <button class="btn btn-ghost btn-sm" onclick="exportStockCSV()">⬇ Export CSV</button>
-    ${isManager()?`<button class="btn btn-ghost btn-sm" onclick="openSourcingCheck()">💷 Check a car before buying</button><button class="btn btn-brand btn-sm" onclick="publishToWebsite()">🌐 Publish to website</button><button class="btn btn-ghost btn-sm" onclick="openGapList()">⚠ Incomplete (${gapCount(false)})</button><button class="btn btn-ghost btn-sm" onclick="exportStockForWebsite()">⬇ stock.json</button><span class="small-muted">${DB.websitePublishedAt?`Last published ${fmtDate(DB.websitePublishedAt.slice(0,10))} · ${DB.websitePublishedCount||0} cars`:'Not published yet'}</span>`:''}
+    ${isManager()?`<button class="btn btn-ghost btn-sm" onclick="openSourcingCheck()">💷 Check a car before buying</button><button class="btn btn-brand btn-sm" onclick="publishToWebsite()">🌐 Publish to website</button><button class="btn btn-ghost btn-sm" onclick="exportStockForWebsite()">⬇ stock.json</button><span class="small-muted">${DB.websitePublishedAt?`Last published ${fmtDate(DB.websitePublishedAt.slice(0,10))} · ${DB.websitePublishedCount||0} cars`:'Not published yet'}</span>`:''}
   </div>
   <div class="card" style="padding:0;overflow:auto;">
     ${list.length===0? `<div class="empty"><div class="big">No vehicles here</div>Add your first vehicle by registration to get started.</div>` : `
@@ -881,7 +860,7 @@ function renderStock(){
       const margin = v.sale? vehicleProfit(v) : (Number(v.askingPrice)||0)-cost;
       const openIss = openIssuesCount(v);
       return `<tr style="cursor:pointer" onclick="openVehicle('${v.id}')">
-        <td class="mono" style="font-weight:700">${v.reg} ${gapBadge(v)}</td>
+        <td class="mono" style="font-weight:700">${v.reg}</td>
         <td>${v.make||''} ${v.model||''}<div class="small-muted">${v.year||''} ${v.color||''}</div></td>
         <td>${isMuzaribCar(v)?`<span class="tag tag-amber">${escapeHtml(muzaribName(v.muzaribId))}</span>`:'<span class="small-muted">Company</span>'}</td>
         <td><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span>${vehicleReservation(v.id)?' <span class="tag tag-purple">Reserved</span>':''}</td>
@@ -1213,16 +1192,11 @@ function updateVehicleField(id, field, value){
   saveDB();
 }
 function deleteVehicle(id){
-  // Deleting a car removes its costs, its sale and its investor settlement, so
-  // this is Super Admin only — and it goes to the recycle bin, not into thin air.
-  if(!isSuperAdmin()){ alert('Only a Super Admin can delete a vehicle.\n\nIf it was added by mistake, ask them to remove it.'); return; }
+  if(!isManager()) return;
+  if(!confirm('Delete this vehicle and all its records? This cannot be undone.')) return;
   const v = DB.vehicles.find(x=>x.id===id);
-  if(!v) return;
-  if(v.sale && !confirm('This car has a recorded sale. Deleting it removes that sale from your figures and from any investor settlement.\n\nDelete anyway?')) return;
-  if(!confirm('Move this vehicle to the recycle bin?\n\nIt can be put back for 30 days.')) return;
-  logChange('stock','Deleted vehicle', vehRef(v), '', '', '',
-    'Cost was ' + fmtMoney(vehicleCostTotal(v)) + (isMuzaribCar(v) ? ' · funded by ' + muzaribName(v.muzaribId) : '') + ' · moved to the recycle bin');
-  sendToTrash('vehicle', v, v.reg + ' ' + (v.make||'') + ' ' + (v.model||''));
+  if(v) logChange('stock','Deleted vehicle', vehRef(v), '', '', '',
+    'Cost was ' + fmtMoney(vehicleCostTotal(v)) + (isMuzaribCar(v) ? ' · funded by ' + muzaribName(v.muzaribId) : ''));
   DB.vehicles = DB.vehicles.filter(x=>x.id!==id); saveDB(); App.go('stock');
 }
 
@@ -2183,17 +2157,8 @@ function renderReports(){
     <div class="card kpi"><div class="label">Stock valuation</div><div class="value small">${fmtMoney(val.costValue)} cost</div><div class="sub">${fmtMoney(val.sellValue)} selling value</div></div>
   </div>
 
-  ${renderPeriodReport()}
-
   <div class="section-title"><h2>Weekly sales &amp; profit (last 8 weeks)</h2></div>
   <div class="card"><canvas id="weeklyChart" height="90"></canvas></div>
-
-  <div class="section-title"><h2>Net profit by month — after everything</h2></div>
-  <div class="card"><canvas id="netChart" height="100"></canvas></div>
-  <div class="small-muted" style="margin-top:6px;">
-    What the company kept after the investor split, less that month's running costs.
-    Above the line is profit, below it is a loss.
-  </div>
 
   <div class="section-title"><h2>Monthly sales &amp; profit (last 12 months)</h2></div>
   <div class="card"><canvas id="monthlyChart" height="90"></canvas></div>
@@ -2387,38 +2352,6 @@ function last12Months(){
 }
 function drawMonthlyTrendCharts(){
   const months = last12Months();
-
-  // Net profit per month — company share less that month's overheads
-  const netCtx = document.getElementById('netChart');
-  if(netCtx && typeof Chart!=='undefined'){
-    if(window.netChartInstance) window.netChartInstance.destroy();
-    const vals = months.map(m=>{
-      let comp = 0;
-      (DB.vehicles||[]).filter(v=>v.sale && monthKey(v.sale.date)===m).forEach(v=>{
-        const s = carSettlement(v);
-        comp += isMuzaribCar(v) ? s.company : (vehicleProfit(v) + customerAdminFee(v));
-      });
-      const oh = (DB.monthlyCosts||[]).filter(c=>c.month===m)
-                  .reduce((a,c)=>a+Number(c.amount||0),0);
-      return Math.round((comp - oh)*100)/100;
-    });
-    window.netChartInstance = new Chart(netCtx, {
-      type:'line',
-      data:{ labels: months.map(m=>monthLabel(m)), datasets:[{
-        label:'Net profit', data: vals, borderWidth:2.5, tension:.3,
-        borderColor:'#1f8a5b', pointRadius:4, pointBackgroundColor: vals.map(v=>v<0?'#c0392b':'#1f8a5b'),
-        pointBorderColor: vals.map(v=>v<0?'#c0392b':'#1f8a5b'),
-        segment:{ borderColor: ctx => (ctx.p0.parsed.y<0 || ctx.p1.parsed.y<0) ? '#c0392b' : '#1f8a5b' },
-        fill:{ target:{value:0}, above:'rgba(31,138,91,.12)', below:'rgba(192,57,43,.12)' }
-      }]},
-      options:{ responsive:true, maintainAspectRatio:true,
-        plugins:{ legend:{display:false},
-          tooltip:{ callbacks:{ label: c => (c.parsed.y<0?'Loss ':'Profit ') + fmtMoney(Math.abs(c.parsed.y)) } } },
-        scales:{ y:{ ticks:{ callback: v => fmtMoney(v) },
-                     grid:{ color: c => c.tick.value===0 ? '#999' : 'rgba(0,0,0,.06)',
-                            lineWidth: c => c.tick.value===0 ? 2 : 1 } } } }
-    });
-  }
 
   // Monthly sales & profit
   const mCtx = document.getElementById('monthlyChart');
@@ -3187,18 +3120,18 @@ function carSettlement(v){
   const adminRate = Number(m.adminCharge ?? 500);
   const split = Number(m.splitPct ?? 50) / 100;
   const cost = vehicleCostTotal(v);
-  if(!v.sale) return {sold:false, cost, gross:0, admin:0, net:0, investor:0, company:0, fee:0};
+  if(!v.sale) return {sold:false, cost, gross:0, admin:0, net:0, investor:0, company:0};
   const gross = vehicleProfit(v);
-  // The admin charge is fixed and always taken, whether the car made money or
-  // lost it. On a thin or loss-making car it deepens the loss, and that loss
-  // is then shared in the same proportion as a profit would be.
-  const admin = adminRate;
+  let admin;
+  const policy = m.adminOnLoss || 'cap';
+  if(policy === 'always')      admin = adminRate;
+  else if(policy === 'waive')  admin = gross > 0 ? Math.min(adminRate, gross) : 0;
+  else /* cap */               admin = gross > 0 ? Math.min(adminRate, gross) : 0;
+  if(policy === 'always') admin = adminRate;
   const net = gross - admin;
   const investor = net * split;
-  // The customer admin fee goes to the company in full.
-  const fee = customerAdminFee(v);
-  const company = admin + (net - investor) + fee;
-  return {sold:true, cost, gross, admin, net, investor, company, fee};
+  const company = admin + (net - investor);
+  return {sold:true, cost, gross, admin, net, investor, company};
 }
 
 function muzaribTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id); }
@@ -3454,10 +3387,13 @@ function openMuzaribForm(id){
       <div class="field"><label>Investor's share of net (%)</label><input id="mz_split" type="number" value="${m?(m.splitPct??50):50}"/></div>
       <div class="field"><label>Prep reserve (%)</label><input id="mz_reserve" type="number" value="${m?(m.reservePct??10):10}"/></div>
     </div>
-    <div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
-      <div style="font-weight:700;margin-bottom:4px;">How each car settles</div>
-      <div class="small-muted">The admin charge is taken on <b>every</b> car, whether it made money or
-      lost it. What's left after it — profit or loss — is then shared in the proportion above.</div></div>
+    <div class="field"><label>If a car makes less than the admin charge</label>
+      <select id="mz_policy">
+        <option value="cap" ${(!m||m.adminOnLoss!=='always'&&m.adminOnLoss!=='waive')?'selected':''}>Take only what the margin allows (recommended)</option>
+        <option value="waive" ${m&&m.adminOnLoss==='waive'?'selected':''}>Waive the admin charge</option>
+        <option value="always" ${m&&m.adminOnLoss==='always'?'selected':''}>Always take the full charge</option>
+      </select>
+      <div class="small-muted" style="margin-top:6px;">On a loss-making car the remaining loss is shared in the same proportion as profit.</div></div>
     ${m?`<div class="field"><label>Status</label><select id="mz_active"><option value="yes" ${m.active!==false?'selected':''}>Active</option><option value="no" ${m.active===false?'selected':''}>Inactive</option></select></div>`:''}
     <div class="field"><label>Notes</label><textarea id="mz_notes" rows="2">${m?escapeHtml(m.notes||''):''}</textarea></div>
     ${m?'':`<div class="field"><label>Opening capital (£)</label><input id="mz_open" type="number" placeholder="e.g. 20000"/>
@@ -3478,6 +3414,7 @@ function saveMuzarib(id){
     adminCharge: Number(document.getElementById('mz_admin').value)||0,
     splitPct: Math.min(100, Math.max(0, Number(document.getElementById('mz_split').value)||0)),
     reservePct: Math.min(90, Math.max(0, Number(document.getElementById('mz_reserve').value)||0)),
+    adminOnLoss: document.getElementById('mz_policy').value,
     notes: document.getElementById('mz_notes').value
   };
   if(!DB.muzaribs) DB.muzaribs = [];
@@ -3487,7 +3424,7 @@ function saveMuzarib(id){
     const act = document.getElementById('mz_active');
     // Terms affect every future settlement, so record any change to them.
     [['adminCharge','Admin charge',true],['splitPct','Investor share %',false],
-     ['reservePct','Prep reserve %',false]].forEach(([k,lbl,isMoney])=>{
+     ['reservePct','Prep reserve %',false],['adminOnLoss','Loss policy',false]].forEach(([k,lbl,isMoney])=>{
       const b = m[k], a2 = data[k];
       if(String(b)!==String(a2))
         logChange('muzarib','Changed terms for', mzRef(m), lbl,
@@ -5287,536 +5224,6 @@ function openFloatDetail(email){
     </div>`);
 }
 
-
-/* =========================================================================
-   BACKUPS & SAFETY NET
-   - Download a full backup as a file you keep yourself
-   - Restore from one if something goes badly wrong
-   - Deleted records go to a recycle bin for 30 days rather than vanishing
-   ========================================================================= */
-
-function backupPayload(){
-  return {
-    app: 'forecourt-backup', version: 1,
-    business: DB.bizName || '', takenAt: new Date().toISOString(),
-    takenBy: currentUserName || '', data: DB
-  };
-}
-
-function downloadBackup(){
-  if(!isManager()) return;
-  const blob = new Blob([JSON.stringify(backupPayload(), null, 1)], {type:'application/json'});
-  const name = (DB.bizName||'forecourt').replace(/[^a-z0-9]+/gi,'-').toLowerCase()
-             + '-backup-' + todayISO() + '.json';
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
-  DB.lastBackupAt = new Date().toISOString();
-  saveDB();
-  logChange('settings','Downloaded a backup', {id:'backup',label:'Backup'}, '', '', name, '');
-}
-
-function backupAgeDays(){
-  if(!DB.lastBackupAt) return null;
-  return Math.floor((Date.now() - new Date(DB.lastBackupAt).getTime()) / 86400000);
-}
-
-function openBackupPanel(){
-  if(!isManager()) return;
-  const age = backupAgeDays();
-  const counts = {
-    Vehicles: (DB.vehicles||[]).length,
-    Sales: (DB.vehicles||[]).filter(v=>v.sale).length,
-    Customers: (DB.customers||[]).length,
-    Leads: (DB.leads||[]).length,
-    Investors: (DB.muzaribs||[]).length,
-    'Investor entries': (DB.muzaribTx||[]).length,
-    'Change log': (DB.changeLog||[]).length
-  };
-  const bin = (DB.trash||[]).length;
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>Backups</h3>
-    ${age===null
-      ? '<div class="overdue-banner"><span>You have never taken a backup. Take one now and keep it somewhere outside this app.</span></div>'
-      : age >= 7
-        ? `<div class="overdue-banner"><span>Your last backup was ${age} days ago. Worth taking a fresh one.</span></div>`
-        : `<div class="small-muted" style="margin-bottom:10px;">Last backup ${age===0?'today':age+' day'+(age===1?'':'s')+' ago'}.</div>`}
-
-    <div class="card" style="padding:14px;margin-bottom:12px;">
-      <div style="font-weight:700;margin-bottom:8px;">What's in the backup</div>
-      <table>${Object.entries(counts).map(([k,v])=>`<tr><td>${k}</td><td class="num" style="text-align:right">${v}</td></tr>`).join('')}</table>
-    </div>
-
-    <div class="row" style="gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-brand" onclick="downloadBackup();closeModal();">⬇ Download backup now</button>
-      ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="document.getElementById('restoreFile').click()">⬆ Restore from a backup</button>`:''}
-      ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="openCloudBackups()">☁ Backup history</button>`:''}
-      ${bin?`<button class="btn btn-ghost" onclick="openRecycleBin()">🗑 Recycle bin (${bin})</button>`:''}
-    </div>
-    <input type="file" id="restoreFile" accept="application/json" style="display:none" onchange="restoreFromFile(event)"/>
-
-    <div class="card" style="padding:14px;margin-top:14px;background:var(--brand-dim);box-shadow:none;">
-      <div style="font-weight:700;margin-bottom:6px;">Where to keep it</div>
-      <div class="small-muted">The file downloads to your phone or computer. Put a copy somewhere else as well
-      &mdash; email it to yourself, or save it to Google Drive. A backup stored only on the device you
-      use every day is not much of a backup.</div>
-    </div>`);
-}
-
-async function restoreFromFile(ev){
-  if(!isSuperAdmin()) return;
-  const f = ev.target.files && ev.target.files[0]; if(!f) return;
-  let payload;
-  try { payload = JSON.parse(await f.text()); }
-  catch(e){ alert("That file couldn't be read. Make sure it's a backup file from this app."); return; }
-  const d = payload && payload.data;
-  if(!d || !Array.isArray(d.vehicles)){ alert("That doesn't look like a backup from this app."); return; }
-
-  const taken = payload.takenAt ? fmtDate(payload.takenAt.slice(0,10)) : 'unknown date';
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>Restore from backup</h3>
-    <div class="overdue-banner"><span><b>This replaces everything currently in the app.</b>
-    Anything added since this backup was taken will be lost.</span></div>
-    <table style="margin:12px 0;">
-      <tr><td>Backup taken</td><td><b>${taken}</b></td></tr>
-      <tr><td>By</td><td>${escapeHtml(payload.takenBy||'—')}</td></tr>
-      <tr><td>Business</td><td>${escapeHtml(payload.business||'—')}</td></tr>
-      <tr><td>Vehicles in backup</td><td><b>${d.vehicles.length}</b> (you have ${(DB.vehicles||[]).length} now)</td></tr>
-      <tr><td>Investors in backup</td><td><b>${(d.muzaribs||[]).length}</b> (you have ${(DB.muzaribs||[]).length} now)</td></tr>
-    </table>
-    <div class="field"><label>Type RESTORE to confirm</label><input id="rst_confirm" placeholder="RESTORE"/></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-danger" onclick="doRestore()">Replace everything</button>
-    </div>`);
-  window._restorePayload = d;
-}
-
-function doRestore(){
-  if(!isSuperAdmin()) return;
-  if((document.getElementById('rst_confirm').value||'').trim().toUpperCase() !== 'RESTORE'){
-    alert('Type RESTORE to confirm.'); return;
-  }
-  const d = window._restorePayload; if(!d) return;
-  // keep a copy of what we are about to overwrite, in case it was a mistake
-  try { localStorage.setItem('preRestoreSnapshot', JSON.stringify(DB)); } catch(e){}
-  Object.keys(DB).forEach(k=>{ delete DB[k]; });
-  Object.assign(DB, d);
-  logChange('settings','Restored from a backup', {id:'backup',label:'Backup'}, '', '',
-            (d.vehicles||[]).length + ' vehicles', 'Everything was replaced');
-  saveDB(); closeModal(); render();
-  alert('Restored.\n\nIf this was a mistake, do not make any further changes — tell whoever set this up, the previous data is still recoverable from this device.');
-}
-
-/* ---------- recycle bin ---------- */
-function sendToTrash(kind, record, label){
-  if(!DB.trash) DB.trash = [];
-  DB.trash.unshift({id:nextId('bin'), kind, label, record,
-                    deletedAt:new Date().toISOString(), deletedBy:currentUserName});
-  // keep 30 days
-  const cutoff = Date.now() - 30*86400000;
-  DB.trash = DB.trash.filter(t=> new Date(t.deletedAt).getTime() > cutoff).slice(0,300);
-}
-
-function openRecycleBin(){
-  if(!isManager()) return;
-  const items = DB.trash || [];
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>Recycle bin</h3>
-    <div class="small-muted" style="margin-bottom:10px;">
-      Anything deleted is kept here for 30 days. ${isSuperAdmin()?'You can put it back.':'Ask a Super Admin to restore anything you need.'}
-    </div>
-    ${items.length ? `<div class="card" style="padding:0;"><table>
-      <thead><tr><th>What</th><th>Type</th><th>Deleted</th><th>By</th><th></th></tr></thead><tbody>
-      ${items.map(t=>`<tr>
-        <td><b>${escapeHtml(t.label||'—')}</b></td>
-        <td>${escapeHtml(t.kind)}</td>
-        <td>${fmtDate(t.deletedAt.slice(0,10))}</td>
-        <td>${escapeHtml(t.deletedBy||'—')}</td>
-        <td>${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="restoreFromBin('${t.id}')">Put back</button>`:''}</td>
-      </tr>`).join('')}</tbody></table></div>`
-     : '<div class="empty">Nothing has been deleted in the last 30 days.</div>'}
-    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Close</button></div>`);
-}
-
-function restoreFromBin(binId){
-  if(!isSuperAdmin()) return;
-  const t = (DB.trash||[]).find(x=>x.id===binId); if(!t) return;
-  const target = {vehicle:'vehicles', customer:'customers', lead:'leads',
-                  investor:'muzaribs', expense:'expenses', payroll:'payroll'}[t.kind];
-  if(!target){ alert('That record type cannot be restored automatically.'); return; }
-  if(!DB[target]) DB[target] = [];
-  if(DB[target].some(x=>x.id===t.record.id)){ alert('That record is already back in the app.'); return; }
-  DB[target].push(t.record);
-  DB.trash = DB.trash.filter(x=>x.id!==binId);
-  logChange('settings','Restored from the recycle bin', {id:t.record.id,label:t.label}, '', '', t.kind, '');
-  saveDB(); closeModal(); render();
-}
-
-
-/* =========================================================================
-   AUTOMATIC WEEKLY BACKUPS, stored in your own database.
-   Runs quietly in the background once a week. Only a Super Admin can see
-   the history or restore from it.
-   ========================================================================= */
-
-async function saveCloudBackup(kind, note){
-  try{
-    const row = {
-      taken_by: currentUserName || '',
-      kind: kind || 'auto',
-      vehicles: (DB.vehicles||[]).length,
-      note: note || '',
-      data: DB
-    };
-    const {error} = await sb.from('app_backups').insert(row);
-    if(error) throw error;
-    DB.lastCloudBackupAt = new Date().toISOString();
-    saveDB();
-    return {ok:true};
-  }catch(e){
-    return {ok:false, error: (e && e.message) || String(e)};
-  }
-}
-
-/* DAILY BACKUP. Checked a few seconds after sign-in: if no snapshot has been
-   taken today, one is saved to the database. Runs once a day, not once per login. */
-async function maybeDailyBackup(){
-  if(!isManager()) return;
-  const last = DB.lastCloudBackupAt ? DB.lastCloudBackupAt.slice(0,10) : '';
-  if(last === todayISO()) return;          // already backed up today
-  const r = await saveCloudBackup('auto', 'Automatic daily backup');
-  if(r.ok) console.log('Daily backup saved.');
-}
-
-async function openCloudBackups(){
-  if(!isSuperAdmin()){ alert('Only a Super Admin can see the backup history.'); return; }
-  openModal('<h3>Backup history</h3><div class="small-muted">Loading…</div>');
-  let rows = [], err = null;
-  try{
-    const {data, error} = await sb.from('app_backups')
-      .select('id,taken_at,taken_by,kind,vehicles,note').order('taken_at',{ascending:false}).limit(30);
-    if(error) throw error; rows = data || [];
-  }catch(e){ err = (e && e.message) || String(e); }
-
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>Backup history</h3>
-    ${err ? `<div class="overdue-banner"><span>Couldn't load the history: ${escapeHtml(err)}<br>
-      If this is the first time, the <b>app_backups</b> table may not be set up yet.</span></div>`
-    : rows.length ? `
-      <div class="small-muted" style="margin-bottom:10px;">A snapshot is taken automatically once a day,
-      the first time anyone signs in. The most recent 30 are kept &mdash; about a month of history.</div>
-      <div class="card" style="padding:0;"><table>
-        <thead><tr><th>Taken</th><th>Type</th><th>Vehicles</th><th>By</th><th></th></tr></thead><tbody>
-        ${rows.map(r=>`<tr>
-          <td>${fmtDate(r.taken_at.slice(0,10))} <span class="small-muted">${r.taken_at.slice(11,16)}</span></td>
-          <td><span class="tag ${r.kind==='auto'?'tag-grey':'tag-green'}">${r.kind==='auto'?'Daily':'Manual'}</span></td>
-          <td>${r.vehicles ?? '—'}</td>
-          <td>${escapeHtml(r.taken_by||'—')}</td>
-          <td><button class="btn btn-sm btn-ghost" onclick="restoreCloudBackup(${r.id})">Restore</button></td>
-        </tr>`).join('')}
-      </tbody></table></div>`
-    : '<div class="empty">No backups stored yet. Take one now and it will then run weekly.</div>'}
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="takeManualCloudBackup()" style="margin-right:auto">Take one now</button>
-      <button class="btn btn-brand" onclick="closeModal()">Close</button>
-    </div>`);
-}
-
-async function takeManualCloudBackup(){
-  if(!isSuperAdmin()) return;
-  const r = await saveCloudBackup('manual', 'Taken by hand');
-  if(r.ok){ alert('Backup saved to your database.'); openCloudBackups(); }
-  else alert("Couldn't save the backup.\n\n" + r.error +
-             "\n\nIf this is the first time, run backup-table.sql in Supabase.");
-}
-
-async function restoreCloudBackup(id){
-  if(!isSuperAdmin()) return;
-  let row;
-  try{
-    const {data, error} = await sb.from('app_backups').select('*').eq('id', id).single();
-    if(error) throw error; row = data;
-  }catch(e){ alert("Couldn't load that backup.\n\n" + ((e&&e.message)||e)); return; }
-  if(!row || !row.data || !Array.isArray(row.data.vehicles)){ alert('That backup looks incomplete.'); return; }
-
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>Restore this backup?</h3>
-    <div class="overdue-banner"><span><b>Everything currently in the app is replaced.</b>
-      Anything added since this snapshot will be lost.</span></div>
-    <table style="margin:12px 0;">
-      <tr><td>Taken</td><td><b>${fmtDate(row.taken_at.slice(0,10))} at ${row.taken_at.slice(11,16)}</b></td></tr>
-      <tr><td>By</td><td>${escapeHtml(row.taken_by||'—')}</td></tr>
-      <tr><td>Vehicles in it</td><td><b>${row.data.vehicles.length}</b> (you have ${(DB.vehicles||[]).length} now)</td></tr>
-      <tr><td>Investors in it</td><td><b>${(row.data.muzaribs||[]).length}</b> (you have ${(DB.muzaribs||[]).length} now)</td></tr>
-    </table>
-    <div class="field"><label>Type RESTORE to confirm</label><input id="cb_confirm" placeholder="RESTORE"/></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="openCloudBackups()">Back</button>
-      <button class="btn btn-danger" onclick="doCloudRestore(${id})">Replace everything</button>
-    </div>`);
-  window._cloudRestore = row.data;
-}
-
-async function doCloudRestore(id){
-  if(!isSuperAdmin()) return;
-  if((document.getElementById('cb_confirm').value||'').trim().toUpperCase() !== 'RESTORE'){
-    alert('Type RESTORE to confirm.'); return;
-  }
-  const d = window._cloudRestore; if(!d) return;
-  // snapshot what we're about to overwrite, so a wrong restore is survivable
-  await saveCloudBackup('manual', 'Taken automatically just before a restore');
-  Object.keys(DB).forEach(k=>{ delete DB[k]; });
-  Object.assign(DB, d);
-  logChange('settings','Restored from a stored backup', {id:'backup',label:'Backup #'+id}, '', '',
-            (d.vehicles||[]).length + ' vehicles', 'Everything was replaced');
-  saveDB(); closeModal(); render();
-  alert('Restored from the backup.');
-}
-
-
-/* =========================================================================
-   PERIOD REPORTS — month, quarter and year, with the Muzaribat split.
-   ========================================================================= */
-let reportPeriod = 'month';
-
-function periodBuckets(kind){
-  const out = [];
-  const now = new Date();
-  if(kind==='month'){
-    for(let i=0;i<12;i++){
-      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-      const key = d.toISOString().slice(0,7);
-      out.push({key, label: d.toLocaleDateString('en-GB',{month:'short',year:'numeric'}),
-                test: v => (v.sale.date||'').slice(0,7) === key});
-    }
-  } else if(kind==='quarter'){
-    for(let i=0;i<8;i++){
-      const d = new Date(now.getFullYear(), now.getMonth()-i*3, 1);
-      const q = Math.floor(d.getMonth()/3), y = d.getFullYear();
-      const key = y+'-Q'+(q+1);
-      if(out.some(o=>o.key===key)) continue;
-      out.push({key, label:'Q'+(q+1)+' '+y,
-                test: v => { const dd=new Date(v.sale.date);
-                  return dd.getFullYear()===y && Math.floor(dd.getMonth()/3)===q; }});
-    }
-  } else {
-    for(let i=0;i<4;i++){
-      const y = now.getFullYear()-i;
-      out.push({key:String(y), label:String(y),
-                test: v => (v.sale.date||'').slice(0,4) === String(y)});
-    }
-  }
-  return out;
-}
-
-function periodFigures(test){
-  const sold = (DB.vehicles||[]).filter(v=>v.sale && test(v));
-  let revenue=0, cost=0, gross=0, admin=0, investor=0, company=0;
-  sold.forEach(v=>{
-    revenue += vehicleNetSale(v);
-    cost    += vehicleCostTotal(v);
-    const g  = vehicleProfit(v); gross += g;
-    if(isMuzaribCar(v)){
-      const s = carSettlement(v);
-      admin += s.admin; investor += s.investor; company += s.company;
-    } else company += g;
-  });
-  return {cars:sold.length, revenue, cost, gross, admin, investor, company};
-}
-
-function overheadsFor(kind, key){
-  const list = DB.monthlyCosts || [];
-  const inPeriod = c => {
-    if(kind==='month')   return c.month === key;
-    if(kind==='year')    return (c.month||'').slice(0,4) === key;
-    const [y,q] = key.split('-Q');
-    const m = Number((c.month||'').slice(5,7));
-    return (c.month||'').slice(0,4)===y && Math.ceil(m/3)===Number(q);
-  };
-  return list.filter(inPeriod).reduce((s,c)=>s+Number(c.amount||0),0);
-}
-
-function renderPeriodReport(){
-  const kind = reportPeriod;
-  const buckets = periodBuckets(kind);
-  const rows = buckets.map(b=>{
-    const f = periodFigures(b.test);
-    const oh = overheadsFor(kind, b.key);
-    return {...b, ...f, overheads:oh, net: f.company - oh};
-  }).filter(r=>r.cars>0 || r.overheads>0);
-
-  const tot = rows.reduce((a,r)=>({cars:a.cars+r.cars, revenue:a.revenue+r.revenue,
-    cost:a.cost+r.cost, gross:a.gross+r.gross, admin:a.admin+r.admin,
-    investor:a.investor+r.investor, company:a.company+r.company,
-    overheads:a.overheads+r.overheads, net:a.net+r.net}),
-    {cars:0,revenue:0,cost:0,gross:0,admin:0,investor:0,company:0,overheads:0,net:0});
-
-  return `
-  <div class="section-title" style="margin-top:24px;">
-    <h2>Performance by period</h2>
-    <div class="chip-row" style="margin:0;">
-      <div class="chip ${kind==='month'?'active':''}" onclick="reportPeriod='month';render()">Monthly</div>
-      <div class="chip ${kind==='quarter'?'active':''}" onclick="reportPeriod='quarter';render()">Quarterly</div>
-      <div class="chip ${kind==='year'?'active':''}" onclick="reportPeriod='year';render()">Yearly</div>
-    </div>
-  </div>
-
-  ${rows.length ? `
-  <div class="card" style="padding:0;overflow-x:auto;">
-    <table>
-      <thead><tr>
-        <th>${kind==='month'?'Month':kind==='quarter'?'Quarter':'Year'}</th>
-        <th style="text-align:right">Sold</th>
-        <th style="text-align:right">Revenue</th>
-        <th style="text-align:right">Cost</th>
-        <th style="text-align:right">Gross profit</th>
-        <th style="text-align:right">Admin</th>
-        <th style="text-align:right">Investors</th>
-        <th style="text-align:right">Company</th>
-        <th style="text-align:right">Overheads</th>
-        <th style="text-align:right">Net</th>
-      </tr></thead>
-      <tbody>
-        ${rows.map(r=>`<tr>
-          <td><b>${r.label}</b></td>
-          <td style="text-align:right">${r.cars}</td>
-          <td style="text-align:right">${fmtMoney(r.revenue)}</td>
-          <td style="text-align:right">${fmtMoney(r.cost)}</td>
-          <td style="text-align:right;color:${r.gross<0?'var(--red)':'inherit'}">${fmtMoney(r.gross)}</td>
-          <td style="text-align:right">${fmtMoney(r.admin)}</td>
-          <td style="text-align:right">${fmtMoney(r.investor)}</td>
-          <td style="text-align:right">${fmtMoney(r.company)}</td>
-          <td style="text-align:right">${r.overheads?fmtMoney(r.overheads):'—'}</td>
-          <td style="text-align:right;font-weight:700;color:${r.net<0?'var(--red)':'var(--green)'}">${fmtMoney(r.net)}</td>
-        </tr>`).join('')}
-        <tr style="border-top:2px solid var(--ink)">
-          <td><b>Total</b></td>
-          <td style="text-align:right"><b>${tot.cars}</b></td>
-          <td style="text-align:right"><b>${fmtMoney(tot.revenue)}</b></td>
-          <td style="text-align:right"><b>${fmtMoney(tot.cost)}</b></td>
-          <td style="text-align:right"><b>${fmtMoney(tot.gross)}</b></td>
-          <td style="text-align:right"><b>${fmtMoney(tot.admin)}</b></td>
-          <td style="text-align:right"><b>${fmtMoney(tot.investor)}</b></td>
-          <td style="text-align:right"><b>${fmtMoney(tot.company)}</b></td>
-          <td style="text-align:right"><b>${tot.overheads?fmtMoney(tot.overheads):'—'}</b></td>
-          <td style="text-align:right;font-weight:700;color:${tot.net<0?'var(--red)':'var(--green)'}"><b>${fmtMoney(tot.net)}</b></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="small-muted" style="margin-top:8px;">
-    Gross profit is the sale less everything the car cost. Admin is the &pound;500 taken on each
-    investor-funded car. Company is what you keep before overheads; Net is after them.
-  </div>
-  <div class="row" style="margin-top:10px;">
-    <button class="btn btn-ghost btn-sm" onclick="exportPeriodCSV()">⬇ Export this table</button>
-  </div>`
-  : '<div class="card"><div class="empty">No sales recorded in this period yet.</div></div>'}`;
-}
-
-function exportPeriodCSV(){
-  const kind = reportPeriod;
-  const rows = periodBuckets(kind).map(b=>{
-    const f = periodFigures(b.test); const oh = overheadsFor(kind,b.key);
-    return [b.label, f.cars, f.revenue, f.cost, f.gross, f.admin, f.investor, f.company, oh, f.company-oh];
-  }).filter(r=>r[1]>0 || r[8]>0);
-  const head = ['Period','Cars sold','Revenue','Cost','Gross profit','Admin','Investors','Company','Overheads','Net'];
-  const csv = [head].concat(rows).map(r=>r.map(x=>
-    typeof x==='number' ? x.toFixed(2) : '"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download=(DB.bizName||'forecourt').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+kind+'-report-'+todayISO()+'.csv';
-  document.body.appendChild(a); a.click(); a.remove();
-}
-
-
-/* =========================================================================
-   INCOMPLETE RECORDS — flags anything missing that matters.
-   ========================================================================= */
-function recordGaps(v){
-  const out = [];
-  const cost = vehicleCostTotal(v);
-  if(!(cost > 0)) out.push({w:'No purchase price', why:'The margin on this car is meaningless until a cost is entered', hard:true});
-  if(v.sale){
-    const s = v.sale;
-    if(!(Number(s.salePrice) > 0)) out.push({w:'No sale price', why:'Sold, but nothing recorded as received', hard:true});
-    if(!s.date) out.push({w:'No sale date', why:'Will not appear in any month', hard:true});
-    if(!s.invoiceNo) out.push({w:'No invoice number', hard:false});
-    const c = s.customerId ? (DB.customers||[]).find(x=>x.id===s.customerId) : null;
-    if(!c) out.push({w:'No customer', why:'Sold with no buyer recorded', hard:true});
-    else {
-      const miss = [];
-      if(!c.name) miss.push('name');
-      if(!c.phone) miss.push('phone');
-      if(!c.email) miss.push('email');
-      if(!(c.postcode||c.address)) miss.push('address');
-      if(miss.length) out.push({w:'Customer missing ' + miss.join(', '), hard: miss.includes('name')||miss.length>2});
-    }
-    if(s.paperInvoiceOnly) out.push({w:'Paper invoice only', why:'No digital copy was found', hard:false});
-  } else {
-    if(!(Number(v.price) > 0)) out.push({w:'No asking price', why:'In stock but not priced', hard:false});
-  }
-  if(!v.mileage) out.push({w:'No mileage', hard:false});
-  return out;
-}
-function gapCount(hardOnly){
-  return (DB.vehicles||[]).reduce((n,v)=>{
-    const g=recordGaps(v);
-    return n + (hardOnly ? (g.some(x=>x.hard)?1:0) : (g.length?1:0));
-  },0);
-}
-function gapBadge(v){
-  const g=recordGaps(v); if(!g.length) return '';
-  const hard=g.some(x=>x.hard);
-  return `<span class="tag ${hard?'tag-red':'tag-amber'}" title="${escapeAttr(g.map(x=>x.w).join(' · '))}"
-    onclick="event.stopPropagation();openGaps('${v.id}')" style="cursor:pointer">${hard?'⚠':'•'} ${g.length}</span>`;
-}
-function openGaps(id){
-  const v=(DB.vehicles||[]).find(x=>x.id===id); if(!v) return;
-  const g=recordGaps(v);
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>${escapeHtml(v.reg)} — what's missing</h3>
-    <div class="small-muted" style="margin-bottom:10px;">${escapeHtml(((v.make||'')+' '+(v.model||'')).trim())}</div>
-    ${g.length ? `<div class="list">${g.map(x=>`
-      <div class="li"><div class="t">
-        <div><b>${x.hard?'⚠ ':''}${escapeHtml(x.w)}</b>${x.why?`<small>${escapeHtml(x.why)}</small>`:''}</div>
-      </div></div>`).join('')}</div>`
-     : '<div class="empty">Nothing missing.</div>'}
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Close</button>
-      <button class="btn btn-brand" onclick="closeModal();openVehicle('${v.id}')">Open the record</button>
-    </div>`);
-}
-function openGapList(){
-  if(!isManager()) return;
-  const rows=(DB.vehicles||[]).map(v=>({v, g:recordGaps(v)})).filter(x=>x.g.length)
-    .sort((a,b)=> (b.g.filter(x=>x.hard).length - a.g.filter(x=>x.hard).length) || (b.g.length - a.g.length));
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>Incomplete records</h3>
-    <div class="small-muted" style="margin-bottom:10px;">
-      ⚠ means a figure your reports depend on is missing. • is a detail worth filling in.
-    </div>
-    ${rows.length ? `<div class="card" style="padding:0;max-height:420px;overflow:auto;"><table>
-      <thead><tr><th>Reg</th><th>Vehicle</th><th>Status</th><th>What's missing</th></tr></thead><tbody>
-      ${rows.map(({v,g})=>`<tr onclick="closeModal();openVehicle('${v.id}')" style="cursor:pointer">
-        <td><b>${escapeHtml(v.reg)}</b></td>
-        <td>${escapeHtml(((v.make||'')+' '+(v.model||'')).trim())}</td>
-        <td>${v.sale?'<span class="tag tag-grey">Sold</span>':'<span class="tag tag-green">In stock</span>'}</td>
-        <td>${g.map(x=>`<span class="tag ${x.hard?'tag-red':'tag-amber'}" style="margin:1px">${escapeHtml(x.w)}</span>`).join(' ')}</td>
-      </tr>`).join('')}</tbody></table></div>`
-     : '<div class="empty">Every record is complete.</div>'}
-    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Close</button></div>`);
-}
-
 function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
@@ -5876,8 +5283,6 @@ function bootstrapCurrentUserProfile(){
   currentUserTeamId = me.id;
   currentUserName = me.name;
   currentUserRole = normaliseRole(me.accessLevel);
-  // Take the day's snapshot if one has not been made yet. Never blocks sign-in.
-  setTimeout(()=>{ try{ maybeDailyBackup(); }catch(e){} }, 4000);
 }
 
 /* =========================================================================
