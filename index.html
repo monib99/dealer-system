@@ -352,6 +352,46 @@
 #loginCard a,#loginCard code{ color:#ff8d86; }
 .btn-brand{ font-weight:700; }
 </style>
+<style id="vmStyle">
+.vm-card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow-sm); }
+.vm-h{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:10px; flex-wrap:wrap; } .vm-h h3{ margin:0 0 2px; font-size:21px; }
+.vm-gal{ margin-bottom:10px; } .vm-gal .g img{ height:90px; cursor:pointer; }
+.vm-main{ position:absolute; left:6px; bottom:6px; background:#e10600; color:#fff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; }
+.vm-star{ position:absolute; left:5px; bottom:5px; background:rgba(0,0,0,.65); color:#fff; border:0; border-radius:6px; font-size:13px; padding:1px 7px; cursor:pointer; } .vm-star:hover{ background:#e10600; }
+.vm-n{ position:absolute; right:6px; bottom:6px; background:rgba(0,0,0,.7); color:#fff; font-size:11px; padding:1px 7px; border-radius:6px; }
+.vm-steps{ margin:0 0 10px; padding-left:20px; font-size:13.5px; line-height:1.7; }
+.vm-vid{ position:relative; padding-top:56.25%; background:#000; border-radius:10px; overflow:hidden; margin-top:6px; } .vm-vid iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
+.vm-pill{ font:600 11.5px 'IBM Plex Sans',sans-serif; background:#fdecea; color:#c0271b; padding:3px 10px; border-radius:20px; vertical-align:middle; margin-left:6px; } .vm-pill.ok{ background:#e3f4ea; color:#1f7a52; }
+.vm-two{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:6px; } @media(max-width:760px){ .vm-two{ grid-template-columns:1fr; } }
+.vm-opt{ margin-bottom:6px; } .vm-opt b{ display:block; font-size:14px; } .vm-opt span{ color:var(--grey); font-size:12.5px; line-height:1.45; display:block; }
+.vm-acts{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+.vm-tips{ margin-top:12px; font-size:13.5px; } .vm-tips summary{ cursor:pointer; font-weight:600; } .vm-tips ul{ line-height:1.7; padding-left:20px; margin:8px 0 0; }
+.vm-prog{ height:8px; background:#e5e8ef; border-radius:6px; margin-top:14px; overflow:hidden; } .vm-prog i{ display:block; height:100%; width:0; background:#e10600; transition:width .25s; }
+.cxs{ position:relative; aspect-ratio:4/3; background:#000; overflow:hidden; user-select:none; -webkit-user-select:none; touch-action:pan-y; cursor:grab; border-radius:10px; }
+.cxs.grabbing{ cursor:grabbing; } .cxs-stage,.cxs-stage img{ position:absolute; inset:0; width:100%; height:100%; } .cxs-stage img{ object-fit:contain; pointer-events:none; } .cxs-stage img.b{ opacity:0; }
+.cxs-badge{ position:absolute; left:0; top:12px; background:#e10600; color:#fff; font:italic 800 22px 'Barlow Condensed',sans-serif; padding:2px 16px 2px 12px; }
+.cxs-load{ position:absolute; inset:0; display:grid; place-items:center; background:#000; color:#fff; } .cxs-hint{ position:absolute; left:10px; bottom:10px; background:rgba(0,0,0,.75); color:#fff; padding:5px 12px; font-size:12.5px; border-left:3px solid #e10600; transition:opacity .5s; pointer-events:none; }
+</style>
+
+<style id="clStyle">
+.cl-top{ display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:center; background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin-bottom:12px; position:sticky; top:0; z-index:5; box-shadow:var(--shadow-sm); }
+.cl-sum{ flex:1 1 280px; } .cl-sum b{ font-size:22px; font-family:'Barlow Condensed',sans-serif; }
+.cl-yes{ color:#1f7a52; font-weight:700; margin-left:10px; } .cl-no{ color:#c0271b; font-weight:700; margin-left:8px; } .cl-left{ color:var(--grey); margin-left:8px; }
+.cl-bar{ height:8px; background:#e8ebf1; border-radius:6px; margin-top:6px; overflow:hidden; } .cl-bar i{ display:block; height:100%; background:#e10600; transition:width .3s; border-radius:6px; }
+.cl-filters{ display:flex; gap:6px; flex-wrap:wrap; } .cl-filters button{ border:1px solid var(--line); background:#fff; border-radius:20px; padding:6px 14px; font:600 13px 'IBM Plex Sans',sans-serif; cursor:pointer; } .cl-filters button.on{ background:#000; color:#fff; border-color:#000; }
+.cl-card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 16px 6px; margin-bottom:12px; box-shadow:var(--shadow-sm); }
+.cl-gh{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; } .cl-gh h3{ margin:0; font-size:21px; } .cl-gc{ font:600 12px 'IBM Plex Sans',sans-serif; background:#eef0f4; color:var(--ink-soft); padding:2px 9px; border-radius:12px; vertical-align:middle; margin-left:6px; }
+.cl-row{ display:grid; grid-template-columns:minmax(150px,230px) auto 1fr auto; gap:10px; align-items:center; padding:8px 8px 8px 8px; border-top:1px solid #eef0f4; border-left:3px solid transparent; transition:background .2s,border-color .2s; }
+.cl-row.yes{ border-left-color:#1f7a52; background:#f4fbf7; } .cl-row.no{ border-left-color:#e10600; background:#fff6f5; }
+.cl-name{ font-size:14px; font-weight:600; line-height:1.3; }
+.cl-yn{ display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+.cl-yn button{ border:0; background:#fff; padding:8px 16px; font:700 13.5px 'IBM Plex Sans',sans-serif; cursor:pointer; color:var(--ink-soft); min-width:54px; transition:background .15s,color .15s; }
+.cl-yn button + button{ border-left:1px solid var(--line); }
+.cl-yn .y.on{ background:#1f7a52; color:#fff; } .cl-yn .n.on{ background:#e10600; color:#fff; } .cl-yn button:not(.on):hover{ background:#f0f2f6; }
+.cl-note{ min-width:0; width:100%; } .cl-iss{ min-width:0; }
+@media (max-width:760px){ .cl-row{ grid-template-columns:1fr auto; } .cl-name{ grid-column:1/-1; } .cl-note{ grid-column:1/-1; } .cl-iss{ grid-column:1/-1; } .cl-top{ position:static; } }
+</style>
+
 </head>
 <body>
 <div id="loginScreen" style="min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;background:radial-gradient(70% 60% at 80% 0,rgba(225,6,0,.38),transparent 70%),linear-gradient(160deg,#000,#1a0606);padding:20px;">
@@ -442,11 +482,30 @@ const DEFAULT_DB = () => ({
   audit: [],
   seq: 1
 });
-const CHECKLIST_TEMPLATE = [
-  'Tyres & tread', 'Brakes', 'Lights (all)', 'Battery & electrics',
-  'Fluid levels', 'Bodywork exterior', 'Interior condition', 'Keys (x2)',
-  'Service history / book', 'Spare wheel / kit', 'Wing mirrors & glass', 'Test drive'
+const CHECKLIST_GROUPS = [
+  {name:'Paperwork & legal', icon:'📄', items:[
+    'V5C logbook present', 'Registration & VIN match the V5C', 'MOT valid or MOT history checked', 'HPI / history check clear',
+    'Mileage matches the records', 'Service history / book', 'Keys (x2)', 'Number plates correct and secure']},
+  {name:'Exterior & bodywork', icon:'🚗', items:[
+    'Bodywork exterior', 'Paint matches, no mismatched panels', 'Dents, scratches and rust checked', 'Bumpers and trims secure',
+    'Door and boot seals, shut lines even', 'Wing mirrors & glass', 'Windscreen free of chips and cracks', 'Wipers and washer jets work', 'Roof and sunroof (if fitted)']},
+  {name:'Lights & electrics', icon:'💡', items:[
+    'Lights (all)', 'Indicators and hazards', 'Brake lights and reverse light', 'Fog lights (if fitted)', 'Horn',
+    'Battery & electrics', 'Warning lights clear on the dash', 'Central locking and remote', 'Electric windows and mirrors']},
+  {name:'Wheels, tyres & brakes', icon:'🛞', items:[
+    'Tyres & tread', 'Tyres matching per axle, no cracks or bulges', 'Alloys free of kerb damage', 'Spare wheel / kit', 'Locking wheel nut key present',
+    'Brakes', 'Brake discs and pads checked', 'Handbrake holds']},
+  {name:'Engine & mechanical', icon:'🔧', items:[
+    'Fluid levels', 'Oil level and colour', 'Coolant level, no leaks', 'Starts first time, no smoke', 'Engine bay clean, no leaks',
+    'Belts and hoses', 'Exhaust, no blowing or leaks', 'Clutch and gearbox smooth', 'Suspension, no knocks', 'Steering, no play', 'Air conditioning blows cold', 'Heater and demister work']},
+  {name:'Interior', icon:'🪑', items:[
+    'Interior condition', 'Seats and seatbelts work', 'Carpets and mats', 'Headlining and trim', 'Radio, Bluetooth and sockets work', 'No damp or smoke smells', 'Boot clean, parcel shelf present']},
+  {name:'Road test', icon:'🛣', items:[
+    'Test drive', 'Drives straight, no pulling', 'Brakes pull up straight', 'Gears change smoothly', 'No noises or vibration', 'Engine temperature normal', 'Warning lights stay off after the drive']},
+  {name:'Final prep', icon:'✨', items:[
+    'Valeted inside and out', 'Fuel in the tank', 'Photos taken (all angles)', 'Price and description written', 'Ready for handover']},
 ];
+const CHECKLIST_TEMPLATE = CHECKLIST_GROUPS.reduce((a,g)=>a.concat(g.items),[]);
 
 let DB = DEFAULT_DB();
 let currentTab = 'dashboard';
@@ -1086,6 +1145,9 @@ function exportStockForWebsite(){
       engine: v.engine || '',
       description: v.webDescription || '',
       photos: (v.photos || []).map(p => photoUrlSync(p.id)).filter(Boolean),
+      video: (v.videoUrl||'').trim(),
+      spin: (v.spin||[]).length >= SPIN_MIN ? (v.spin||[]).map(p => photoUrlSync(p.id)).filter(Boolean) : [],
+      spinEmbed: (v.spinEmbed||'').trim(),
       status: v.sale ? 'sold' : 'available'
     }));
   const withoutPhotos = pub.filter(c => !c.photos.length).length;
@@ -1093,7 +1155,7 @@ function exportStockForWebsite(){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'stock.json'; a.click();
   alert(`${pub.length} car${pub.length===1?'':'s'} exported for the website.` +
-        (withoutPhotos ? `\n\n${withoutPhotos} have no photos yet — add photos in the vehicle's Issues & Photos tab and export again.` : '') +
+        (withoutPhotos ? `\n\n${withoutPhotos} have no photos yet — add photos in the vehicle's Photos & video tab and export again.` : '') +
         `\n\nUpload stock.json to your website folder on GitHub, replacing the old one.`);
 }
 /* Publishes the customer-facing stock list to the website.
@@ -1108,6 +1170,9 @@ function publicStockPayload(){
       transmission: v.transmission||'', body: v.body||'', doors: v.doors||'',
       engine: v.engine||'', description: v.webDescription||'',
       photos: (v.photos||[]).map(p=>photoUrlSync(p.id)).filter(Boolean),
+      video: (v.videoUrl||'').trim(),
+      spin: (v.spin||[]).length >= SPIN_MIN ? (v.spin||[]).map(p=>photoUrlSync(p.id)).filter(Boolean) : [],
+      spinEmbed: (v.spinEmbed||'').trim(),
       status: v.sale ? 'sold' : 'available'
     }));
 }
@@ -1274,12 +1339,13 @@ async function renderVehicleDetail(){
   const cost = vehicleCostTotal(v);
   const margin = v.sale? vehicleProfit(v) : (Number(v.askingPrice)||0)-cost;
 
-  const tabs = [['overview','Overview'],['issues','Issues & Photos'+(openIssuesCount(v)?` (${openIssuesCount(v)})`:'')],['checklist','Vehicle check'],['costs','Cost & invoice'],['leads', 'Leads'+(leadsForVehicle(v.id).length?` (${leadsForVehicle(v.id).length})`:'')],['sale', v.sale?'Sale record':'Mark as sold']];
+  const tabs = [['overview','Overview'],['photos','Photos & video'+((v.photos||[]).length?` (${(v.photos||[]).length})`:'')],['issues','Issues'+(openIssuesCount(v)?` (${openIssuesCount(v)})`:'')],['checklist','Vehicle check'],['costs','Cost & invoice'],['leads', 'Leads'+(leadsForVehicle(v.id).length?` (${leadsForVehicle(v.id).length})`:'')],['sale', v.sale?'Sale record':'Mark as sold']];
   if(isManager()) tabs.push(['history','History']);
 
   let inner = '';
   if(activeVehicleTab==='overview') inner = vehicleOverviewTab(v,cost,margin);
   else if(activeVehicleTab==='issues') inner = await vehicleIssuesTab(v);
+  else if(activeVehicleTab==='photos') inner = await vehiclePhotosTab(v);
   else if(activeVehicleTab==='checklist') inner = vehicleChecklistTab(v);
   else if(activeVehicleTab==='costs') inner = await vehicleCostsTab(v,cost);
   else if(activeVehicleTab==='leads') inner = vehicleLeadsTab(v);
@@ -1395,21 +1461,15 @@ function deleteVehicle(id){
 }
 
 /* ---- issues & photos ---- */
-async function vehicleIssuesTab(v){
-  let photosHtml = '';
-  (v.photos||[]).forEach((p,idx)=>{
-    const url = getPhotoUrl(p.id);
-    photosHtml += `<div class="photo-cell"><img class="photo-thumb" src="${url}" onclick="openVehiclePhoto('${v.id}',${idx})"/><button class="rm" onclick="removeVehiclePhoto('${v.id}',${idx})">✕</button></div>`;
-  });
-  return `
-  <div class="card" style="margin-bottom:16px;">
-    <div class="flex-between"><h3 style="margin:0">General photos</h3>
-      <label class="btn btn-sm btn-ghost" style="cursor:pointer;">+ Upload photo<input type="file" accept="image/*" style="display:none" onchange="uploadVehiclePhoto('${v.id}', this)"/></label>
-      <button class="btn btn-sm btn-ghost" onclick="openMediaGuide('vehicle')">📷 Photo guide</button>
-    </div>
-    <div class="photo-row">${photosHtml || '<span class="small-muted">No general photos yet.</span>'}</div>
-  </div>
+/* =========================================================================
+   VEHICLE MEDIA — Photos, Video and 360° view, kept apart from Issues.
+   ========================================================================= */
+const SPIN_MIN = 8;
+function ytIdPortal(u){ return ((String(u||'').match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{6,})/)||[])[1]) || ''; }
 
+/* ---- Issues only ---- */
+async function vehicleIssuesTab(v){
+  return `
   <div class="card">
     <div class="flex-between"><h3 style="margin:0">Outstanding issues — bodywork, interior, missing parts, mechanical</h3>
       <button class="btn btn-sm btn-amber" onclick="openAddIssue('${v.id}')">+ Report issue</button>
@@ -1418,6 +1478,210 @@ async function vehicleIssuesTab(v){
       await renderIssuesList(v)}
   </div>`;
 }
+
+/* ---- Photos, video and 360 ---- */
+async function vehiclePhotosTab(v){
+  const photos = v.photos||[], spin = v.spin||[];
+  const vid = ytIdPortal(v.videoUrl);
+  setTimeout(()=>wireVehicleMedia(v.id), 0);
+  const spinOk = spin.length >= SPIN_MIN || !!(v.spinEmbed||'').trim();
+  return `
+  <div class="vm-card">
+    <div class="vm-h"><div><h3>📷 Photos for the website</h3>
+      <div class="small-muted">The <b>first photo</b> is the main one everywhere. Drag <b>⠿</b> to reorder, or tap ★ to make one the main photo.</div></div>
+      <button class="btn btn-sm btn-ghost" onclick="openMediaGuide('vehicle')">📷 Photo guide</button></div>
+    <div class="wb-gal vm-gal" id="vpGal">${photos.map((p,i)=>`<div class="g" data-id="${p.id}">
+      <button class="wb-grip" aria-label="Drag to reorder">⠿</button>
+      <img src="${getPhotoUrl(p.id)}" alt="" onclick="openVehiclePhoto('${v.id}',${i})">
+      ${i===0?'<span class="vm-main">Main</span>':`<button class="vm-star" title="Make main photo" onclick="makeMainPhoto('${v.id}','${p.id}')">★</button>`}
+      <button class="x" aria-label="Remove" onclick="removeVehiclePhotoById('${v.id}','${p.id}')">✕</button></div>`).join('')}</div>
+    ${wbDrop('dz_vp', photos.length?'Add more photos':'Add photos', true)}
+    <div class="small-muted" style="margin-top:6px">${photos.length} photo${photos.length===1?'':'s'}. About 12 is the sweet spot. Landscape (phone sideways) looks best.</div>
+  </div>
+
+  <div class="vm-card">
+    <div class="vm-h"><div><h3>🎬 Video</h3>
+      <div class="small-muted">Upload your video to YouTube, then paste the link here. It shows on the car's page as a Video tab.</div></div></div>
+    <ol class="vm-steps"><li>Film the car on your phone, landscape.</li><li>Upload it to <b>YouTube</b> (choose <b>Unlisted</b> if you don't want it on your channel).</li><li>Copy the link and paste it below.</li></ol>
+    <div class="field"><label>YouTube link</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="vm_video" value="${escapeAttr(v.videoUrl||'')}" placeholder="https://www.youtube.com/watch?v=..." style="flex:1;min-width:220px"/>
+      <button class="btn btn-brand" onclick="saveVehicleVideo('${v.id}')">Save</button>
+      ${v.videoUrl?`<button class="btn btn-ghost" onclick="clearVehicleVideo('${v.id}')">Remove</button>`:''}</div></div>
+    ${vid?`<div class="vm-vid"><iframe src="https://www.youtube.com/embed/${vid}" allowfullscreen loading="lazy"></iframe></div>`
+      : (v.videoUrl?'<div class="wb-note">That doesn\'t look like a YouTube link yet. It should start with youtube.com or youtu.be.</div>':'')}
+  </div>
+
+  <div class="vm-card">
+    <div class="vm-h"><div><h3>🔄 360° view <span class="vm-pill ${spinOk?'ok':''}">${spinOk?'Live when published':'Needs '+Math.max(0,SPIN_MIN-spin.length)+' more'}</span></h3>
+      <div class="small-muted">Customers drag to turn the car all the way round. Use your angle photos, or let the app build it from a walk-around video.</div></div></div>
+
+    <div class="wb-gal vm-gal" id="vsGal">${spin.map((p,i)=>`<div class="g" data-id="${p.id}">
+      <button class="wb-grip" aria-label="Drag to reorder">⠿</button>
+      <img src="${getPhotoUrl(p.id)}" alt=""><span class="vm-n">${i+1}</span>
+      <button class="x" aria-label="Remove" onclick="removeSpinPhoto('${v.id}','${p.id}')">✕</button></div>`).join('')}</div>
+
+    <div class="vm-two">
+      <div>
+        <div class="vm-opt"><b>Option 1 · Your angle photos</b><span>Add them in order, going once round the car. They sort by file name, then drag ⠿ to fix any that are out of place.</span></div>
+        ${wbDrop('dz_spin','Add angle photos', true)}
+      </div>
+      <div>
+        <div class="vm-opt"><b>Option 2 · Make it from a video</b><span>Walk slowly once round the car while filming. The app picks evenly spaced frames and builds the spin for you.</span></div>
+        <label class="wb-drop" id="dz_vid"><input type="file" id="vm_vid" accept="video/*" hidden><span class="big">🎥</span><b>Choose a walk-around video</b><em>One slow circle, phone held steady</em></label>
+        <div class="field" style="margin-top:8px"><label>Frames to make</label><select id="vm_frames"><option value="24">24 (smaller, quicker)</option><option value="36" selected>36 (smooth)</option><option value="48">48 (extra smooth)</option></select></div>
+      </div>
+    </div>
+
+    <div class="vm-acts">
+      <button class="btn btn-ghost" onclick="openSpinPreview('${v.id}')" ${spin.length>=SPIN_MIN?'':'disabled'}>👁 Preview the spin</button>
+      ${spin.length?`<button class="btn btn-danger" onclick="clearSpin('${v.id}')">Clear all angles</button>`:''}
+    </div>
+
+    <details class="vm-tips"><summary>How to shoot the angles</summary>
+      <ul><li>Park on a plain, level spot with space to walk right round.</li>
+      <li>Start at the front, then move clockwise. Take a photo about every 15° (24 photos) or 10° (36).</li>
+      <li>Keep the phone the same height and the same distance from the car every time.</li>
+      <li>Same light, same framing, car centred. Clean the car first.</li>
+      <li>For the video option, walk at an even, slow pace and keep the car in the middle of the frame.</li></ul>
+    </details>
+
+    <div class="field" style="margin-top:12px"><label>Already have a 360 from another service? <span class="small-muted">optional</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="vm_embed" value="${escapeAttr(v.spinEmbed||'')}" placeholder="Paste the viewer link (https://...)" style="flex:1;min-width:220px"/>
+      <button class="btn btn-ghost" onclick="saveVehicleEmbed('${v.id}')">Save</button></div>
+      <div class="small-muted" style="margin-top:4px">If set, this link is used instead of the photos above.</div></div>
+  </div>`;
+}
+
+function wireVehicleMedia(vId){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  wbWireDrop('dz_vp', files=>uploadVehiclePhotos(vId, files));
+  wbWireDrop('dz_spin', files=>uploadSpinFiles(vId, files));
+  wbSortable(document.getElementById('vpGal'), '.g', ids=>{ const vv = DB.vehicles.find(x=>x.id===vId); vv.photos = ids.map(id=>vv.photos.find(p=>p.id===id)).filter(Boolean); saveDB(); renderVehicleDetail(); wbToast('Photo order saved'); });
+  wbSortable(document.getElementById('vsGal'), '.g', ids=>{ const vv = DB.vehicles.find(x=>x.id===vId); vv.spin = ids.map(id=>(vv.spin||[]).find(p=>p.id===id)).filter(Boolean); saveDB(); renderVehicleDetail(); wbToast('Angle order saved'); });
+  const vf = document.getElementById('vm_vid'); if(vf) vf.addEventListener('change', ()=>{ if(vf.files[0]) spinFromVideo(vId, vf.files[0], Number(document.getElementById('vm_frames').value)||36); });
+}
+
+async function uploadVehiclePhotos(vId, files){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v || !files.length) return;
+  if(!v.photos) v.photos = [];
+  let n = 0;
+  for(const f of files){
+    n++; wbToast('Uploading photo ' + n + ' of ' + files.length + '…');
+    try{
+      const blob = await compressImage(f, 1600, 0.82); const res = await storePhoto(blob);
+      if(res.ref){ v.photos.push({id:res.ref, addedAt:todayISO()}); notePhotoFallback(res); }
+      else alert("A photo couldn't be saved. Error: " + (res.error||'unknown'));
+    }catch(e){ alert("A photo couldn't be read: " + (e.message||e)); }
+  }
+  saveDB(); renderVehicleDetail(); wbToast('Photos added');
+}
+function makeMainPhoto(vId, id){
+  const v = DB.vehicles.find(x=>x.id===vId); const i = (v.photos||[]).findIndex(p=>p.id===id); if(i<=0) return;
+  const [p] = v.photos.splice(i,1); v.photos.unshift(p); saveDB(); renderVehicleDetail(); wbToast('Main photo changed');
+}
+async function removeVehiclePhotoById(vId, id){
+  const v = DB.vehicles.find(x=>x.id===vId); const i = (v.photos||[]).findIndex(p=>p.id===id); if(i<0) return;
+  v.photos.splice(i,1); await deletePhoto(id); saveDB(); renderVehicleDetail();
+}
+function saveVehicleVideo(vId){
+  const v = DB.vehicles.find(x=>x.id===vId); const val = (document.getElementById('vm_video').value||'').trim();
+  v.videoUrl = val; saveDB(); renderVehicleDetail(); wbToast(val?'Video link saved':'Video removed');
+}
+function clearVehicleVideo(vId){ const v = DB.vehicles.find(x=>x.id===vId); v.videoUrl = ''; saveDB(); renderVehicleDetail(); }
+function saveVehicleEmbed(vId){
+  const v = DB.vehicles.find(x=>x.id===vId); const val = (document.getElementById('vm_embed').value||'').trim();
+  if(val && !/^https:\/\//i.test(val)){ alert('The link should start with https://'); return; }
+  v.spinEmbed = val; saveDB(); renderVehicleDetail(); wbToast(val?'360 link saved':'360 link removed');
+}
+
+/* angle photos */
+async function uploadSpinFiles(vId, files){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v || !files.length) return;
+  files = files.slice().sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+  if(!v.spin) v.spin = [];
+  let n = 0;
+  for(const f of files){
+    n++; wbToast('Uploading angle ' + n + ' of ' + files.length + '…');
+    try{
+      const blob = await compressImage(f, 1100, 0.74); const res = await storePhoto(blob);
+      if(res.ref){ v.spin.push({id:res.ref}); notePhotoFallback(res); } else alert("A photo couldn't be saved. Error: " + (res.error||'unknown'));
+    }catch(e){ alert("A photo couldn't be read: " + (e.message||e)); }
+  }
+  saveDB(); renderVehicleDetail(); wbToast(v.spin.length + ' angles added');
+}
+async function removeSpinPhoto(vId, id){
+  const v = DB.vehicles.find(x=>x.id===vId); v.spin = (v.spin||[]).filter(p=>p.id!==id); await deletePhoto(id); saveDB(); renderVehicleDetail();
+}
+async function clearSpin(vId){
+  if(!confirm('Remove all the 360° angle photos for this car?')) return;
+  const v = DB.vehicles.find(x=>x.id===vId); const old = v.spin||[]; v.spin = []; saveDB(); renderVehicleDetail();
+  for(const p of old) await deletePhoto(p.id);
+}
+
+/* build the spin from a walk-around video: pick evenly spaced frames */
+async function spinFromVideo(vId, file, frames){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  if((v.spin||[]).length && !confirm('This replaces the angle photos you already have for this car.\n\nContinue?')) return;
+  openModal(`<h3>🎥 Building the 360°…</h3><div class="small-muted">Keep this window open. It takes a minute or two.</div>
+    <div class="vm-prog"><i id="vmBar"></i></div><div id="vmMsg" class="small-muted" style="margin-top:8px">Reading the video…</div>`);
+  const msg = t=>{ const e = document.getElementById('vmMsg'); if(e) e.textContent = t; };
+  const bar = p=>{ const e = document.getElementById('vmBar'); if(e) e.style.width = (p*100)+'%'; };
+  const url = URL.createObjectURL(file);
+  const vid = document.createElement('video'); vid.muted = true; vid.playsInline = true; vid.preload = 'auto'; vid.src = url;
+  try{
+    await new Promise((res,rej)=>{ vid.onloadedmetadata = res; vid.onerror = ()=>rej(new Error("This phone or browser can't read that video. Try another video, or add the angle photos instead.")); });
+    const dur = vid.duration;
+    if(!isFinite(dur) || dur < 3) throw new Error('That video is too short. Film one slow walk right round the car (at least 10 seconds).');
+    const old = v.spin || []; const fresh = [];
+    const W = 1100, scale = Math.min(1, W / vid.videoWidth);
+    const canvas = document.createElement('canvas'); canvas.width = Math.round(vid.videoWidth*scale); canvas.height = Math.round(vid.videoHeight*scale);
+    const ctx = canvas.getContext('2d');
+    for(let i=0;i<frames;i++){
+      msg('Making angle ' + (i+1) + ' of ' + frames + '…'); bar(i/frames);
+      const t = dur * (i + 0.5) / frames;
+      await new Promise(res=>{ vid.onseeked = res; vid.currentTime = t; });
+      ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.76));
+      const res = await storePhoto(blob);
+      if(!res.ref) throw new Error("A frame couldn't be saved. Error: " + (res.error||'unknown'));
+      fresh.push({id:res.ref});
+    }
+    v.spin = fresh; saveDB();
+    for(const p of old) await deletePhoto(p.id);
+    bar(1); closeModal(); renderVehicleDetail(); wbToast('360° built from your video');
+  }catch(e){
+    closeModal(); alert(e.message || String(e));
+  }finally{ URL.revokeObjectURL(url); }
+}
+
+/* a quick look at the spin inside the app */
+function openSpinPreview(vId){
+  const v = DB.vehicles.find(x=>x.id===vId); const urls = (v.spin||[]).map(p=>getPhotoUrl(p.id)).filter(Boolean);
+  if(urls.length < 2){ alert('Add some angle photos first.'); return; }
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>360° preview</h3>
+    <div class="small-muted" style="margin-bottom:8px">This is what customers will see. Drag to turn the car.</div><div id="spinPrev"></div>
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Done</button></div>`);
+  cxSpinMount(document.getElementById('spinPrev'), urls);
+}
+function cxSpinMount(root, urls){
+  const n = urls.length; if(n < 2 || !root) return;
+  root.className = 'cxs';
+  root.innerHTML = '<div class="cxs-stage"><img class="a" draggable="false" alt=""><img class="b" draggable="false" alt=""></div><div class="cxs-badge">360°</div><div class="cxs-load"><b>Loading…</b></div><div class="cxs-hint">↔ Drag to turn</div>';
+  const A = root.querySelector('.a'), B = root.querySelector('.b'), load = root.querySelector('.cxs-load'), hint = root.querySelector('.cxs-hint');
+  let pos = 0, vel = 0, drag = false, lx = 0, ready = false, loaded = 0, auto = true, cur = -1, nxt = -1, stopped = false;
+  urls.forEach(u=>{ const im = new Image(); im.onload = im.onerror = ()=>{ if(++loaded === n){ ready = true; load.style.display = 'none'; } }; im.src = u; });
+  const frame = ()=>{ const p = ((pos % n) + n) % n, i = Math.floor(p), f = p - i, j = (i+1) % n; if(i!==cur){ A.src = urls[i]; cur = i; } if(j!==nxt){ B.src = urls[j]; nxt = j; } B.style.opacity = f<0.02?0:f; };
+  const tick = ()=>{ if(stopped || !document.body.contains(root)) return; requestAnimationFrame(tick);
+    if(!ready) return;
+    if(!drag){ if(Math.abs(vel) > 0.002){ pos += vel; vel *= 0.94; } else if(auto) pos += 0.045; }
+    frame(); };
+  frame(); tick();
+  root.addEventListener('pointerdown', e=>{ drag = true; lx = e.clientX; vel = 0; auto = false; hint.style.opacity = 0; root.classList.add('grabbing'); try{ root.setPointerCapture(e.pointerId); }catch(_){} });
+  root.addEventListener('pointermove', e=>{ if(!drag) return; const dx = e.clientX - lx; lx = e.clientX; const d = -dx / root.clientWidth * n * 0.95; pos += d; vel = d; });
+  const up = ()=>{ drag = false; root.classList.remove('grabbing'); };
+  root.addEventListener('pointerup', up); root.addEventListener('pointercancel', up);
+}
+
 async function renderIssuesList(v){
   let out = '';
   for(const i of v.issues){
@@ -1568,22 +1832,99 @@ function compressImage(file, maxW=1000, quality=0.72){
   });
 }
 
-/* ---- checklist ---- */
+/* ---- vehicle check: grouped, with Yes / No next to each note ---- */
+let clFilter = 'all';
+
 function vehicleChecklistTab(v){
-  if(!v.checklist || v.checklist.length===0) v.checklist = CHECKLIST_TEMPLATE.map(name=>({name,ok:false,note:''}));
-  return `<div class="card">
-    <h3 style="margin-top:0">${CHECKLIST_TEMPLATE.length}-point vehicle check</h3>
-    ${v.checklist.map((c,idx)=>`
-      <div class="checklist-item">
-        <input type="checkbox" ${c.ok?'checked':''} onchange="toggleChecklist('${v.id}',${idx},this.checked)"/>
-        <div class="cname">${c.name}</div>
-        <input type="text" placeholder="Note (optional)" value="${c.note||''}" onchange="updateChecklistNote('${v.id}',${idx},this.value)"/>
+  const list = ensureChecklist(v);
+  const counts = clCounts(list);
+  const groups = CHECKLIST_GROUPS.map(g=>({g, rows:list.map((c,idx)=>({c,idx})).filter(x=>clGroupOf(x.c.name)===g.name)}));
+  const other = list.map((c,idx)=>({c,idx})).filter(x=>!clGroupOf(x.c.name));
+  if(other.length) groups.push({g:{name:'Other', icon:'📝'}, rows:other});
+  const show = x => clFilter==='all' ? true : clFilter==='todo' ? !x.c.ans : x.c.ans==='no';
+  return `
+  <div class="cl">
+    <div class="cl-top">
+      <div class="cl-sum"><div><b id="clDone">${counts.done}</b> of ${counts.total} checked
+        <span class="cl-yes" id="clYes">${counts.yes} yes</span> <span class="cl-no" id="clNo">${counts.no} no</span> <span class="cl-left" id="clLeft">${counts.left} left</span></div>
+        <div class="cl-bar"><i id="clBar" style="width:${counts.total?Math.round(counts.done/counts.total*100):0}%"></i></div></div>
+      <div class="cl-filters">
+        ${[['all','Everything'],['todo','Still to do'],['no','Failed (No)']].map(([k,l])=>`<button class="${clFilter===k?'on':''}" onclick="clFilter='${k}';renderVehicleDetail()">${l}</button>`).join('')}
       </div>
-    `).join('')}
+    </div>
+    ${groups.map(({g,rows})=>{
+      const vis = rows.filter(show); if(!vis.length) return '';
+      const gd = rows.filter(x=>x.c.ans).length;
+      return `<div class="cl-card"><div class="cl-gh"><h3>${g.icon||''} ${g.name} <span class="cl-gc" id="clg_${CHECKLIST_GROUPS.indexOf(g)}">${gd}/${rows.length}</span></h3>
+        ${g.name!=='Other'?`<button class="btn btn-sm btn-ghost" onclick="clGroupYes('${v.id}',${CHECKLIST_GROUPS.indexOf(g)})">All yes</button>`:''}</div>
+        ${vis.map(({c,idx})=>`
+        <div class="cl-row ${c.ans||''}" id="clr_${idx}">
+          <div class="cl-name">${escapeHtml(c.name)}</div>
+          <div class="cl-yn" role="group" aria-label="${escapeAttr(c.name)}">
+            <button class="y ${c.ans==='yes'?'on':''}" aria-pressed="${c.ans==='yes'}" onclick="setCheck('${v.id}',${idx},'yes')">Yes</button>
+            <button class="n ${c.ans==='no'?'on':''}" aria-pressed="${c.ans==='no'}" onclick="setCheck('${v.id}',${idx},'no')">No</button>
+          </div>
+          <input class="cl-note" type="text" placeholder="Note (optional)" value="${escapeAttr(c.note||'')}" onchange="updateChecklistNote('${v.id}',${idx},this.value)"/>
+          <div class="cl-iss" id="cli_${idx}">${c.ans==='no' ? (c.issueId ? '<span class="tag tag-amber">Logged as issue</span>' : `<button class="btn btn-sm btn-amber" onclick="checkToIssue('${v.id}',${idx})">+ Log issue</button>`) : ''}</div>
+        </div>`).join('')}
+      </div>`; }).join('') || '<div class="cl-card"><div class="empty">Nothing to show here.</div></div>'}
   </div>`;
 }
-function toggleChecklist(vId, idx, val){ const v=DB.vehicles.find(x=>x.id===vId); v.checklist[idx].ok=val; saveDB(); }
+
+/* keeps old answers and adds any new check points */
+function ensureChecklist(v){
+  const have = v.checklist || [], byName = {};
+  have.forEach(c=>{ if(!c) return; if(c.ans===undefined) c.ans = c.ok ? 'yes' : ''; byName[c.name] = c; });
+  const out = [];
+  CHECKLIST_GROUPS.forEach(g=>g.items.forEach(n=>{ out.push(byName[n] || {name:n, ok:false, ans:'', note:''}); delete byName[n]; }));
+  Object.keys(byName).forEach(n=>out.push(byName[n]));
+  v.checklist = out; return out;
+}
+function clGroupOf(name){ const g = CHECKLIST_GROUPS.find(g=>g.items.includes(name)); return g ? g.name : null; }
+function clCounts(list){
+  const yes = list.filter(c=>c.ans==='yes').length, no = list.filter(c=>c.ans==='no').length;
+  return {total:list.length, yes, no, done:yes+no, left:list.length-yes-no};
+}
+/* updates the screen without jumping back to the top */
+function clRefresh(v){
+  const list = v.checklist, k = clCounts(list);
+  list.forEach((c,idx)=>{
+    const r = document.getElementById('clr_'+idx); if(!r) return;
+    r.className = 'cl-row ' + (c.ans||'');
+    const y = r.querySelector('.y'), n = r.querySelector('.n');
+    y.classList.toggle('on', c.ans==='yes'); y.setAttribute('aria-pressed', c.ans==='yes');
+    n.classList.toggle('on', c.ans==='no');  n.setAttribute('aria-pressed', c.ans==='no');
+    const iss = document.getElementById('cli_'+idx);
+    if(iss) iss.innerHTML = c.ans==='no' ? (c.issueId ? '<span class="tag tag-amber">Logged as issue</span>' : `<button class="btn btn-sm btn-amber" onclick="checkToIssue('${v.id}',${idx})">+ Log issue</button>`) : '';
+  });
+  const set = (id,t)=>{ const e = document.getElementById(id); if(e) e.textContent = t; };
+  set('clDone',k.done); set('clYes',k.yes+' yes'); set('clNo',k.no+' no'); set('clLeft',k.left+' left');
+  const bar = document.getElementById('clBar'); if(bar) bar.style.width = (k.total?Math.round(k.done/k.total*100):0)+'%';
+  CHECKLIST_GROUPS.forEach((g,gi)=>{ const rows = list.filter(c=>clGroupOf(c.name)===g.name); set('clg_'+gi, rows.filter(c=>c.ans).length+'/'+rows.length); });
+}
+function setCheck(vId, idx, ans){
+  const v = DB.vehicles.find(x=>x.id===vId); const c = v.checklist[idx]; if(!c) return;
+  c.ans = (c.ans===ans) ? '' : ans;          // tap again to clear
+  c.ok = c.ans==='yes';
+  saveDB(); clRefresh(v);
+}
+function toggleChecklist(vId, idx, val){ setCheck(vId, idx, val ? 'yes' : ''); }
 function updateChecklistNote(vId, idx, val){ const v=DB.vehicles.find(x=>x.id===vId); v.checklist[idx].note=val; saveDB(); }
+function clGroupYes(vId, gi){
+  const v = DB.vehicles.find(x=>x.id===vId); const g = CHECKLIST_GROUPS[gi]; if(!g) return;
+  v.checklist.forEach(c=>{ if(g.items.includes(c.name) && !c.ans){ c.ans='yes'; c.ok=true; } });
+  saveDB(); renderVehicleDetail();
+}
+/* a "No" can become an outstanding issue in one tap */
+function checkToIssue(vId, idx){
+  const v = DB.vehicles.find(x=>x.id===vId); const c = v.checklist[idx]; if(!c || c.issueId) return;
+  const g = clGroupOf(c.name) || '';
+  const type = /Exterior|Wheels/.test(g) ? 'bodywork' : /Interior/.test(g) ? 'interior' : 'mechanical';
+  const issue = {id:nextId('iss'), type, desc: c.name + (c.note ? ' — ' + c.note : ''), reportedBy: currentUserName || '', createdAt: todayISO(), reminderDate: todayISO(), status:'open', photoId:null, link1:'', link2:''};
+  if(!v.issues) v.issues = [];
+  v.issues.push(issue); c.issueId = issue.id;
+  saveDB(); clRefresh(v); if(typeof wbToast==='function') wbToast('Added to Issues');
+}
 
 /* ---- costs & invoice ---- */
 async function vehicleCostsTab(v, cost){
@@ -5428,7 +5769,7 @@ function previewSite(){
 const MEDIA_SPECS = {
   vehicle: {
     title:'Car photos',
-    where:'Vehicle → Issues &amp; Photos',
+    where:'Vehicle → Photos &amp; video',
     size:'1600 × 1200 or larger (landscape)',
     ratio:'4:3 landscape — hold the phone sideways',
     weight:'Any size; the app shrinks it to 1600px wide',
@@ -5481,13 +5822,13 @@ const MEDIA_SPECS = {
     notes:'Upload to YouTube and paste the link. Videos stored directly are slow to load and eat your storage.'
   },
   spin: {
-    title:'360° spin',
-    where:'360° View page',
-    size:'1200 × 900 each',
-    ratio:'4:3, identical for every frame',
-    weight:'Under 300 KB each',
-    format:'JPG, named car-1.jpg to car-24.jpg',
-    notes:'24 photos at even intervals around the car. The camera must not move — only the car. Realistically this needs a turntable.'
+    title:'360° view',
+    where:'Vehicle → Photos &amp; video',
+    size:'1100 × 825 each (the app shrinks them)',
+    ratio:'4:3 landscape, the same for every angle',
+    weight:'Any size; the app shrinks each one',
+    format:'JPG from your phone, or one walk-around video',
+    notes:'Either add 24 to 36 photos going once round the car, or film one slow walk-around and let the app build it. Same height, same distance, car centred.'
   }
 };
 
