@@ -248,6 +248,103 @@
     #sidebarNavItems{ display:flex !important; flex-direction:column; }
   }
 </style>
+<style id="wbStyle">
+/* ===== Website builder v2 ===== */
+.wb{ max-width:980px; margin:0 auto; }
+.wb-head{ background:radial-gradient(60% 140% at 90% 0,rgba(225,6,0,.45),transparent 70%),#0b0b0d; color:#fff; border-radius:16px; padding:22px 22px 16px; margin-bottom:16px; box-shadow:var(--shadow-lg); border:1px solid #26272b; }
+.wb-head-in{ display:flex; flex-wrap:wrap; gap:16px; justify-content:space-between; align-items:flex-end; }
+.wb-kicker{ font-size:13px; color:#c8ccd2; letter-spacing:.3px; }
+.wb-head h1{ margin:2px 0 4px; font-size:30px; line-height:1.05; color:#fff; font-style:italic; }
+.wb-sub{ color:#9aa0a8; font-size:13px; }
+.wb-actions{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.wb-pill{ padding:5px 12px; border-radius:20px; font-size:12.5px; font-weight:700; }
+.wb-st-ok{ background:#1f7a52; color:#fff; } .wb-st-warn{ background:#e10600; color:#fff; }
+.wb-btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px; border:0; cursor:pointer; padding:10px 18px; border-radius:10px; font:600 14px 'IBM Plex Sans',sans-serif; text-decoration:none; transition:transform .15s,background .2s,box-shadow .2s; }
+.wb-btn:hover{ transform:translateY(-1px); }
+.wb-btn.red{ background:#e10600; color:#fff; box-shadow:0 6px 18px rgba(225,6,0,.35); } .wb-btn.red:hover{ background:#ff2a1c; }
+.wb-btn.big{ padding:12px 24px; font-size:15px; }
+.wb-btn.ghost{ background:rgba(255,255,255,.10); color:#fff; border:1px solid rgba(255,255,255,.18); }
+.wb-btn.ghost:hover{ background:rgba(255,255,255,.2); }
+#modalBody .wb-btn.ghost,.wb-pagebar .wb-btn.ghost{ background:#fff; color:var(--ink); border:1px solid var(--line); } 
+.wb-btn.dark{ background:#111; color:#fff; } .wb-btn.dark:hover{ background:#000; }
+.wb-btn.danger{ background:#fff; color:#c0271b; border:1px solid #f0c4bf; } .wb-btn.danger:hover{ background:#fdeceb; }
+.wb-btn.sm{ padding:7px 13px; font-size:13px; border-radius:8px; }
+.wb-check{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:16px; padding-top:14px; border-top:1px solid rgba(255,255,255,.12); }
+.wb-check-t{ font-weight:700; font-size:13px; margin-right:6px; color:#fff; }
+.wb-ck{ border:0; padding:5px 12px; border-radius:20px; font:600 12.5px 'IBM Plex Sans',sans-serif; cursor:default; }
+.wb-ck.ok{ background:rgba(46,125,91,.28); color:#7be0b0; } .wb-ck.todo{ background:rgba(225,6,0,.22); color:#ffb3ad; cursor:pointer; } .wb-ck.todo:hover{ background:rgba(225,6,0,.4); }
+
+.wb-tabs{ display:flex; gap:6px; background:#e9edf4; padding:5px; border-radius:12px; margin-bottom:16px; width:fit-content; max-width:100%; }
+.wb-tabs button{ border:0; background:none; padding:9px 18px; border-radius:9px; font:600 14px 'IBM Plex Sans',sans-serif; color:var(--ink-soft); cursor:pointer; }
+.wb-tabs button.on{ background:#fff; color:#000; box-shadow:var(--shadow-sm); }
+
+.wb-pages{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+.wb-pg{ border:1px solid var(--line); background:#fff; padding:8px 16px; border-radius:20px; font:600 13.5px 'IBM Plex Sans',sans-serif; cursor:pointer; transition:all .15s; }
+.wb-pg:hover{ border-color:#000; } .wb-pg.on{ background:#000; color:#fff; border-color:#000; } .wb-pg.add{ border-style:dashed; color:var(--ink-soft); }
+.wb-pagebar{ display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.wb-pt{ font:700 24px 'Barlow Condensed',sans-serif; } .wb-pu{ font-size:12.5px; color:var(--grey); word-break:break-all; }
+.wb-pagebtns{ display:flex; gap:6px; flex-wrap:wrap; }
+.wb-note{ background:#fff8e6; border:1px solid #f1dfa6; color:#6b5300; padding:10px 14px; border-radius:10px; font-size:13px; margin:10px 0; line-height:1.5; }
+.wb-hint{ color:var(--grey); font-size:13px; margin:6px 2px 10px; }
+
+.wb-list{ display:flex; flex-direction:column; gap:10px; }
+.wb-sec{ display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px 14px; box-shadow:var(--shadow-sm); transition:box-shadow .2s,transform .2s,opacity .2s,border-color .2s; }
+.wb-sec:hover{ box-shadow:var(--shadow); border-color:#c5ccd9; }
+.wb-sec.off{ opacity:.55; } .wb-sec.dragging{ opacity:.9; transform:scale(1.015); box-shadow:var(--shadow-lg); border-color:#e10600; z-index:5; position:relative; }
+.wb-grip{ border:0; background:none; font-size:22px; line-height:1; color:#9aa0a8; cursor:grab; padding:8px 6px; touch-action:none; user-select:none; } .wb-grip:hover{ color:#000; } .wb-grip:active{ cursor:grabbing; }
+.wb-ico{ width:46px; height:46px; border-radius:12px; display:grid; place-items:center; font-size:22px; flex:none; color:#fff; }
+.wb-body{ flex:1; min-width:0; cursor:pointer; }
+.wb-name{ font-weight:700; font-size:15.5px; } .wb-off{ font-size:11px; background:#eee; color:#666; padding:1px 8px; border-radius:10px; font-weight:600; vertical-align:middle; }
+.wb-sum{ color:var(--grey); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wb-thumbs{ display:flex; gap:5px; margin-top:7px; } .wb-thumbs img{ width:46px; height:32px; object-fit:cover; border-radius:5px; border:1px solid var(--line); }
+.wb-ctl{ display:flex; align-items:center; gap:10px; flex:none; }
+.wb-arrows{ display:flex; flex-direction:column; gap:2px; } .wb-arrows button{ border:1px solid var(--line); background:#fff; font-size:9px; line-height:1; padding:4px 7px; border-radius:5px; cursor:pointer; color:var(--ink-soft); } .wb-arrows button:disabled{ opacity:.3; cursor:default; } .wb-arrows button:not(:disabled):hover{ background:#000; color:#fff; }
+.wb-sw{ position:relative; display:inline-block; width:44px; height:26px; flex:none; cursor:pointer; } .wb-sw input{ opacity:0; position:absolute; inset:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:2; }
+.wb-sw i{ position:absolute; inset:0; background:#cfd4dd; border-radius:20px; transition:background .2s; } .wb-sw i:before{ content:""; position:absolute; left:3px; top:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+.wb-sw input:checked + i{ background:#e10600; } .wb-sw input:checked + i:before{ transform:translateX(18px); }
+.wb-empty{ border:2px dashed var(--line); border-radius:14px; padding:34px; text-align:center; color:var(--grey); }
+.wb-add{ width:100%; margin-top:14px; border:2px dashed #b9c1cf; background:#fff; color:var(--ink); border-radius:14px; padding:16px; font:700 15px 'IBM Plex Sans',sans-serif; cursor:pointer; transition:all .2s; }
+.wb-add span{ color:#e10600; font-size:20px; margin-right:6px; } .wb-add:hover{ border-color:#e10600; background:#fff6f5; }
+
+.wb-sub2{ color:var(--grey); font-size:13.5px; margin:4px 0 10px; }
+.wb-tiles{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+.wb-tile{ text-align:left; border:1px solid var(--line); background:#fff; border-radius:12px; padding:12px; cursor:pointer; display:flex; flex-direction:column; gap:3px; transition:all .15s; font-family:'IBM Plex Sans',sans-serif; }
+.wb-tile:hover{ border-color:#e10600; transform:translateY(-2px); box-shadow:var(--shadow); }
+.wb-tile .i{ width:38px; height:38px; border-radius:10px; background:#e10600; color:#fff; display:grid; place-items:center; font-size:19px; margin-bottom:4px; } .wb-tile.pre .i{ background:#111; }
+.wb-tile b{ font-size:14px; } .wb-tile em{ font-style:normal; color:var(--grey); font-size:12px; line-height:1.35; }
+
+.wb-card{ border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px; background:#fafbfd; }
+.wb-card-h{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.wb-mini{ border:1px solid var(--line); background:#fff; border-radius:7px; padding:4px 9px; font-size:12px; cursor:pointer; } .wb-mini:disabled{ opacity:.35; } .wb-mini.del{ color:#c0271b; }
+.wb-drop{ display:flex; flex-direction:column; align-items:center; gap:2px; border:2px dashed #b9c1cf; border-radius:12px; padding:18px 12px; text-align:center; cursor:pointer; background:#fff; transition:all .15s; }
+.wb-drop:hover,.wb-drop.over{ border-color:#e10600; background:#fff6f5; } .wb-drop .big{ font-size:26px; } .wb-drop em{ font-style:normal; color:var(--grey); font-size:12.5px; }
+.wb-hprev{ position:relative; aspect-ratio:16/7; border-radius:10px; overflow:hidden; background:#000; margin-bottom:10px; }
+.wb-hprev .bg{ position:absolute; inset:0; background:center/cover no-repeat #111; filter:grayscale(1) brightness(.9); } .wb-hprev .tint{ position:absolute; inset:0; background:linear-gradient(100deg,rgba(0,0,0,.78) 25%,rgba(225,6,0,.4)); }
+.wb-hprev .tx{ position:absolute; left:14px; right:14px; bottom:12px; color:#fff; display:flex; flex-direction:column; gap:3px; } .wb-hprev b{ font:italic 800 22px/1 'Barlow Condensed',sans-serif; } .wb-hprev span{ font-size:11.5px; opacity:.85; }
+.wb-hprev i{ align-self:flex-start; background:#e10600; font-size:11px; font-style:italic; font-weight:700; padding:3px 10px; margin-top:3px; }
+.wb-gal{ display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; margin-bottom:10px; }
+.wb-gal .g{ position:relative; } .wb-gal .g img{ width:100%; height:80px; object-fit:cover; border-radius:8px; display:block; } .wb-gal .g .wb-grip{ position:absolute; left:2px; top:2px; background:rgba(0,0,0,.6); color:#fff; border-radius:6px; font-size:15px; padding:2px 5px; }
+.wb-gal .g .x{ position:absolute; right:3px; top:3px; border:0; background:#e10600; color:#fff; border-radius:50%; width:22px; height:22px; cursor:pointer; font-size:11px; } .wb-gal .g.dragging{ opacity:.7; outline:2px solid #e10600; }
+
+.wb-row{ display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px 10px; } .wb-row.dragging{ border-color:#e10600; box-shadow:var(--shadow-lg); }
+.wb-in{ flex:1; min-width:0; padding:9px 11px; border:1px solid var(--line); border-radius:8px; font:14px 'IBM Plex Sans',sans-serif; background:#fff; }
+.wb-card2{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:12px; box-shadow:var(--shadow-sm); } .wb-card2 h3{ margin:0 0 12px; font-size:20px; }
+.wb-hours{ display:grid; gap:12px; } .wb-hours b{ display:block; margin-bottom:5px; } .wb-hours input[type=time]{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:14px 'IBM Plex Sans',sans-serif; } .wb-chk{ margin-left:10px; font-size:13.5px; }
+.wb-hours-prev{ margin-top:12px; padding:10px 14px; background:#f4f6fa; border-radius:10px; font-size:13.5px; }
+#wbToast{ position:fixed; left:50%; bottom:28px; transform:translate(-50%,20px); background:#000; color:#fff; padding:11px 20px; border-radius:24px; font:600 14px 'IBM Plex Sans',sans-serif; opacity:0; pointer-events:none; transition:all .3s; z-index:9999; border:1px solid #e10600; box-shadow:0 10px 30px rgba(0,0,0,.4); }
+#wbToast.on{ opacity:1; transform:translate(-50%,0); }
+@media (max-width:640px){
+  .wb-head{ padding:18px 16px 14px; } .wb-head h1{ font-size:25px; }
+  .wb-actions .wb-btn.ghost{ flex:1; } .wb-actions .wb-btn.red{ flex:1 1 100%; }
+  .wb-sec{ flex-wrap:wrap; } .wb-body{ flex-basis:calc(100% - 130px); } .wb-ctl{ width:100%; justify-content:flex-end; padding-top:4px; border-top:1px solid var(--line); }
+  .wb-arrows{ flex-direction:row; }
+  .wb-tabs{ width:100%; } .wb-tabs button{ flex:1; padding:9px 8px; }
+}
+
+.wb .field input:not([type=checkbox]):not([type=time]),.wb .field select,.wb .field textarea,#modalBody .wb-card .field input,#modalBody .wb-card .field select,#modalBody .wb-card .field textarea,#modalBody > .field input,#modalBody > .field select,#modalBody > .field textarea{ width:100%; font-family:'IBM Plex Sans',sans-serif; font-size:14.5px; }
+.wb .field-row,#modalBody .field-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+</style>
+
 </head>
 <body>
 <div id="loginScreen" style="min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,#0E2E66,#17428C);padding:20px;">
@@ -262,6 +359,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-01 · build 12</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -353,7 +451,7 @@ function isManager(){ return currentUserRole==='manager' || currentUserRole==='s
 function roleLabel(r){ return r==='superadmin'?'Super Admin':(r==='manager'?'Manager':'Staff'); }
 function normaliseRole(r){ return (r==='superadmin'||r==='manager')?r:'staff'; }
 let currentUserTeamId = null;
-let stockFilter = 'all';
+let stockFilter = 'current';
 let stockSearch = '';
 let taskDayOffset = 0;
 let lastSavedJson = null;      // last JSON we wrote/received, used to ignore echoes of our own save
@@ -579,11 +677,15 @@ function vehicleCostTotal(v){
   return base + partsTotal(v) + worksTotal(v);
 }
 function vehicleNetSale(v){
+  // What the car itself sold for. The admin fee charged to the customer is NOT
+  // part of this — it belongs to the company alone and is never shared with an
+  // investor, so it is added to the company side in carSettlement instead.
   if(!v.sale) return 0;
   const s = v.sale;
   return (Number(s.salePrice)||0) - (Number(s.discount)||0) - (Number(s.partExValue)||0)
-    + (Number(s.adminCharge)||0) + (Number(s.deliveryCharge)||0) + (Number(s.warranty)||0) + (Number(s.extraPackage)||0);
+    + (Number(s.deliveryCharge)||0) + (Number(s.warranty)||0) + (Number(s.extraPackage)||0);
 }
+function customerAdminFee(v){ return v.sale ? (Number(v.sale.adminCharge)||0) : 0; }
 function vehicleProfit(v){ return vehicleNetSale(v) - vehicleCostTotal(v); }
 function openIssuesCount(v){ return (v.issues||[]).filter(i=>i.status!=='done').length; }
 function stockValuation(){
@@ -601,7 +703,7 @@ function statusLabel(s){
   return {ready:'Ready to sell', repair:'Needs repair', mot:'Needs MOT', bodywork:'Needs bodywork', scrap:'Scrap', sold:'Sold'}[s]||s;
 }
 function statusTagClass(s){
-  return {ready:'tag-green', repair:'tag-amber', mot:'tag-blue', bodywork:'tag-red', scrap:'tag-grey', sold:'tag-brand'}[s]||'tag-grey';
+  return {ready:'tag-green', reserved:'tag-brand', repair:'tag-amber', mot:'tag-blue', bodywork:'tag-red', scrap:'tag-grey', sold:'tag-brand'}[s]||'tag-grey';
 }
 function weekKey(dateStr){
   const d = new Date(dateStr);
@@ -610,6 +712,21 @@ function weekKey(dateStr){
   return d.getFullYear()+'-W'+String(week).padStart(2,'0');
 }
 function monthKey(dateStr){ return dateStr.slice(0,7); }
+let stockSort = 'newest';
+function daysBetween(a,b){
+  const d1=new Date(a), d2=new Date(b);
+  if(isNaN(d1)||isNaN(d2)) return null;
+  return Math.max(0, Math.round((d2-d1)/86400000));
+}
+function daysInStock(v){
+  const n = daysBetween(v.dateAdded, todayISO());
+  return n===null ? '—' : n + ' day' + (n===1?'':'s');
+}
+function daysToSell(v){
+  if(!v.sale || !v.sale.date || !v.dateAdded) return '';
+  const n = daysBetween(v.dateAdded, v.sale.date);
+  return n===null ? '' : 'took ' + n + ' day' + (n===1?'':'s');
+}
 
 /* =========================================================================
    RENDER ROOT
@@ -623,10 +740,14 @@ function render(){
   if(mzNav) mzNav.style.display = isManager() ? '' : 'none';
   const wsNav = document.querySelector('.nav-item[data-tab="website"]');
   if(wsNav) wsNav.style.display = isManager() ? '' : 'none';
+  // Ideas & Capital is the owner's planning space.
+  const bdNav = document.querySelector('.nav-item[data-tab="boardroom"]');
+  if(bdNav) bdNav.style.display = isSuperAdmin() ? '' : 'none';
   const auNav = document.querySelector('.nav-item[data-tab="audit"]');
   if(auNav) auNav.style.display = isSuperAdmin() ? '' : 'none';
   if(currentTab==='audit' && !isSuperAdmin()) currentTab = 'dashboard';
-  if(['boardroom','muzaribat','website'].includes(currentTab) && !isManager()) currentTab = 'dashboard';
+  if(['muzaribat','website'].includes(currentTab) && !isManager()) currentTab = 'dashboard';
+  if(currentTab==='boardroom' && !isSuperAdmin()) currentTab = 'dashboard';
   const overdueIssues = allOpenIssues().filter(i=>isOverdue(i.reminderDate));
   const overdueTasks = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
   document.querySelector('.nav-item[data-tab="tasks"]').classList.toggle('has-alert', (overdueIssues.length+overdueTasks.length)>0);
@@ -679,8 +800,29 @@ function renderDashboard(){
   return `
   <div class="topbar">
     <div><h1>Dashboard</h1><div class="date">${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div></div>
-    <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${isManager()?`<button class="btn btn-ghost" onclick="openBackupPanel()">💾 Backup</button>`:''}
+      <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
+    </div>
   </div>
+
+  ${appointmentsCard()}
+
+  ${reserveJobsCard()}
+
+  ${isManager() && gapCount(true) ? `
+  <div class="overdue-banner">
+    <span><b>${gapCount(true)}</b> record${gapCount(true)===1?'':'s'} missing a purchase price, sale price or customer.
+      <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="openGapList()">Show me</button></span>
+  </div>` : ''}
+
+  ${isManager() && (backupAgeDays()===null || backupAgeDays()>=7) ? `
+  <div class="overdue-banner">
+    <span>${backupAgeDays()===null
+      ? 'You have never downloaded a backup you keep yourself.'
+      : 'Your last downloaded backup was ' + backupAgeDays() + ' days ago.'}
+      <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="openBackupPanel()">Take one now</button></span>
+  </div>` : ''}
 
   ${(overdueIssues.length||overdueTasks.length) ? `
   <div class="overdue-banner">
@@ -829,50 +971,90 @@ function pendingCostCount(v){ return (v.works||[]).filter(w=>w.costPending).leng
    STOCK
    ========================================================================= */
 function renderStock(){
+  const isCurrent = v => !v.sale && v.status!=='sold' && v.status!=='scrap';
   let list = DB.vehicles.filter(v=>{
-    if(stockFilter!=='all' && v.status!==stockFilter) return false;
+    if(stockFilter==='current'){ if(!isCurrent(v)) return false; }
+    else if(stockFilter!=='all' && v.status!==stockFilter) return false;
     if(stockSearch && !(v.reg+' '+v.make+' '+v.model).toLowerCase().includes(stockSearch.toLowerCase())) return false;
     return true;
-  }).sort((a,b)=>(b.dateAdded||'').localeCompare(a.dateAdded||''));
+  });
+  const saleDate = v => (v.sale && v.sale.date) || '';
+  const sorters = {
+    newest:   (a,b)=> (b.dateAdded||'').localeCompare(a.dateAdded||''),
+    oldest:   (a,b)=> (a.dateAdded||'').localeCompare(b.dateAdded||''),
+    soldlast: (a,b)=> saleDate(b).localeCompare(saleDate(a)),
+    soldfirst:(a,b)=> { if(!saleDate(a)) return 1; if(!saleDate(b)) return -1; return saleDate(a).localeCompare(saleDate(b)); },
+    margin:   (a,b)=> ((b.sale?vehicleProfit(b):(Number(b.askingPrice)||0)-vehicleCostTotal(b)))
+                    - ((a.sale?vehicleProfit(a):(Number(a.askingPrice)||0)-vehicleCostTotal(a))),
+    costhigh: (a,b)=> vehicleCostTotal(b)-vehicleCostTotal(a),
+    longest:  (a,b)=> (a.dateAdded||'').localeCompare(b.dateAdded||''),
+    reg:      (a,b)=> (a.reg||'').localeCompare(b.reg||''),
+  };
+  list = list.sort(sorters[stockSort] || sorters.newest);
 
   const counts = {};
   DB.vehicles.forEach(v=>counts[v.status]=(counts[v.status]||0)+1);
-  const filters = [['all','All'],['ready','Ready to sell'],['repair','Needs repair'],['mot','Needs MOT'],['bodywork','Needs bodywork'],['scrap','Scrap'],['sold','Sold']];
+  const currentCount = DB.vehicles.filter(isCurrent).length;
+  const filters = [['current','In stock'],['ready','Ready to sell'],['reserved','Reserved'],['repair','Needs repair'],
+                   ['mot','Needs MOT'],['bodywork','Needs bodywork'],['scrap','Scrap'],
+                   ['sold','Sold'],['all','Everything ever']];
 
   return `
   <div class="topbar">
-    <div><h1>Stock</h1><div class="date">${DB.vehicles.length} vehicles total</div></div>
+    <div><h1>Stock</h1><div class="date">${currentCount} on the forecourt
+      <span class="small-muted">· ${DB.vehicles.filter(v=>v.sale).length} sold over time</span></div></div>
     <button class="btn btn-brand" onclick="openAddVehicle()">+ Add vehicle</button>
   </div>
   <div class="chip-row">
-    ${filters.map(([k,l])=>`<div class="chip ${stockFilter===k?'active':''}" onclick="stockFilter='${k}';render()">${l}${counts[k]?' ('+counts[k]+')':''}</div>`).join('')}
+    ${filters.map(([k,l])=>{
+      const n = k==='current' ? currentCount : (k==='all' ? DB.vehicles.length : (counts[k]||0));
+      return `<div class="chip ${stockFilter===k?'active':''}" onclick="stockFilter='${k}';render()">${l}${n?' ('+n+')':''}</div>`;
+    }).join('')}
   </div>
   <div class="toolbar">
     <input placeholder="Search reg, make or model…" value="${stockSearch}" oninput="stockSearch=this.value;render()" style="width:260px"/>
+    <select class="btn btn-ghost btn-sm" onchange="stockSort=this.value;render()" title="Sort the list">
+      ${[['newest','Newest in stock'],['oldest','Oldest in stock'],['longest','Longest unsold'],
+         ['soldlast','Sold most recently'],['soldfirst','Sold earliest'],
+         ['margin','Biggest margin'],['costhigh','Most expensive'],['reg','Registration A–Z']]
+        .map(([k,l])=>`<option value="${k}" ${stockSort===k?'selected':''}>${l}</option>`).join('')}
+    </select>
     <button class="btn btn-ghost btn-sm" onclick="exportStockCSV()">⬇ Export CSV</button>
-    ${isManager()?`<button class="btn btn-ghost btn-sm" onclick="openSourcingCheck()">💷 Check a car before buying</button><button class="btn btn-brand btn-sm" onclick="publishToWebsite()">🌐 Publish to website</button><button class="btn btn-ghost btn-sm" onclick="exportStockForWebsite()">⬇ stock.json</button><span class="small-muted">${DB.websitePublishedAt?`Last published ${fmtDate(DB.websitePublishedAt.slice(0,10))} · ${DB.websitePublishedCount||0} cars`:'Not published yet'}</span>`:''}
+    ${isManager()?`<button class="btn btn-ghost btn-sm" onclick="openSourcingCheck()">💷 Check a car before buying</button><button class="btn btn-brand btn-sm" onclick="publishToWebsite()">🌐 Publish to website</button><button class="btn btn-ghost btn-sm" onclick="openGapList()">⚠ Incomplete (${gapCount(false)})</button><button class="btn btn-ghost btn-sm" onclick="exportStockForWebsite()">⬇ stock.json</button><span class="small-muted">${DB.websitePublishedAt?`Last published ${fmtDate(DB.websitePublishedAt.slice(0,10))} · ${DB.websitePublishedCount||0} cars`:'Not published yet'}</span>`:''}
   </div>
   <div class="card" style="padding:0;overflow:auto;">
     ${list.length===0? `<div class="empty"><div class="big">No vehicles here</div>Add your first vehicle by registration to get started.</div>` : `
-    <table><thead><tr><th>Reg</th><th>Make / Model</th><th>Funded by</th><th>Status</th><th>Leads</th><th>Issues</th><th>Cost so far</th><th>Asking</th><th>Margin</th><th></th></tr></thead><tbody>
+    <table><thead><tr><th>Reg</th><th>Make / Model</th><th>Funded by</th><th>Status</th><th>Leads</th><th>Issues</th><th>Cost so far</th><th>Asking</th><th>Sold</th><th>Margin</th><th></th></tr></thead><tbody>
     ${list.map(v=>{
       const cost = vehicleCostTotal(v);
       const margin = v.sale? vehicleProfit(v) : (Number(v.askingPrice)||0)-cost;
       const openIss = openIssuesCount(v);
       return `<tr style="cursor:pointer" onclick="openVehicle('${v.id}')">
-        <td class="mono" style="font-weight:700">${v.reg}</td>
+        <td class="mono" style="font-weight:700">${v.reg} ${gapBadge(v)}
+          ${v.reserved?`<div class="small-muted" style="font-weight:400">for ${escapeHtml(v.reserved.name)}${v.reserved.dueDate?' · '+fmtDate(v.reserved.dueDate):''}</div>`:''}
+          ${(()=>{const a=nextApptForVehicle(v.id);
+            return a?`<div style="font-weight:400" class="small-muted">📅 ${apptLabel(a.appointment)} ${apptWhen(a.appointment)}</div>`:'';})()}</td>
         <td>${v.make||''} ${v.model||''}<div class="small-muted">${v.year||''} ${v.color||''}</div></td>
         <td>${isMuzaribCar(v)?`<span class="tag tag-amber">${escapeHtml(muzaribName(v.muzaribId))}</span>`:'<span class="small-muted">Company</span>'}</td>
         <td><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span>${vehicleReservation(v.id)?' <span class="tag tag-purple">Reserved</span>':''}</td>
         <td onclick="event.stopPropagation();leadVehicleFilter='${v.id}';leadView='list';leadFilter='all';App.go('leads')">${(()=>{const a=activeLeadsForVehicle(v.id).length,t=leadsForVehicle(v.id).length;return t?`<span class="tag ${a?'tag-brand':'tag-grey'}" title="${a} active of ${t} total">${a} / ${t}</span>`:(v.status==='sold'?'—':'<span class="small-muted">0</span>');})()}</td>
         <td>${pendingCostCount(v)?`<span class="tag tag-amber" title="Finished work with no cost recorded">£?</span> `:''}${openIss>0?`<span class="tag tag-red">${openIss} open</span>`:'<span class="tag tag-green">Clear</span>'}</td>
         <td>${fmtMoney(cost)}</td>
-        <td>${v.sale? fmtMoney(v.sale.salePrice)+' (sold)': fmtMoney(v.askingPrice)}</td>
+        <td>${v.sale? fmtMoney(v.sale.salePrice) : fmtMoney(v.askingPrice)}</td>
+        <td>${v.sale && v.sale.date
+                ? fmtDate(v.sale.date)+`<div class="small-muted">${daysToSell(v)}</div>`
+                : `<span class="small-muted">${v.dateAdded? daysInStock(v)+' in stock':'—'}</span>`}</td>
         <td style="color:${margin>=0?'var(--green)':'var(--red)'};font-weight:700">${fmtMoney(margin)}</td>
-        <td><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openVehicle('${v.id}')">Open</button></td>
+        <td style="white-space:nowrap">
+          ${!v.sale?`<button class="btn btn-sm ${v.reserved?'btn-brand':'btn-ghost'}" title="${v.reserved?'Reserved for '+escapeAttr(v.reserved.name):'Reserve this car'}"
+            onclick="event.stopPropagation();openReserve('${v.id}')">${v.reserved?'🔖 Reserved':'Reserve'}</button> `:''}
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openVehicle('${v.id}')">Open</button></td>
       </tr>`;
     }).join('')}
-    </tbody></table>`}
+    </tbody></table>
+    ${!custSearch && custView==='recent' && DB.customers.length>25
+      ? `<div class="small-muted" style="padding:10px 12px;">Showing the 25 most recent.
+         <a href="#" onclick="custView='all';render();return false;">Show all ${DB.customers.length}</a></div>` : ''}`}
   </div>
   `;
 }
@@ -1192,11 +1374,16 @@ function updateVehicleField(id, field, value){
   saveDB();
 }
 function deleteVehicle(id){
-  if(!isManager()) return;
-  if(!confirm('Delete this vehicle and all its records? This cannot be undone.')) return;
+  // Deleting a car removes its costs, its sale and its investor settlement, so
+  // this is Super Admin only — and it goes to the recycle bin, not into thin air.
+  if(!isSuperAdmin()){ alert('Only a Super Admin can delete a vehicle.\n\nIf it was added by mistake, ask them to remove it.'); return; }
   const v = DB.vehicles.find(x=>x.id===id);
-  if(v) logChange('stock','Deleted vehicle', vehRef(v), '', '', '',
-    'Cost was ' + fmtMoney(vehicleCostTotal(v)) + (isMuzaribCar(v) ? ' · funded by ' + muzaribName(v.muzaribId) : ''));
+  if(!v) return;
+  if(v.sale && !confirm('This car has a recorded sale. Deleting it removes that sale from your figures and from any investor settlement.\n\nDelete anyway?')) return;
+  if(!confirm('Move this vehicle to the recycle bin?\n\nIt can be put back for 30 days.')) return;
+  logChange('stock','Deleted vehicle', vehRef(v), '', '', '',
+    'Cost was ' + fmtMoney(vehicleCostTotal(v)) + (isMuzaribCar(v) ? ' · funded by ' + muzaribName(v.muzaribId) : '') + ' · moved to the recycle bin');
+  sendToTrash('vehicle', v, v.reg + ' ' + (v.make||'') + ' ' + (v.model||''));
   DB.vehicles = DB.vehicles.filter(x=>x.id!==id); saveDB(); App.go('stock');
 }
 
@@ -1514,12 +1701,20 @@ function vehicleSaleTab(v){
       </div>
     </div>`;
   }
+  const r = v.reserved;
   return `<div class="card">
     <h3 style="margin-top:0">Record a sale for ${v.reg}</h3>
+    ${r?`<div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:4px;">Reserved for ${escapeHtml(r.name)}</div>
+      <div class="small-muted">${escapeHtml([r.phone,r.email,r.postcode].filter(Boolean).join(' · '))}
+        ${r.deposit?' · '+fmtMoney(r.deposit)+' deposit taken':''}</div>
+      <button class="btn btn-sm btn-brand" style="margin-top:8px" onclick="useReservedCustomer('${v.id}')">
+        Use these details</button>
+    </div>`:''}
     <div class="field"><label>Customer</label>
       <select id="s_customer">
         <option value="">— Select existing customer —</option>
-        ${DB.customers.map(c=>`<option value="${c.id}">${c.name} (${c.phone||''})</option>`).join('')}
+        ${customerOptions(v.sale?v.sale.customerId:'')}
       </select>
       <div class="small-muted" style="margin-top:6px;">Don't see them? <a class="link" onclick="openAddCustomer(true)">Add a new customer</a></div>
     </div>
@@ -1724,7 +1919,7 @@ function openAddTask(){
     <div class="field"><label>Task</label><input id="t_title" placeholder="e.g. Chase MOT booking for LP19 KFX"/></div>
     <div class="field-row">
       <div class="field"><label>Assign to</label>
-        <select id="t_assignee"><option value="">Unassigned</option>${DB.team.map(m=>`<option>${m.name}</option>`).join('')}</select>
+        <select id="t_assignee"><option value="">Unassigned</option>${(isManager()?DB.team:DB.team.filter(m=>m.email===currentUserEmail)).map(m=>`<option>${m.name}</option>`).join('')}</select>
       </div>
       <div class="field"><label>Date</label><input id="t_date" type="date" value="${todayISO()}"/></div>
     </div>
@@ -1794,9 +1989,9 @@ function renderTeamOverview(){
   const myExpenses = isManager() ? DB.expenses : DB.expenses.filter(e=>e.userEmail===currentUserEmail);
   const myPayroll = isManager() ? DB.payroll : DB.payroll.filter(p=>p.userEmail===currentUserEmail);
 
-  // Per-employee owed summary (manager only)
+  // What each person is owed is Super Admin only.
   let summaryHtml = '';
-  if(isManager()){
+  if(isSuperAdmin()){
     const byEmployee = {};
     DB.expenses.forEach(e=>{
       const key = e.employee||'Unknown';
@@ -1820,14 +2015,17 @@ function renderTeamOverview(){
     </div>`;
   }
 
+  // Staff see only their own record. Day rates are Super Admin only — a manager
+  // has no business knowing what the others are paid.
+  const visibleTeam = isManager() ? DB.team : DB.team.filter(m=>m.email===currentUserEmail);
   return `
-  <div class="section-title"><h2>Team</h2></div>
+  <div class="section-title"><h2>${isManager()?'Team':'Your record'}</h2></div>
   <div class="card" style="padding:0;">
-    ${DB.team.length===0?'<div class="empty">No team members yet.</div>':`
-    <table><thead><tr><th>Name</th><th>Job role</th><th>Access</th><th>Day rate</th>${isManager()?'<th></th>':''}</tr></thead><tbody>
-    ${DB.team.map(m=>`<tr><td>${m.name}${m.email===currentUserEmail?' <span class="tag tag-brand">You</span>':''}</td><td>${m.role||'—'}</td>
+    ${visibleTeam.length===0?'<div class="empty">No team members yet.</div>':`
+    <table><thead><tr><th>Name</th><th>Job role</th><th>Access</th>${isSuperAdmin()?'<th>Day rate</th>':''}${isManager()?'<th></th>':''}</tr></thead><tbody>
+    ${visibleTeam.map(m=>`<tr><td>${m.name}${m.email===currentUserEmail?' <span class="tag tag-brand">You</span>':''}</td><td>${m.role||'—'}</td>
       <td>${isSuperAdmin() ? `<select onchange="changeAccessLevel('${m.id}',this.value)" ${m.email===currentUserEmail?'disabled title="You can\'t change your own access level"':''}><option value="staff" ${normaliseRole(m.accessLevel)==='staff'?'selected':''}>Staff</option><option value="manager" ${normaliseRole(m.accessLevel)==='manager'?'selected':''}>Manager</option><option value="superadmin" ${normaliseRole(m.accessLevel)==='superadmin'?'selected':''}>Super Admin</option></select>` : `<span class="tag ${normaliseRole(m.accessLevel)==='superadmin'?'tag-red':(normaliseRole(m.accessLevel)==='manager'?'tag-brand':'tag-grey')}">${roleLabel(normaliseRole(m.accessLevel))}</span>`}</td>
-      <td>${fmtMoney(m.dayRate)}</td>
+      ${isSuperAdmin()?`<td>${fmtMoney(m.dayRate)}</td>`:''}
       ${isManager()?`<td>${isSuperAdmin()?`<button class="btn btn-sm btn-danger" onclick="deleteTeamMember('${m.id}')" ${m.email===currentUserEmail?'disabled':''}>Remove</button>`:''}</td>`:''}</tr>`).join('')}
     </tbody></table>`}
   </div>
@@ -1959,8 +2157,44 @@ function openAddExpense(){
       <div class="field"><label>Amount (£)</label><input id="e_amount" type="number"/></div>
     </div>
     <div class="field"><label>Receipt photo</label><input id="e_photo" type="file" accept="image/*"/></div>
+    <div class="field"><label>Is this for a car, or for the business?</label>
+      <select id="e_for" onchange="toggleExpenseCar()">
+        <option value="office">The business — rent, fuel, tools, anything general</option>
+        <option value="car">A specific car — goes onto that car's cost</option>
+      </select></div>
+    <div id="e_car_wrap" style="display:none">
+      <div class="field-row">
+        <div class="field"><label>Which car</label>
+          <select id="e_vehicle">
+            <option value="">Choose a car…</option>
+            ${DB.vehicles.filter(v=>!v.sale).sort((a,b)=>(a.reg||'').localeCompare(b.reg||''))
+              .map(v=>`<option value="${v.id}">${escapeHtml(v.reg)} — ${escapeHtml(((v.make||'')+' '+(v.model||'')).trim())}</option>`).join('')}
+            <optgroup label="Already sold">
+              ${DB.vehicles.filter(v=>v.sale).sort((a,b)=>(b.sale.date||'').localeCompare(a.sale.date||'')).slice(0,40)
+                .map(v=>`<option value="${v.id}">${escapeHtml(v.reg)} — sold ${fmtDate(v.sale.date)}</option>`).join('')}
+            </optgroup>
+          </select></div>
+        <div class="field"><label>Type of cost</label>
+          <select id="e_costtype">
+            <option value="mechanical">Mechanical</option>
+            <option value="bodywork">Bodywork</option>
+            <option value="service">Service</option>
+            <option value="mot">MOT</option>
+            <option value="delivery">Delivery or recovery</option>
+            <option value="fuel">Fuel</option>
+            <option value="autotrader">Advertising</option>
+            <option value="other">Other</option>
+          </select></div>
+      </div>
+      <div class="small-muted" style="margin-bottom:10px;">This is added to the car's cost straight away, so its margin stays right.</div>
+    </div>
     <div class="field"><label>What was it for</label><textarea id="e_note" rows="2" placeholder="e.g. Fuel for collecting stock, wing mirror part for LP19 KFX"></textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveExpense()">Log spend</button></div>`);
+}
+function toggleExpenseCar(){
+  const sel = document.getElementById('e_for');
+  const wrap = document.getElementById('e_car_wrap');
+  if(sel && wrap) wrap.style.display = sel.value==='car' ? '' : 'none';
 }
 async function saveExpense(){
   const funded = (document.getElementById('e_funded')||{value:'own'}).value;
@@ -1971,6 +2205,25 @@ async function saveExpense(){
     // Spends from the company float aren't owed back — they come off the float instead.
     status: funded==='float' ? 'float' : 'owed',
     paidAmount:0, payments:[], photoId:null};
+  // If it was for a car, add it to that car's costs too, and remember the link
+  // so the expense and the cost line stay tied together.
+  const forWhat = (document.getElementById('e_for')||{value:'office'}).value;
+  if(forWhat==='car'){
+    const vid = (document.getElementById('e_vehicle')||{value:''}).value;
+    const kind = (document.getElementById('e_costtype')||{value:'other'}).value;
+    const v = (DB.vehicles||[]).find(x=>x.id===vid);
+    if(!v){ alert('Choose which car this was for.'); return; }
+    expense.vehicleId = v.id;
+    expense.costType = kind;
+    if(!v.costs) v.costs = {};
+    v.costs[kind] = (Number(v.costs[kind])||0) + expense.amount;
+    if(!v.works) v.works = [];
+    v.works.push({id:nextId('work'), title: expense.note || 'Spend logged by ' + currentUserName,
+      type: kind, cost: 0, expenseId: expense.id,
+      note: 'Logged as a spend · ' + fmtMoney(expense.amount) + ' (already in the costs above)',
+      doneAt: expense.date, by: currentUserName, createdAt: todayISO()});
+    logChange('stock','Cost added from a logged spend', vehRef(v), kind, '', fmtMoney(expense.amount), expense.note||'');
+  }
   const file = document.getElementById('e_photo').files[0];
   DB.expenses.push(expense); saveDB(); closeModal(); render();
   if(file){
@@ -2012,6 +2265,17 @@ function saveExpensePayment(id){
 function deleteExpense(id){
   const e = DB.expenses.find(x=>x.id===id);
   if(!isManager() && e.userEmail!==currentUserEmail) return;
+  // If this spend was put against a car, take the cost back off it.
+  if(e && e.vehicleId){
+    const v = (DB.vehicles||[]).find(x=>x.id===e.vehicleId);
+    if(v){
+      const k = e.costType || 'other';
+      if(!v.costs) v.costs = {};
+      v.costs[k] = Math.max(0, (Number(v.costs[k])||0) - Number(e.amount||0));
+      v.works = (v.works||[]).filter(w=>w.expenseId !== e.id);
+      logChange('stock','Cost removed with a deleted spend', vehRef(v), k, fmtMoney(e.amount), '', '');
+    }
+  }
   logChange('money','Deleted logged spend by', {id:e.id, label:(e.userName||e.user||'staff')}, '', '', '',
     fmtMoney(e.amount) + ' · ' + (e.description||e.note||''));
   DB.expenses=DB.expenses.filter(x=>x.id!==id); saveDB(); render();
@@ -2070,18 +2334,67 @@ function deletePayroll(id){
 /* =========================================================================
    CUSTOMERS
    ========================================================================= */
+let custView = 'recent';     // 'recent' | 'all'
+let custSearch = '';
+function customerLastActivity(c){
+  // Newest first means newest added. Fall back to their most recent purchase for
+  // older records that were imported without a created date.
+  if(c.createdAt) return c.createdAt;
+  const sale=(DB.vehicles||[]).filter(v=>v.sale && v.sale.customerId===c.id)
+    .map(v=>v.sale.date||'').sort().pop();
+  return sale || '';
+}
+function customersSorted(){
+  const list=(DB.customers||[]).slice();
+  // Keep the original order as a tiebreaker: later in the array = added later.
+  const pos=new Map(list.map((c,i)=>[c.id,i]));
+  return list.sort((a,b)=>{
+    const d=(customerLastActivity(b)||'').localeCompare(customerLastActivity(a)||'');
+    return d !== 0 ? d : (pos.get(b.id)-pos.get(a.id));
+  });
+}
+function customersVisible(){
+  let list=customersSorted();
+  if(custSearch){
+    const q=custSearch.toLowerCase();
+    return list.filter(c=>((c.name||'')+' '+(c.phone||'')+' '+(c.email||'')+' '+(c.postcode||''))
+      .toLowerCase().includes(q));
+  }
+  return custView==='recent' ? list.slice(0,25) : list;
+}
+/* For the sale form: the 25 most recent, plus whoever is already selected. */
+function customerOptions(selectedId){
+  const recent=customersSorted().slice(0,25);
+  if(selectedId && !recent.some(c=>c.id===selectedId)){
+    const c=(DB.customers||[]).find(x=>x.id===selectedId);
+    if(c) recent.unshift(c);
+  }
+  const rest=(DB.customers||[]).length - recent.length;
+  return recent.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}${c.phone?' ('+escapeHtml(c.phone)+')':''}</option>`).join('')
+    + (rest>0?`<option disabled>──────────  ${rest} older customers — use Add new / search  ──────────</option>`:'');
+}
 function renderCustomers(){
   return `
   <div class="topbar">
     <div><h1>Customers &amp; Sales</h1><div class="date">${DB.customers.length} customers · ${DB.vehicles.filter(v=>v.sale).length} sales on record</div></div>
     <button class="btn btn-brand" onclick="openAddCustomer(false)">+ Add customer</button>
   </div>
+  <div class="toolbar" style="margin-bottom:12px;">
+    <input placeholder="Search name, phone, email or postcode…" value="${escapeAttr(custSearch)}"
+      oninput="custSearch=this.value;render()" style="width:300px"/>
+    <div class="chip-row" style="margin:0;">
+      <div class="chip ${custView==='recent'&&!custSearch?'active':''}" onclick="custSearch='';custView='recent';render()">Recent</div>
+      <div class="chip ${custView==='all'&&!custSearch?'active':''}" onclick="custSearch='';custView='all';render()">All ${DB.customers.length}</div>
+    </div>
+  </div>
   <div class="card" style="padding:0;margin-bottom:24px;">
-    ${DB.customers.length===0?'<div class="empty">No customers yet.</div>':`
-    <table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Vehicles bought</th><th></th></tr></thead><tbody>
-    ${DB.customers.map(c=>{
+    ${customersVisible().length===0?'<div class="empty">No customers match.</div>':`
+    <table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Added</th><th>Vehicles bought</th><th></th></tr></thead><tbody>
+    ${customersVisible().map(c=>{
       const bought = DB.vehicles.filter(v=>v.sale && v.sale.customerId===c.id);
-      return `<tr><td>${c.name}</td><td>${c.phone||'—'}</td><td>${c.email||'—'}</td><td>${bought.map(v=>v.reg).join(', ')||'—'}</td>
+      const added=customerLastActivity(c);
+      return `<tr><td>${c.name}</td><td>${c.phone||'—'}</td><td>${c.email||'—'}</td>
+      <td class="small-muted">${added?fmtDate(added):'—'}</td><td>${bought.map(v=>v.reg).join(', ')||'—'}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deleteCustomer('${c.id}')">Remove</button></td></tr>`;
     }).join('')}
     </tbody></table>`}
@@ -2157,8 +2470,17 @@ function renderReports(){
     <div class="card kpi"><div class="label">Stock valuation</div><div class="value small">${fmtMoney(val.costValue)} cost</div><div class="sub">${fmtMoney(val.sellValue)} selling value</div></div>
   </div>
 
+  ${renderPeriodReport()}
+
   <div class="section-title"><h2>Weekly sales &amp; profit (last 8 weeks)</h2></div>
   <div class="card"><canvas id="weeklyChart" height="90"></canvas></div>
+
+  <div class="section-title"><h2>Net profit by month — after everything</h2></div>
+  <div class="card"><canvas id="netChart" height="100"></canvas></div>
+  <div class="small-muted" style="margin-top:6px;">
+    What the company kept after the investor split, less that month's running costs.
+    Above the line is profit, below it is a loss.
+  </div>
 
   <div class="section-title"><h2>Monthly sales &amp; profit (last 12 months)</h2></div>
   <div class="card"><canvas id="monthlyChart" height="90"></canvas></div>
@@ -2347,11 +2669,44 @@ function last12Months(){
   const months = [];
   const d = new Date();
   d.setDate(1);
-  for(let i=11;i>=0;i--){ const dd=new Date(d.getFullYear(), d.getMonth()-i, 1); months.push(dd.toISOString().slice(0,7)); }
+  for(let i=11;i>=0;i--){ const dd=new Date(d.getFullYear(), d.getMonth()-i, 1);
+    months.push(dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')); }
   return months;
 }
 function drawMonthlyTrendCharts(){
   const months = last12Months();
+
+  // Net profit per month — company share less that month's overheads
+  const netCtx = document.getElementById('netChart');
+  if(netCtx && typeof Chart!=='undefined'){
+    if(window.netChartInstance) window.netChartInstance.destroy();
+    const vals = months.map(m=>{
+      let comp = 0;
+      (DB.vehicles||[]).filter(v=>v.sale && monthKey(v.sale.date)===m).forEach(v=>{
+        const s = carSettlement(v);
+        comp += isMuzaribCar(v) ? s.company : (vehicleProfit(v) + customerAdminFee(v));
+      });
+      const oh = (DB.monthlyCosts||[]).filter(c=>c.month===m)
+                  .reduce((a,c)=>a+Number(c.amount||0),0);
+      return Math.round((comp - oh)*100)/100;
+    });
+    window.netChartInstance = new Chart(netCtx, {
+      type:'line',
+      data:{ labels: months.map(m=>monthLabel(m)), datasets:[{
+        label:'Net profit', data: vals, borderWidth:2.5, tension:.3,
+        borderColor:'#1f8a5b', pointRadius:4, pointBackgroundColor: vals.map(v=>v<0?'#c0392b':'#1f8a5b'),
+        pointBorderColor: vals.map(v=>v<0?'#c0392b':'#1f8a5b'),
+        segment:{ borderColor: ctx => (ctx.p0.parsed.y<0 || ctx.p1.parsed.y<0) ? '#c0392b' : '#1f8a5b' },
+        fill:{ target:{value:0}, above:'rgba(31,138,91,.12)', below:'rgba(192,57,43,.12)' }
+      }]},
+      options:{ responsive:true, maintainAspectRatio:true,
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ label: c => (c.parsed.y<0?'Loss ':'Profit ') + fmtMoney(Math.abs(c.parsed.y)) } } },
+        scales:{ y:{ ticks:{ callback: v => fmtMoney(v) },
+                     grid:{ color: c => c.tick.value===0 ? '#999' : 'rgba(0,0,0,.06)',
+                            lineWidth: c => c.tick.value===0 ? 2 : 1 } } } }
+    });
+  }
 
   // Monthly sales & profit
   const mCtx = document.getElementById('monthlyChart');
@@ -2843,6 +3198,71 @@ function vehicleOptions(selectedId){
   return `<option value="">— Not linked to a car yet —</option>` +
     avail.map(v=>`<option value="${v.id}" ${v.id===selectedId?'selected':''}>${escapeHtml(v.reg)} · ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}${v.status==='sold'?' (sold)':''}</option>`).join('');
 }
+
+function toggleAppt(){
+  const sel=document.getElementById('ld_apptype'), w=document.getElementById('ld_appt_wrap');
+  if(sel&&w) w.style.display = sel.value ? '' : 'none';
+}
+function nextApptForVehicle(vid){
+  const t=todayISO();
+  return (DB.leads||[]).filter(l=>l.vehicleId===vid && l.appointment && l.appointment.date>=t
+      && ACTIVE_STAGES.includes(l.stage))
+    .sort((a,b)=>a.appointment.date.localeCompare(b.appointment.date))[0] || null;
+}
+function apptLabel(a){ return a && a.kind==='testdrive' ? 'Test drive' : 'Viewing'; }
+function apptWhen(a){
+  if(!a||!a.date) return '';
+  return fmtDate(a.date) + (a.time ? ' at ' + a.time : '');
+}
+/* Keep a task in step with the appointment, so it shows in Daily Tasks and reminds. */
+function syncApptTask(l){
+  if(!DB.tasks) DB.tasks=[];
+  const v=(DB.vehicles||[]).find(x=>x.id===l.vehicleId);
+  const reg=v?v.reg:(l.vehicleText||'');
+  const existing=DB.tasks.find(t=>t.leadId===l.id);
+  if(!l.appointment||!l.appointment.date){
+    if(existing){ DB.tasks=DB.tasks.filter(t=>t.id!==existing.id); }
+    return;
+  }
+  const a=l.appointment;
+  const title=`${apptLabel(a)} — ${l.name}${reg?' · '+reg:''}${a.time?' at '+a.time:''}`;
+  if(existing){ existing.title=title; existing.date=a.date; existing.note=a.note||''; }
+  else {
+    DB.tasks.push({id:nextId('task'), title, note:a.note||'', date:a.date, done:false,
+      priority:'high', assignedTo:'', leadId:l.id, vehicleId:l.vehicleId||null,
+      createdAt:todayISO(), createdBy:currentUserName});
+  }
+}
+/* Everything booked from today onward. */
+function upcomingAppointments(){
+  const t=todayISO();
+  return (DB.leads||[]).filter(l=>l.appointment&&l.appointment.date&&l.appointment.date>=t
+      && ACTIVE_STAGES.includes(l.stage))
+    .sort((a,b)=>(a.appointment.date+(a.appointment.time||'')).localeCompare(b.appointment.date+(b.appointment.time||'')));
+}
+function appointmentsCard(){
+  const list=upcomingAppointments();
+  if(!list.length) return '';
+  const t=todayISO();
+  return `
+  <div class="section-title"><h2>Viewings &amp; test drives booked</h2></div>
+  <div class="card" style="padding:0;">
+    <table><thead><tr><th>When</th><th>What</th><th>Customer</th><th>Car</th><th></th></tr></thead><tbody>
+    ${list.slice(0,10).map(l=>{
+      const a=l.appointment;
+      const v=(DB.vehicles||[]).find(x=>x.id===l.vehicleId);
+      return `<tr onclick="openLeadForm('${l.id}')" style="cursor:pointer">
+        <td><b class="${a.date===t?'':''}">${fmtDate(a.date)}</b>${a.time?` <span class="small-muted">${a.time}</span>`:''}
+            ${a.date===t?' <span class="tag tag-brand">Today</span>':''}</td>
+        <td><span class="tag ${a.kind==='testdrive'?'tag-purple':'tag-blue'}">${apptLabel(a)}</span></td>
+        <td>${escapeHtml(l.name)}${l.phone?`<div class="small-muted">${escapeHtml(l.phone)}</div>`:''}</td>
+        <td>${v?escapeHtml(v.reg):escapeHtml(l.vehicleText||'—')}</td>
+        <td>${a.note?`<span class="small-muted">${escapeHtml(a.note)}</span>`:''}</td>
+      </tr>`;}).join('')}
+    </tbody></table>
+  </div>`;
+}
+
 function openLeadForm(id, presetVehicleId){
   const l = id ? (DB.leads||[]).find(x=>x.id===id) : null;
   const vId = l ? l.vehicleId : (presetVehicleId||'');
@@ -2854,7 +3274,30 @@ function openLeadForm(id, presetVehicleId){
       <div class="field"><label>Phone</label><input id="ld_phone" type="tel" value="${l?escapeAttr(l.phone||''):''}"/></div>
     </div>
     <div class="field"><label>Email</label><input id="ld_email" type="email" value="${l?escapeAttr(l.email||''):''}"/></div>
-    <div class="field"><label>Car they&rsquo;re interested in</label><select id="ld_vehicle">${vehicleOptions(vId)}</select></div>
+    <div class="field"><label>Car they&rsquo;re interested in</label><select id="ld_vehicle">${vehicleOptions(vId)}</select>
+      <div class="small-muted" style="margin-top:4px;">Pick the car and this lead shows on that vehicle too &mdash; it is one list.</div></div>
+
+    <div class="field-row">
+      <div class="field"><label>Deposit taken (&pound;)</label>
+        <input id="ld_dep" type="number" step="0.01" value="${l&&l.deposit?l.deposit:''}" placeholder="0.00"/></div>
+      <div class="field"><label>Reserved until</label>
+        <input id="ld_runtil" type="date" value="${l&&l.reservedUntil?l.reservedUntil:''}"/></div>
+    </div>
+
+    <div class="field"><label>Booking a viewing or test drive?</label>
+      <select id="ld_apptype" onchange="toggleAppt()">
+        <option value="" ${!(l&&l.appointment)?'selected':''}>Not yet &mdash; no appointment</option>
+        <option value="viewing" ${l&&l.appointment&&l.appointment.kind==='viewing'?'selected':''}>Viewing</option>
+        <option value="testdrive" ${l&&l.appointment&&l.appointment.kind==='testdrive'?'selected':''}>Test drive</option>
+      </select></div>
+    <div id="ld_appt_wrap" style="display:${l&&l.appointment?'':'none'}">
+      <div class="field-row">
+        <div class="field"><label>Date</label><input id="ld_apdate" type="date" value="${l&&l.appointment?l.appointment.date||'':''}"/></div>
+        <div class="field"><label>Time</label><input id="ld_aptime" type="time" value="${l&&l.appointment?l.appointment.time||'':''}"/></div>
+      </div>
+      <div class="field"><label>Note for the appointment</label>
+        <input id="ld_apnote" value="${l&&l.appointment?escapeAttr(l.appointment.note||''):''}" placeholder="e.g. bringing their part-ex, coming after work"/></div>
+    </div>
     <div class="field"><label>Or describe what they want (if not in stock)</label><input id="ld_vtext" value="${l?escapeAttr(l.vehicleText||''):''}" placeholder="e.g. Automatic hatchback under £6k"/></div>
     <div class="field-row">
       <div class="field"><label>Source</label><select id="ld_source">${LEAD_SOURCES.map(s=>`<option ${l&&l.source===s?'selected':''}>${s}</option>`).join('')}</select></div>
@@ -2888,6 +3331,16 @@ function saveLead(id){
     source: document.getElementById('ld_source').value,
     budget: Number(document.getElementById('ld_budget').value)||0,
     nextFollowUp: document.getElementById('ld_fu').value || '',
+    deposit: Number((document.getElementById('ld_dep')||{value:0}).value)||0,
+    reservedUntil: (document.getElementById('ld_runtil')||{value:''}).value||'',
+    appointment: (()=>{
+      const kind=(document.getElementById('ld_apptype')||{value:''}).value;
+      if(!kind) return null;
+      const date=(document.getElementById('ld_apdate')||{value:''}).value;
+      if(!date){ return null; }
+      return {kind, date, time:(document.getElementById('ld_aptime')||{value:''}).value||'',
+              note:(document.getElementById('ld_apnote')||{value:''}).value.trim()};
+    })(),
     partEx: document.getElementById('ld_px').value.trim(),
     finance: document.getElementById('ld_fin').value,
   };
@@ -2897,6 +3350,12 @@ function saveLead(id){
   if(id){
     l = DB.leads.find(x=>x.id===id); if(!l) return;
     Object.assign(l, data);
+    syncApptTask(l);
+    if(l.stage==='reserved' && l.vehicleId){
+      const vv=(DB.vehicles||[]).find(x=>x.id===l.vehicleId);
+      if(vv && vv.reserved){ vv.reserved.deposit=Number(l.deposit)||0;
+        if(l.reservedUntil) vv.reserved.dueDate=l.reservedUntil; }
+    }
     if(l.stage!==newStage){ changeLeadStage(l, newStage, true); }
   } else {
     // Warn about a likely duplicate (same phone or email already active)
@@ -2905,6 +3364,7 @@ function saveLead(id){
     if(dup && !confirm(`${dup.name} already has an active lead (${leadVehicleLabel(dup)}).\n\nAdd a separate lead anyway?`)) { closeModal(); openLead(dup.id); return; }
     l = {id:nextId('lead'), ...data, stage:'new', createdAt:todayISO(), createdBy:currentUserName, assignedTo:currentUserName, notes:[]};
     DB.leads.push(l);
+    syncApptTask(l);
     logLeadEvent(l, 'Lead created');
     const first = document.getElementById('ld_note').value.trim();
     if(first) l.notes.push({text:first, author:currentUserName, at:new Date().toISOString()});
@@ -2930,6 +3390,28 @@ function changeLeadStage(l, stage, silent){
       l.deposit = Number(dep)||0;
       const until = prompt('Reserved until (YYYY-MM-DD)? Leave blank for no expiry.', l.reservedUntil||addDays(todayISO(),7));
       if(until!==null) l.reservedUntil = until;
+    }
+  }
+  if(stage==='reserved' && l.vehicleId){
+    // Mirror it onto the vehicle so Stock and Leads agree.
+    const v=(DB.vehicles||[]).find(x=>x.id===l.vehicleId);
+    if(v){
+      v.reserved = Object.assign({}, v.reserved||{}, {
+        name:l.name, phone:l.phone||'', email:l.email||'',
+        postcode:(v.reserved&&v.reserved.postcode)||'', address:(v.reserved&&v.reserved.address)||'',
+        deposit:Number(l.deposit)||0, dueDate:l.reservedUntil||'',
+        request:(v.reserved&&v.reserved.request)||'',
+        jobs:(v.reserved&&v.reserved.jobs)||[],
+        at:(v.reserved&&v.reserved.at)||new Date().toISOString(),
+        by:(v.reserved&&v.reserved.by)||currentUserName, leadId:l.id });
+      v.status='reserved';
+    }
+  }
+  if((stage==='lost'||stage==='interested'||stage==='new'||stage==='viewing') && l.vehicleId){
+    const v=(DB.vehicles||[]).find(x=>x.id===l.vehicleId);
+    if(v && v.reserved && v.reserved.leadId===l.id){
+      delete v.reserved;
+      if(v.status==='reserved') v.status='ready';
     }
   }
   if(stage==='lost' && !silent){
@@ -3120,18 +3602,18 @@ function carSettlement(v){
   const adminRate = Number(m.adminCharge ?? 500);
   const split = Number(m.splitPct ?? 50) / 100;
   const cost = vehicleCostTotal(v);
-  if(!v.sale) return {sold:false, cost, gross:0, admin:0, net:0, investor:0, company:0};
+  if(!v.sale) return {sold:false, cost, gross:0, admin:0, net:0, investor:0, company:0, fee:0};
   const gross = vehicleProfit(v);
-  let admin;
-  const policy = m.adminOnLoss || 'cap';
-  if(policy === 'always')      admin = adminRate;
-  else if(policy === 'waive')  admin = gross > 0 ? Math.min(adminRate, gross) : 0;
-  else /* cap */               admin = gross > 0 ? Math.min(adminRate, gross) : 0;
-  if(policy === 'always') admin = adminRate;
+  // The admin charge is fixed and always taken, whether the car made money or
+  // lost it. On a thin or loss-making car it deepens the loss, and that loss
+  // is then shared in the same proportion as a profit would be.
+  const admin = adminRate;
   const net = gross - admin;
   const investor = net * split;
-  const company = admin + (net - investor);
-  return {sold:true, cost, gross, admin, net, investor, company};
+  // The customer admin fee goes to the company in full.
+  const fee = customerAdminFee(v);
+  const company = admin + (net - investor) + fee;
+  return {sold:true, cost, gross, admin, net, investor, company, fee};
 }
 
 function muzaribTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id); }
@@ -3204,7 +3686,10 @@ function renderMuzaribat(){
   return `
   <div class="topbar">
     <div><h1>Muzaribat</h1><div class="date">Investor-funded stock &mdash; positions, profits and withdrawals</div></div>
-    <button class="btn btn-brand" onclick="openMuzaribForm()">+ Add investor</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="openRepair()">🔧 Fix the data</button>`:''}
+      <button class="btn btn-brand" onclick="openMuzaribForm()">+ Add investor</button>
+    </div>
   </div>
 
   ${list.length ? `
@@ -3387,13 +3872,10 @@ function openMuzaribForm(id){
       <div class="field"><label>Investor's share of net (%)</label><input id="mz_split" type="number" value="${m?(m.splitPct??50):50}"/></div>
       <div class="field"><label>Prep reserve (%)</label><input id="mz_reserve" type="number" value="${m?(m.reservePct??10):10}"/></div>
     </div>
-    <div class="field"><label>If a car makes less than the admin charge</label>
-      <select id="mz_policy">
-        <option value="cap" ${(!m||m.adminOnLoss!=='always'&&m.adminOnLoss!=='waive')?'selected':''}>Take only what the margin allows (recommended)</option>
-        <option value="waive" ${m&&m.adminOnLoss==='waive'?'selected':''}>Waive the admin charge</option>
-        <option value="always" ${m&&m.adminOnLoss==='always'?'selected':''}>Always take the full charge</option>
-      </select>
-      <div class="small-muted" style="margin-top:6px;">On a loss-making car the remaining loss is shared in the same proportion as profit.</div></div>
+    <div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:4px;">How each car settles</div>
+      <div class="small-muted">The admin charge is taken on <b>every</b> car, whether it made money or
+      lost it. What's left after it — profit or loss — is then shared in the proportion above.</div></div>
     ${m?`<div class="field"><label>Status</label><select id="mz_active"><option value="yes" ${m.active!==false?'selected':''}>Active</option><option value="no" ${m.active===false?'selected':''}>Inactive</option></select></div>`:''}
     <div class="field"><label>Notes</label><textarea id="mz_notes" rows="2">${m?escapeHtml(m.notes||''):''}</textarea></div>
     ${m?'':`<div class="field"><label>Opening capital (£)</label><input id="mz_open" type="number" placeholder="e.g. 20000"/>
@@ -3414,7 +3896,6 @@ function saveMuzarib(id){
     adminCharge: Number(document.getElementById('mz_admin').value)||0,
     splitPct: Math.min(100, Math.max(0, Number(document.getElementById('mz_split').value)||0)),
     reservePct: Math.min(90, Math.max(0, Number(document.getElementById('mz_reserve').value)||0)),
-    adminOnLoss: document.getElementById('mz_policy').value,
     notes: document.getElementById('mz_notes').value
   };
   if(!DB.muzaribs) DB.muzaribs = [];
@@ -3424,7 +3905,7 @@ function saveMuzarib(id){
     const act = document.getElementById('mz_active');
     // Terms affect every future settlement, so record any change to them.
     [['adminCharge','Admin charge',true],['splitPct','Investor share %',false],
-     ['reservePct','Prep reserve %',false],['adminOnLoss','Loss policy',false]].forEach(([k,lbl,isMoney])=>{
+     ['reservePct','Prep reserve %',false]].forEach(([k,lbl,isMoney])=>{
       const b = m[k], a2 = data[k];
       if(String(b)!==String(a2))
         logChange('muzarib','Changed terms for', mzRef(m), lbl,
@@ -4233,36 +4714,73 @@ function workHistorySection(v){
 
 
 /* =========================================================================
-   WEBSITE BUILDER — pages, sections, sliders, photos and text, all edited
-   here and published to the public site. Drag to reorder on a desktop;
-   arrow buttons do the same on a phone.
+   WEBSITE BUILDER v2 — easier and nicer. Drag sections to reorder (mouse or
+   finger), switch them on and off, drop photos in, tap Publish.
+   The saved data shape is unchanged, so the public website reads it as before.
    ========================================================================= */
 
-const SECTION_TYPES = {
-  hero:     {label:'Hero slider',      icon:'🖼', desc:'Full-width slides with a heading and button'},
-  cars:     {label:'Car listings',     icon:'🚗', desc:'Pulls live from your stock'},
-  text:     {label:'Text block',       icon:'📝', desc:'Heading and paragraphs'},
-  features: {label:'Feature columns',  icon:'✅', desc:'Icons with short descriptions'},
-  gallery:  {label:'Photo gallery',    icon:'📷', desc:'Grid of photos'},
-  video:    {label:'Video',            icon:'🎬', desc:'YouTube or uploaded video'},
-  steps:    {label:'Numbered steps',   icon:'🔢', desc:'How your process works'},
-  reviews:  {label:'Reviews',          icon:'⭐', desc:'Customer quotes'},
-  contact:  {label:'Contact block',    icon:'📞', desc:'Phone, WhatsApp, email, map'},
-  cta:      {label:'Call to action',   icon:'📣', desc:'A band with a button'},
-};
+const WEBSITE_URL = 'https://monib99.github.io/CAR-EXPRESS-WEBSITE/';
 
-function siteData(){
-  if(!DB.site) DB.site = defaultSite();
-  return DB.site;
+const SECTION_TYPES = {
+  hero:     {label:'Top banner',        icon:'🖼', desc:'Big slides with a headline, photo and button'},
+  cars:     {label:'Cars in stock',     icon:'🚗', desc:'Your live stock, with a finder'},
+  features: {label:'Why choose us',     icon:'✅', desc:'Short points that open when tapped'},
+  steps:    {label:'How it works',      icon:'🔢', desc:'A numbered process, step by step'},
+  text:     {label:'Text',              icon:'📝', desc:'A heading and a few paragraphs'},
+  gallery:  {label:'Photo gallery',     icon:'📷', desc:'A grid of photos that open full screen'},
+  video:    {label:'Video',             icon:'🎬', desc:'A YouTube link or an MP4'},
+  reviews:  {label:'Customer reviews',  icon:'⭐', desc:'Real quotes from real customers'},
+  contact:  {label:'Contact & map',     icon:'📞', desc:'Phone, WhatsApp, address, hours and map'},
+  cta:      {label:'Big button banner', icon:'📣', desc:'A bold red band with one button'},
+};
+const WB_COLOURS = {hero:'#e10600', cars:'#111', features:'#1d1d1f', steps:'#1d1d1f', text:'#2a2b2f', gallery:'#2a2b2f', video:'#2a2b2f', reviews:'#2a2b2f', contact:'#1d1d1f', cta:'#e10600'};
+
+/* ready-made sections: one tap and they are on the page, already worded */
+const WB_PRESETS = [
+  {key:'why', icon:'✅', label:'Why buy from us', desc:'Three short promises',
+   make:()=>({type:'features', visible:true, title:'Why buy from Car Express', items:[
+     {id:nextId('it'), title:'Prepared before it\u2019s advertised', text:'Every car is serviced, MOT\u2019d and HPI checked before sale.'},
+     {id:nextId('it'), title:'Part exchange welcome', text:'Thinking of trading in? Message us about your current car.'},
+     {id:nextId('it'), title:'Free delivery within 50 miles', text:'From Hemel Hempstead. Further away? Get in touch and ask.'}]})},
+  {key:'prep', icon:'🔢', label:'How we prepare cars', desc:'Four steps',
+   make:()=>({type:'steps', visible:true, title:'How we prepare every car', items:[
+     {id:nextId('it'), title:'Sourced & checked', text:'History, mileage and condition verified before we buy.'},
+     {id:nextId('it'), title:'Mechanical work',   text:'Servicing, MOT and any repairs completed and recorded.'},
+     {id:nextId('it'), title:'Full inspection',   text:'A point-by-point check before it goes on sale.'},
+     {id:nextId('it'), title:'Cleaned & listed',  text:'Valeted, photographed and advertised.'}]})},
+  {key:'wa', icon:'💬', label:'WhatsApp banner', desc:'"Looking for something specific?"',
+   make:()=>({type:'cta', visible:true, title:'Looking for something specific?', buttonText:'Message us on WhatsApp', buttonPage:'__whatsapp'})},
+  {key:'rev', icon:'⭐', label:'Reviews', desc:'Add your own real quotes',
+   make:()=>({type:'reviews', visible:true, title:'What customers say', items:[{id:nextId('it'), title:'Customer name', text:'', stars:5}]})},
+];
+
+function siteData(){ if(!DB.site) DB.site = defaultSite(); return DB.site; }
+
+function recommendedHome(oldHero){
+  const slides = [
+    {id:nextId('sl'), heading:'Every car ready before it\u2019s advertised', sub:'Quality used cars in Hemel Hempstead. Small economical cars, family cars and SUVs, fully prepared before they reach the forecourt.', buttonText:'View our cars', buttonPage:'stock', photoId:null, videoUrl:''},
+    {id:nextId('sl'), heading:'Free delivery within 50 miles', sub:'Part exchange welcome. Live further away? Get in touch and ask about delivery.', buttonText:'Contact us', buttonPage:'contact', photoId:null, videoUrl:''},
+    {id:nextId('sl'), heading:'Serviced, MOT\u2019d and HPI checked', sub:'Every car is prepared before sale, so you know what you are buying before you visit.', buttonText:'See what\u2019s in stock', buttonPage:'stock', photoId:null, videoUrl:''},
+  ];
+  if(oldHero && oldHero.slides && oldHero.slides.length){
+    slides.forEach((s,i)=>{ const o = oldHero.slides[i] || oldHero.slides[0]; if(o){ s.photoId = o.photoId || null; s.videoUrl = o.videoUrl || ''; } });
+  }
+  return [
+    {id:nextId('sec'), type:'hero', visible:true, slides},
+    {id:nextId('sec'), type:'cars', visible:true, title:'In stock now', limit:6, showAll:true},
+    WB_PRESETS[0].make(),
+    {id:nextId('sec'), type:'cta', visible:true, title:'Looking for something specific?', buttonText:'Message us on WhatsApp', buttonPage:'__whatsapp'},
+  ].map(s=>{ if(!s.id) s.id = nextId('sec'); return s; });
 }
 function defaultSite(){
   return {
     settings: {
       name:'Car Express', tagline:'Quality used cars in Hemel Hempstead',
-      phone:'', whatsapp:'', email:'', address:['',''], mapsQuery:'',
-      hours:'Mon – Sat 9:00 – 18:00 · Sun 10:00 – 16:00',
+      phone:'', whatsapp:'', email:'', address:['Fletcher Way','Hemel Hempstead','Hertfordshire HP2 5SE'], mapsQuery:'Car Express, Fletcher Way, Hemel Hempstead HP2 5SE',
+      hours:'Mon - Sat 9:00 - 18:00 \u00b7 Sun 9:00 - 16:00',
+      hoursData:{weekOpen:'09:00', weekClose:'18:00', sunOpen:'09:00', sunClose:'16:00', sunClosed:false},
       social:{facebook:'',instagram:'',tiktok:'',youtube:''},
-      primaryColour:'#DC2226', darkColour:'#17428C'
+      primaryColour:'#E10600', darkColour:'#000000'
     },
     menu: [
       {id:nextId('mi'), label:'Home', page:'home'},
@@ -4271,176 +4789,198 @@ function defaultSite(){
       {id:nextId('mi'), label:'Contact', page:'contact'},
     ],
     pages: [
-      {id:'home', name:'Home', slug:'home', sections:[
-        {id:nextId('sec'), type:'hero', visible:true, slides:[
-          {id:nextId('sl'), heading:"Every car ready before it's advertised",
-           sub:'Serviced, MOT\u2019d and HPI checked before it reaches the forecourt.',
-           buttonText:'View our cars', buttonPage:'stock', photoId:null, videoUrl:''}
-        ]},
-        {id:nextId('sec'), type:'cars', visible:true, title:'Our latest stock', limit:6, showAll:true},
-        {id:nextId('sec'), type:'steps', visible:true, title:'How we prepare every car', items:[
-          {id:nextId('it'), title:'Sourced & checked', text:'History, mileage and condition verified before we buy.'},
-          {id:nextId('it'), title:'Mechanical work',   text:'Servicing, MOT and any repairs completed and recorded.'},
-          {id:nextId('it'), title:'Full inspection',   text:'A point-by-point check before it goes on sale.'},
-          {id:nextId('it'), title:'Cleaned & listed',  text:'Valeted, photographed and advertised.'},
-        ]},
-        {id:nextId('sec'), type:'contact', visible:true, title:'Get in touch'},
-      ]},
-      {id:'stock', name:'Cars For Sale', slug:'stock', sections:[
-        {id:nextId('sec'), type:'cars', visible:true, title:'Cars for sale', limit:0, showAll:false},
-      ]},
-      {id:'about', name:'About Us', slug:'about', sections:[
-        {id:nextId('sec'), type:'text', visible:true, title:'About us',
-         body:'We\u2019re an independent used car dealer in Hemel Hempstead.'},
-      ]},
-      {id:'contact', name:'Contact', slug:'contact', sections:[
-        {id:nextId('sec'), type:'contact', visible:true, title:'Get in touch'},
-      ]},
+      {id:'home', name:'Home', slug:'home', sections:recommendedHome(null)},
+      {id:'stock', name:'Cars For Sale', slug:'stock', sections:[]},
+      {id:'about', name:'About Us', slug:'about', sections:[]},
+      {id:'contact', name:'Contact', slug:'contact', sections:[]},
     ]
   };
 }
 
 let sbPage = 'home', sbTab = 'pages';
+const PAGE_NOTES = {
+  stock:'The Cars For Sale page lists every available car automatically, with filters. Sections you add here appear underneath.',
+  about:'The About page has its own written layout. Sections you add here appear underneath it.',
+  contact:'The Contact page already shows your phone, WhatsApp, address, hours and a map. Sections you add here appear underneath.',
+  faq:'The Questions page has its own layout.'
+};
 
+function siteHasChanges(){ if(!DB.sitePublishedAt) return true; return (DB.siteChangedAt||'') > DB.sitePublishedAt; }
+function touchSite(){ DB.siteChangedAt = new Date().toISOString(); }
+function wbToast(msg){
+  let t = document.getElementById('wbToast');
+  if(!t){ t = document.createElement('div'); t.id = 'wbToast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 2600);
+}
+function wbPageUrl(p){
+  const known = {home:'', stock:'stock.html', about:'about.html', contact:'contact.html', faq:'faq.html'};
+  return WEBSITE_URL + (known[p.slug] !== undefined ? known[p.slug] : ('page.html?p='+encodeURIComponent(p.slug)));
+}
+
+/* ---------- checklist ---------- */
+function wbChecklist(){
+  const S = siteData(), st = S.settings;
+  const home = S.pages.find(p=>p.id==='home');
+  const hero = home && home.sections.find(s=>s.type==='hero' && s.visible!==false);
+  const heroMedia = !!(hero && (hero.slides||[]).some(sl=>sl.photoId||sl.videoUrl));
+  return [
+    {ok:!!st.phone,    label:'Phone number', fix:()=>"sbTab='details';render()"},
+    {ok:!!st.whatsapp, label:'WhatsApp number', fix:()=>"sbTab='details';render()"},
+    {ok:!!st.email,    label:'Email', fix:()=>"sbTab='details';render()"},
+    {ok:!!(st.hours),  label:'Opening hours', fix:()=>"sbTab='details';render()"},
+    {ok:heroMedia,     label:'Banner photo', fix:()=>"sbTab='pages';sbPage='home';render()"},
+    {ok:!!DB.websitePublishedAt, label:'Stock published', fix:()=>"App.go('stock')"},
+  ];
+}
+
+/* ---------- main screen ---------- */
 function renderSiteBuilder(){
   const S = siteData();
   const page = S.pages.find(p=>p.id===sbPage) || S.pages[0];
   if(page) sbPage = page.id;
+  const changed = siteHasChanges();
+  const checks = wbChecklist(), done = checks.filter(c=>c.ok).length;
+  const status = !DB.sitePublishedAt ? ['wb-st-warn','Not published yet']
+    : changed ? ['wb-st-warn','Unpublished changes'] : ['wb-st-ok','Live and up to date'];
   return `
-  <div class="topbar">
-    <div><h1>Website</h1><div class="date">Build and update your public site &mdash; then publish</div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-ghost" onclick="previewSite()">👁 Preview</button>
-      <button class="btn btn-brand" onclick="publishSite()">🌐 Publish site</button>
-    </div>
-  </div>
-  ${DB.sitePublishedAt?`<div class="small-muted" style="margin:-6px 0 12px;">Last published ${fmtDate(DB.sitePublishedAt.slice(0,10))}${siteHasChanges()?' &middot; <b style="color:var(--amber)">unpublished changes</b>':' &middot; up to date'}</div>`:'<div class="overdue-banner"><span>Not published yet &mdash; press Publish site when you\u2019re ready for it to go live.</span></div>'}
-
-  <div class="chip-row">
-    <div class="chip ${sbTab==='pages'?'active':''}" onclick="sbTab='pages';render()">Pages &amp; sections</div>
-    <div class="chip ${sbTab==='menu'?'active':''}" onclick="sbTab='menu';render()">Menu</div>
-    <div class="chip ${sbTab==='settings'?'active':''}" onclick="sbTab='settings';render()">Details &amp; branding</div>
-  </div>
-
-  ${sbTab==='pages' ? renderSbPages(S, page)
-   : sbTab==='menu' ? renderSbMenu(S)
-   : renderSbSettings(S)}
-  `;
-}
-
-function siteHasChanges(){
-  if(!DB.sitePublishedAt) return true;
-  return (DB.siteChangedAt||'') > DB.sitePublishedAt;
-}
-function touchSite(){ DB.siteChangedAt = new Date().toISOString(); }
-
-/* ---------- pages & sections ---------- */
-function renderSbPages(S, page){
-  return `
-  <div class="card" style="margin-bottom:14px;">
-    <div class="flex-between" style="flex-wrap:wrap;gap:8px;">
-      <strong>Pages</strong>
-      <button class="btn btn-sm btn-brand" onclick="addSitePage()">+ Add page</button>
-    </div>
-    <div class="chip-row" style="margin-top:10px;">
-      ${S.pages.map(p=>`<div class="chip ${p.id===sbPage?'active':''}" onclick="sbPage='${p.id}';render()">${escapeHtml(p.name)}</div>`).join('')}
-    </div>
-  </div>
-
-  ${!page?'':`
-  <div class="card" style="margin-bottom:14px;">
-    <div class="flex-between" style="flex-wrap:wrap;gap:8px;">
-      <div>
-        <strong>${escapeHtml(page.name)}</strong>
-        <div class="small-muted">Address: /${escapeHtml(page.slug)}.html &middot; ${page.sections.length} section${page.sections.length===1?'':'s'}</div>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        <button class="btn btn-sm btn-ghost" onclick="renameSitePage('${page.id}')">Rename</button>
-        ${['home','stock'].includes(page.id)?'':`<button class="btn btn-sm btn-danger" onclick="deleteSitePage('${page.id}')">Delete page</button>`}
-      </div>
-    </div>
-  </div>
-
-  <div class="small-muted" style="margin-bottom:8px;">Drag a section to reorder, or use the arrows. Tap a section to edit it.</div>
-  <div id="sbSections">
-    ${page.sections.map((s,i)=>sectionCard(page, s, i)).join('') ||
-      '<div class="card"><div class="empty">No sections yet. Add one below.</div></div>'}
-  </div>
-
-  <div class="card" style="margin-top:14px;">
-    <strong>Add a section</strong>
-    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:10px;">
-      ${Object.entries(SECTION_TYPES).map(([k,t])=>`
-        <div class="card" style="padding:12px;cursor:pointer;box-shadow:none;border:1px solid var(--line);"
-             onclick="addSiteSection('${page.id}','${k}')">
-          <div style="font-size:20px;">${t.icon}</div>
-          <div style="font-weight:700;font-size:14px;">${t.label}</div>
-          <div class="small-muted" style="font-size:12px;">${t.desc}</div>
-        </div>`).join('')}
-    </div>
-  </div>`}
-  `;
-}
-
-function sectionCard(page, s, i){
-  const t = SECTION_TYPES[s.type] || {label:s.type, icon:'▫'};
-  let summary = '';
-  if(s.type==='hero')      summary = `${(s.slides||[]).length} slide${(s.slides||[]).length===1?'':'s'}`;
-  else if(s.type==='cars') summary = s.showAll ? 'All available cars' : `Up to ${s.limit||6} cars`;
-  else if(s.type==='gallery') summary = `${(s.photoIds||[]).length} photos`;
-  else if(s.type==='steps'||s.type==='features') summary = `${(s.items||[]).length} items`;
-  else if(s.type==='reviews') summary = `${(s.items||[]).length} reviews`;
-  else if(s.type==='text') summary = (s.title||'Text');
-  return `
-  <div class="card sb-sec" draggable="true" data-sec="${s.id}" data-idx="${i}"
-       style="margin-bottom:8px;padding:12px 14px;${s.visible===false?'opacity:.5;':''}">
-    <div class="flex-between" style="gap:10px;flex-wrap:wrap;">
-      <div style="display:flex;align-items:center;gap:10px;min-width:0;cursor:pointer" onclick="editSiteSection('${page.id}','${s.id}')">
-        <span style="font-size:20px;cursor:grab;">☰</span>
-        <div style="min-width:0;">
-          <div style="font-weight:700;">${t.icon} ${t.label}</div>
-          <div class="small-muted">${escapeHtml(summary)}</div>
+  <div class="wb">
+    <div class="wb-head">
+      <div class="wb-head-in">
+        <div>
+          <div class="wb-kicker">Your website</div>
+          <h1>Build it here, publish with one tap</h1>
+          <div class="wb-sub">${DB.sitePublishedAt?`Last published ${fmtDate(DB.sitePublishedAt.slice(0,10))}`:'Nothing published yet'}</div>
+        </div>
+        <div class="wb-actions">
+          <span class="wb-pill ${status[0]}">${status[1]}</span>
+          <button class="wb-btn ghost" onclick="previewSite()">👁 Preview</button>
+          <a class="wb-btn ghost" href="${WEBSITE_URL}" target="_blank" rel="noopener">↗ View live site</a>
+          <button class="wb-btn red big" onclick="publishSite()">🌐 Publish</button>
         </div>
       </div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;">
-        <button class="btn btn-sm btn-ghost" onclick="moveSiteSection('${page.id}','${s.id}',-1)" ${i===0?'disabled':''}>↑</button>
-        <button class="btn btn-sm btn-ghost" onclick="moveSiteSection('${page.id}','${s.id}',1)" ${i===page.sections.length-1?'disabled':''}>↓</button>
-        <button class="btn btn-sm btn-ghost" onclick="toggleSiteSection('${page.id}','${s.id}')">${s.visible===false?'Show':'Hide'}</button>
-        <button class="btn btn-sm btn-ghost" onclick="editSiteSection('${page.id}','${s.id}')">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteSiteSection('${page.id}','${s.id}')">✕</button>
+      <div class="wb-check">
+        <span class="wb-check-t">${done} of ${checks.length} ready</span>
+        ${checks.map(c=>`<button class="wb-ck ${c.ok?'ok':'todo'}" ${c.ok?'':`onclick="${c.fix()}"`}>${c.ok?'✓':'○'} ${c.label}</button>`).join('')}
       </div>
+    </div>
+
+    <div class="wb-tabs">
+      <button class="${sbTab==='pages'?'on':''}" onclick="sbTab='pages';render()">📄 Pages</button>
+      <button class="${sbTab==='menu'?'on':''}" onclick="sbTab='menu';render()">☰ Menu</button>
+      <button class="${sbTab==='details'||sbTab==='settings'?'on':''}" onclick="sbTab='details';render()">⚙ Details</button>
+    </div>
+
+    ${sbTab==='pages' ? renderSbPages(S, page) : sbTab==='menu' ? renderSbMenu(S) : renderSbSettings(S)}
+  </div>`;
+}
+
+/* ---------- pages and sections ---------- */
+function wbSecSummary(s){
+  if(s.type==='hero'){ const n=(s.slides||[]).length; const h=(s.slides&&s.slides[0]&&s.slides[0].heading)||''; return `${n} slide${n===1?'':'s'}${h?` · \u201c${h}\u201d`:''}`; }
+  if(s.type==='cars') return (s.title||'Cars') + (s.showAll===false ? ' · every available car' : ` · up to ${s.limit||6} cars`);
+  if(s.type==='gallery') return `${s.title||'Gallery'} · ${(s.photoIds||[]).length} photos`;
+  if(s.type==='steps'||s.type==='features') return `${s.title||''} · ${(s.items||[]).length} items`;
+  if(s.type==='reviews') return `${s.title||''} · ${(s.items||[]).length} reviews`;
+  if(s.type==='video') return s.videoUrl ? (s.title||'Video') : 'No video added yet';
+  if(s.type==='cta') return `${s.title||''}${s.buttonText?` · button: ${s.buttonText}`:''}`;
+  return s.title || SECTION_TYPES[s.type].label;
+}
+function wbThumbs(s){
+  let ids = [];
+  if(s.type==='hero') ids = (s.slides||[]).map(sl=>sl.photoId).filter(Boolean);
+  if(s.type==='gallery') ids = (s.photoIds||[]).slice(0,6);
+  if(!ids.length) return '';
+  return `<div class="wb-thumbs">${ids.slice(0,6).map(id=>`<img src="${getPhotoUrl(id)}" alt="">`).join('')}</div>`;
+}
+function renderSbPages(S, page){
+  return `
+  <div class="wb-pages">
+    ${S.pages.map(p=>`<button class="wb-pg ${p.id===sbPage?'on':''}" onclick="sbPage='${p.id}';render()">${escapeHtml(p.name)}</button>`).join('')}
+    <button class="wb-pg add" onclick="addSitePage()">+ New page</button>
+  </div>
+  ${!page?'':`
+  <div class="wb-pagebar">
+    <div>
+      <div class="wb-pt">${escapeHtml(page.name)}</div>
+      <div class="wb-pu">${escapeHtml(wbPageUrl(page).replace(/^https?:\/\//,''))}</div>
+    </div>
+    <div class="wb-pagebtns">
+      ${page.id==='home'?`<button class="wb-btn ghost sm" onclick="useRecommendedHome()">✨ Use recommended layout</button>`:''}
+      <button class="wb-btn ghost sm" onclick="renameSitePage('${page.id}')">Rename</button>
+      ${['home','stock'].includes(page.id)?'':`<button class="wb-btn danger sm" onclick="deleteSitePage('${page.id}')">Delete page</button>`}
+    </div>
+  </div>
+  ${PAGE_NOTES[page.id]?`<div class="wb-note">ℹ️ ${PAGE_NOTES[page.id]}</div>`:''}
+
+  <div class="wb-hint">Drag the <b>⠿</b> handle to reorder (works with a finger too). Use the switch to hide a section without deleting it.</div>
+  <div id="wbList" class="wb-list">
+    ${page.sections.map((s,i)=>wbSecCard(page,s,i)).join('') || '<div class="wb-empty">This page has no sections yet. Add one below.</div>'}
+  </div>
+
+  <button class="wb-add" onclick="openAddSection('${page.id}')"><span>＋</span> Add a section</button>`}
+  `;
+}
+function wbSecCard(page, s, i){
+  const t = SECTION_TYPES[s.type] || {label:s.type, icon:'▫', desc:''};
+  const off = s.visible===false;
+  return `
+  <div class="wb-sec ${off?'off':''}" data-id="${s.id}">
+    <button class="wb-grip" aria-label="Drag to reorder" title="Drag to reorder">⠿</button>
+    <div class="wb-ico" style="background:${WB_COLOURS[s.type]||'#222'}">${t.icon}</div>
+    <div class="wb-body" onclick="editSiteSection('${page.id}','${s.id}')">
+      <div class="wb-name">${t.label}${off?' <span class="wb-off">hidden</span>':''}</div>
+      <div class="wb-sum">${escapeHtml(wbSecSummary(s))}</div>
+      ${wbThumbs(s)}
+    </div>
+    <div class="wb-ctl">
+      <label class="wb-sw" title="${off?'Show on website':'Hide from website'}"><input type="checkbox" ${off?'':'checked'} onchange="toggleSiteSection('${page.id}','${s.id}')"><i></i></label>
+      <button class="wb-btn dark sm" onclick="editSiteSection('${page.id}','${s.id}')">Edit</button>
+      <div class="wb-arrows"><button aria-label="Move up" onclick="moveSiteSection('${page.id}','${s.id}',-1)" ${i===0?'disabled':''}>▲</button><button aria-label="Move down" onclick="moveSiteSection('${page.id}','${s.id}',1)" ${i===page.sections.length-1?'disabled':''}>▼</button></div>
     </div>
   </div>`;
 }
 
-/* drag and drop, with touch falling back to the arrow buttons */
-function initSectionDrag(){
-  const wrap = document.getElementById('sbSections'); if(!wrap) return;
-  let dragId = null;
-  wrap.querySelectorAll('.sb-sec').forEach(el=>{
-    el.addEventListener('dragstart', e=>{ dragId = el.dataset.sec; el.style.opacity='.4'; });
-    el.addEventListener('dragend',   e=>{ el.style.opacity=''; });
-    el.addEventListener('dragover',  e=>{ e.preventDefault(); el.style.borderTop='3px solid var(--brand)'; });
-    el.addEventListener('dragleave', e=>{ el.style.borderTop=''; });
-    el.addEventListener('drop', e=>{
-      e.preventDefault(); el.style.borderTop='';
-      if(dragId && dragId!==el.dataset.sec) dropSiteSection(dragId, el.dataset.sec);
+/* a drag handle that works for mouse and touch */
+function wbSortable(container, itemSel, onDone){
+  if(!container) return;
+  container.querySelectorAll('.wb-grip').forEach(h=>{
+    h.addEventListener('pointerdown', e=>{
+      if(e.pointerType==='mouse' && e.button!==0) return;
+      const item = h.closest(itemSel); if(!item) return;
+      e.preventDefault();
+      item.classList.add('dragging');
+      /* listen on the document: moving the item in the page would drop a capture on the handle */
+      const move = ev=>{
+        const y = ev.clientY;
+        if(y < 70) window.scrollBy(0,-14); else if(y > window.innerHeight-70) window.scrollBy(0,14);
+        const sibs = Array.from(container.querySelectorAll(itemSel)).filter(x=>x!==item);
+        let placed = false;
+        for(const s of sibs){ const r = s.getBoundingClientRect(); if(y < r.top + r.height/2){ container.insertBefore(item, s); placed = true; break; } }
+        if(!placed) container.appendChild(item);
+      };
+      const up = ()=>{
+        document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up);
+        item.classList.remove('dragging');
+        onDone(Array.from(container.querySelectorAll(itemSel)).map(x=>x.dataset.id));
+      };
+      document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
     });
   });
 }
-function dropSiteSection(fromId, toId){
-  const page = siteData().pages.find(p=>p.id===sbPage); if(!page) return;
-  const from = page.sections.findIndex(s=>s.id===fromId);
-  const to   = page.sections.findIndex(s=>s.id===toId);
-  if(from<0||to<0) return;
-  const [m] = page.sections.splice(from,1);
-  page.sections.splice(to,0,m);
-  touchSite(); saveDB(); render();
+function initSectionDrag(){
+  wbSortable(document.getElementById('wbList'), '.wb-sec', ids=>{
+    const page = siteData().pages.find(p=>p.id===sbPage); if(!page) return;
+    page.sections = ids.map(id=>page.sections.find(s=>s.id===id)).filter(Boolean);
+    touchSite(); saveDB(); render(); wbToast('Order saved');
+  });
+  wbSortable(document.getElementById('wbMenuList'), '.wb-row', ids=>{
+    const S = siteData(); S.menu = ids.map(id=>S.menu.find(m=>m.id===id)).filter(Boolean);
+    touchSite(); saveDB(); render(); wbToast('Menu order saved');
+  });
 }
 function moveSiteSection(pid, sid, dir){
   const page = siteData().pages.find(p=>p.id===pid); if(!page) return;
-  const i = page.sections.findIndex(s=>s.id===sid);
-  const j = i+dir;
+  const i = page.sections.findIndex(s=>s.id===sid), j = i+dir;
   if(i<0||j<0||j>=page.sections.length) return;
   [page.sections[i], page.sections[j]] = [page.sections[j], page.sections[i]];
   touchSite(); saveDB(); render();
@@ -4448,20 +4988,47 @@ function moveSiteSection(pid, sid, dir){
 function toggleSiteSection(pid, sid){
   const page = siteData().pages.find(p=>p.id===pid);
   const s = page && page.sections.find(x=>x.id===sid); if(!s) return;
-  s.visible = s.visible===false;
-  touchSite(); saveDB(); render();
+  s.visible = s.visible===false; touchSite(); saveDB(); render();
+  wbToast(s.visible===false ? 'Hidden from the website' : 'Showing on the website');
 }
 function deleteSiteSection(pid, sid){
   if(!confirm('Remove this section from the page?')) return;
   const page = siteData().pages.find(p=>p.id===pid); if(!page) return;
   page.sections = page.sections.filter(s=>s.id!==sid);
-  touchSite(); saveDB(); render();
+  touchSite(); saveDB(); closeModal(); render();
+}
+function useRecommendedHome(){
+  if(!confirm('Replace the Home page layout with the recommended one?\n\nIt has: a banner with three slides, your live cars, "Why buy from us" and a WhatsApp button.\nYour banner photos are kept. Other sections you added will be removed.')) return;
+  const home = siteData().pages.find(p=>p.id==='home'); if(!home) return;
+  const oldHero = home.sections.find(s=>s.type==='hero');
+  home.sections = recommendedHome(oldHero);
+  sbPage = 'home'; touchSite(); saveDB(); render(); wbToast('Recommended layout applied');
+}
+
+/* adding sections */
+function openAddSection(pid){
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Add a section</h3>
+    <div class="wb-sub2">Ready-made, already worded. Tap one and edit it after.</div>
+    <div class="wb-tiles">
+      ${WB_PRESETS.map(p=>`<button class="wb-tile pre" onclick="addPreset('${pid}','${p.key}')"><span class="i">${p.icon}</span><b>${p.label}</b><em>${p.desc}</em></button>`).join('')}
+    </div>
+    <div class="wb-sub2" style="margin-top:16px">Or start from blank</div>
+    <div class="wb-tiles">
+      ${Object.entries(SECTION_TYPES).map(([k,t])=>`<button class="wb-tile" onclick="addSiteSection('${pid}','${k}')"><span class="i" style="background:${WB_COLOURS[k]}">${t.icon}</span><b>${t.label}</b><em>${t.desc}</em></button>`).join('')}
+    </div>`);
+}
+function addPreset(pid, key){
+  const page = siteData().pages.find(p=>p.id===pid), pr = WB_PRESETS.find(p=>p.key===key); if(!page||!pr) return;
+  const s = pr.make(); s.id = nextId('sec'); page.sections.push(s);
+  touchSite(); saveDB(); closeModal(); render(); wbToast('Added. Tap Edit to change the words.');
 }
 function addSiteSection(pid, type){
   const page = siteData().pages.find(p=>p.id===pid); if(!page) return;
   const base = {id:nextId('sec'), type, visible:true};
   if(type==='hero') base.slides = [{id:nextId('sl'), heading:'New slide', sub:'', buttonText:'', buttonPage:'stock', photoId:null, videoUrl:''}];
-  if(type==='cars'){ base.title='Our cars'; base.limit=6; base.showAll=true; }
+  if(type==='cars'){ base.title='In stock now'; base.limit=6; base.showAll=true; }
   if(type==='text'){ base.title='New section'; base.body=''; }
   if(type==='steps'||type==='features') base.items = [{id:nextId('it'), title:'Item one', text:''}];
   if(type==='reviews') base.items = [{id:nextId('it'), title:'Customer', text:'', stars:5}];
@@ -4469,309 +5036,285 @@ function addSiteSection(pid, type){
   if(type==='video'){ base.videoUrl=''; base.title='Video'; }
   if(type==='cta'){ base.title='Ready to find your next car?'; base.buttonText='View our cars'; base.buttonPage='stock'; }
   if(type==='contact') base.title='Get in touch';
-  page.sections.push(base);
-  touchSite(); saveDB(); render();
-  setTimeout(()=>editSiteSection(pid, base.id), 60);
+  page.sections.push(base); touchSite(); saveDB(); closeModal(); render();
+  setTimeout(()=>editSiteSection(pid, base.id), 80);
 }
 
-/* ---------- pages ---------- */
+/* pages */
 function addSitePage(){
-  const name = prompt('Page name (e.g. Finance, Warranty, Reviews)');
-  if(!name) return;
+  const name = prompt('Page name (e.g. Finance, Warranty, Offers)'); if(!name) return;
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
   const S = siteData();
-  if(S.pages.some(p=>p.slug===slug)){ alert('A page with that address already exists.'); return; }
+  if(!slug || S.pages.some(p=>p.slug===slug)){ alert('A page with that address already exists.'); return; }
   const id = nextId('pg');
   S.pages.push({id, name, slug, sections:[{id:nextId('sec'), type:'text', visible:true, title:name, body:''}]});
   S.menu.push({id:nextId('mi'), label:name, page:id});
-  sbPage = id; touchSite(); saveDB(); render();
+  sbPage = id; touchSite(); saveDB(); render(); wbToast('Page added and linked in the menu');
 }
 function renameSitePage(pid){
   const p = siteData().pages.find(x=>x.id===pid); if(!p) return;
   const name = prompt('Page name', p.name); if(!name) return;
-  p.name = name;
-  const mi = siteData().menu.find(m=>m.page===pid); if(mi) mi.label = name;
+  p.name = name; const mi = siteData().menu.find(m=>m.page===pid); if(mi) mi.label = name;
   touchSite(); saveDB(); render();
 }
 function deleteSitePage(pid){
   if(!confirm('Delete this page and everything on it?')) return;
-  const S = siteData();
-  S.pages = S.pages.filter(p=>p.id!==pid);
-  S.menu  = S.menu.filter(m=>m.page!==pid);
-  sbPage = S.pages[0] ? S.pages[0].id : null;
-  touchSite(); saveDB(); render();
+  const S = siteData(); S.pages = S.pages.filter(p=>p.id!==pid); S.menu = S.menu.filter(m=>m.page!==pid);
+  sbPage = S.pages[0] ? S.pages[0].id : null; touchSite(); saveDB(); render();
 }
 
 /* ---------- section editors ---------- */
-function editSiteSection(pid, sid){
+function wbPageOptions(sel, extra){
+  return (extra?`<option value="__whatsapp" ${sel==='__whatsapp'?'selected':''}>💬 WhatsApp chat</option>`:'') +
+    siteData().pages.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('');
+}
+function wbDrop(id, label, multiple){
+  return `<label class="wb-drop" id="${id}"><input type="file" accept="image/*" ${multiple?'multiple':''} hidden>
+    <span class="big">📷</span><b>${label}</b><em>Drop photos here, or tap to choose${multiple?'':' one'}</em></label>`;
+}
+function wbWireDrop(id, handler){
+  const z = document.getElementById(id); if(!z) return;
+  const inp = z.querySelector('input');
+  inp.addEventListener('change', ()=>handler(Array.from(inp.files||[])));
+  ['dragenter','dragover'].forEach(ev=>z.addEventListener(ev, e=>{ e.preventDefault(); z.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev=>z.addEventListener(ev, e=>{ e.preventDefault(); z.classList.remove('over'); }));
+  z.addEventListener('drop', e=>{ const f = Array.from(e.dataTransfer.files||[]).filter(x=>/^image\//.test(x.type)); if(f.length) handler(f); });
+}
+function wbHeroPreview(sl){
+  const ph = sl.photoId ? getPhotoUrl(sl.photoId) : '';
+  return `<div class="wb-hprev" id="hp_${sl.id}">
+    <div class="bg" ${ph?`style="background-image:url('${ph}')"`:''}></div><div class="tint"></div>
+    <div class="tx"><b id="hpH_${sl.id}">${escapeHtml(sl.heading||'Your headline')}</b><span id="hpS_${sl.id}">${escapeHtml(sl.sub||'')}</span>${sl.buttonText?`<i id="hpB_${sl.id}">${escapeHtml(sl.buttonText)}</i>`:`<i id="hpB_${sl.id}" style="display:none"></i>`}</div></div>`;
+}
+function wbLive(slid){
+  const g = id=>document.getElementById(id);
+  const h=g('sl_h_'+slid), s=g('sl_s_'+slid), b=g('sl_bt_'+slid);
+  if(h) h.addEventListener('input', ()=>{ g('hpH_'+slid).textContent = h.value || 'Your headline'; });
+  if(s) s.addEventListener('input', ()=>{ g('hpS_'+slid).textContent = s.value; });
+  if(b) b.addEventListener('input', ()=>{ const e = g('hpB_'+slid); e.textContent = b.value; e.style.display = b.value ? '' : 'none'; });
+}
+function wbFind(pid, sid){
   const page = siteData().pages.find(p=>p.id===pid);
-  const s = page && page.sections.find(x=>x.id===sid); if(!s) return;
-  const pageOpts = siteData().pages.map(p=>`<option value="${p.id}" ${'' }>${escapeHtml(p.name)}</option>`).join('');
+  return page && page.sections.find(x=>x.id===sid);
+}
+function editSiteSection(pid, sid){
+  const s = wbFind(pid, sid); if(!s) return;
+  const t = SECTION_TYPES[s.type];
   let body = '';
+  const field = (label, id, val, ph) => `<div class="field"><label>${label}</label><input id="${id}" value="${escapeAttr(val||'')}" ${ph?`placeholder="${escapeAttr(ph)}"`:''}/></div>`;
 
   if(s.type==='hero'){
-    body = `
-      <div class="small-muted" style="margin-bottom:8px;">Slides rotate automatically. Add a photo or a video background to each.</div>
-      <div id="heroSlides">
-        ${(s.slides||[]).map((sl,i)=>`
-          <div class="card" style="padding:12px;margin-bottom:8px;">
-            <div class="flex-between"><strong>Slide ${i+1}</strong>
-              <div style="display:flex;gap:4px;">
-                <button class="btn btn-sm btn-ghost" onclick="moveSlide('${pid}','${sid}','${sl.id}',-1)" ${i===0?'disabled':''}>↑</button>
-                <button class="btn btn-sm btn-ghost" onclick="moveSlide('${pid}','${sid}','${sl.id}',1)" ${i===(s.slides.length-1)?'disabled':''}>↓</button>
-                ${s.slides.length>1?`<button class="btn btn-sm btn-danger" onclick="deleteSlide('${pid}','${sid}','${sl.id}')">✕</button>`:''}
-              </div></div>
-            <div class="field"><label>Heading</label><input id="sl_h_${sl.id}" value="${escapeAttr(sl.heading||'')}"/></div>
-            <div class="field"><label>Sub-heading</label><input id="sl_s_${sl.id}" value="${escapeAttr(sl.sub||'')}"/></div>
-            <div class="field-row">
-              <div class="field"><label>Button text</label><input id="sl_bt_${sl.id}" value="${escapeAttr(sl.buttonText||'')}"/></div>
-              <div class="field"><label>Button goes to</label>
-                <select id="sl_bp_${sl.id}">${siteData().pages.map(p=>`<option value="${p.id}" ${sl.buttonPage===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select></div>
-            </div>
-            <div class="field"><label>Background photo <span class="link" style="cursor:pointer;font-weight:400" onclick="openMediaGuide('hero')">(size guide)</span></label>
-              ${sl.photoId?`<img src="${getPhotoUrl(sl.photoId)}" style="width:100%;max-height:150px;object-fit:cover;border-radius:8px;margin-bottom:6px;">`:''}
-              <input type="file" accept="image/*" onchange="uploadSlidePhoto(event,'${pid}','${sid}','${sl.id}')"/></div>
-            <div class="field"><label>Or a video (YouTube link or MP4)</label>
-              <input id="sl_v_${sl.id}" value="${escapeAttr(sl.videoUrl||'')}" placeholder="https://youtube.com/watch?v=..."/></div>
-          </div>`).join('')}
-      </div>
-      <button class="btn btn-ghost" onclick="addSlide('${pid}','${sid}')">+ Add slide</button>`;
+    body = `<div class="wb-sub2">Each slide is a headline, a photo and a button. Photos are shown in black and red on the website.</div>
+      ${(s.slides||[]).map((sl,i)=>`
+      <div class="wb-card">
+        <div class="wb-card-h"><b>Slide ${i+1}</b>
+          <span>
+            <button class="wb-mini" onclick="moveSlide('${pid}','${sid}','${sl.id}',-1)" ${i===0?'disabled':''}>▲</button>
+            <button class="wb-mini" onclick="moveSlide('${pid}','${sid}','${sl.id}',1)" ${i===s.slides.length-1?'disabled':''}>▼</button>
+            ${s.slides.length>1?`<button class="wb-mini del" onclick="deleteSlide('${pid}','${sid}','${sl.id}')">✕</button>`:''}
+          </span></div>
+        ${wbHeroPreview(sl)}
+        ${field('Headline','sl_h_'+sl.id, sl.heading)}
+        ${field('Sub-heading','sl_s_'+sl.id, sl.sub)}
+        <div class="field-row">
+          ${field('Button text','sl_bt_'+sl.id, sl.buttonText)}
+          <div class="field"><label>Button goes to</label><select id="sl_bp_${sl.id}">${wbPageOptions(sl.buttonPage,true)}</select></div>
+        </div>
+        <div class="field"><label>Background photo <span class="link" style="cursor:pointer;font-weight:400" onclick="openMediaGuide('hero')">size guide</span></label>
+          ${wbDrop('dz_'+sl.id, sl.photoId?'Change photo':'Add a banner photo', false)}
+          ${sl.photoId?`<button class="wb-mini del" style="margin-top:6px" onclick="removeSlidePhoto('${pid}','${sid}','${sl.id}')">Remove photo</button>`:''}</div>
+        ${field('Or a video (YouTube link or MP4)','sl_v_'+sl.id, sl.videoUrl, 'https://youtube.com/watch?v=...')}
+      </div>`).join('')}
+      <button class="wb-btn ghost" onclick="addSlide('${pid}','${sid}')">＋ Add a slide</button>`;
   }
   else if(s.type==='cars'){
-    body = `
-      <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
-      <div class="field"><label>How many to show</label>
-        <select id="sec_showall">
-          <option value="all" ${s.showAll?'selected':''}>A few, with a "view all" button</option>
-          <option value="every" ${!s.showAll?'selected':''}>Every available car</option>
-        </select></div>
-      <div class="field"><label>Number shown (when not showing every car)</label>
-        <input id="sec_limit" type="number" value="${s.limit||6}"/></div>
-      <div class="small-muted">Cars come from your stock automatically &mdash; publish stock separately from the Stock page.</div>`;
+    body = `${field('Section title','sec_title', s.title)}
+      <div class="field"><label>How many cars</label><select id="sec_showall">
+        <option value="all" ${s.showAll!==false?'selected':''}>A few, with a "view all cars" button</option>
+        <option value="every" ${s.showAll===false?'selected':''}>Every available car</option></select></div>
+      <div class="field"><label>How many to show (when "a few")</label><input id="sec_limit" type="number" min="1" value="${s.limit||6}"/></div>
+      <div class="wb-note">ℹ️ Cars come from your stock automatically. Publish stock from the Stock page. The finder (body type and price) appears on its own.</div>`;
   }
   else if(s.type==='text'){
-    body = `
-      <div class="field"><label>Heading</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
-      <div class="field"><label>Text</label><textarea id="sec_body" rows="7">${escapeHtml(s.body||'')}</textarea>
-        <div class="small-muted" style="margin-top:4px;">Leave a blank line between paragraphs.</div></div>`;
+    body = `${field('Heading','sec_title', s.title)}
+      <div class="field"><label>Text</label><textarea id="sec_body" rows="8">${escapeHtml(s.body||'')}</textarea>
+      <div class="small-muted" style="margin-top:4px">Leave a blank line between paragraphs.</div></div>`;
   }
-  else if(s.type==='steps' || s.type==='features' || s.type==='reviews'){
-    const label = s.type==='reviews' ? 'Review' : 'Item';
-    body = `
-      <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
+  else if(['steps','features','reviews'].includes(s.type)){
+    const rev = s.type==='reviews';
+    body = `${field('Section title','sec_title', s.title)}
       ${(s.items||[]).map((it,i)=>`
-        <div class="card" style="padding:12px;margin-bottom:8px;">
-          <div class="flex-between"><strong>${label} ${i+1}</strong>
-            <div style="display:flex;gap:4px;">
-              <button class="btn btn-sm btn-ghost" onclick="moveItem('${pid}','${sid}','${it.id}',-1)" ${i===0?'disabled':''}>↑</button>
-              <button class="btn btn-sm btn-ghost" onclick="moveItem('${pid}','${sid}','${it.id}',1)" ${i===s.items.length-1?'disabled':''}>↓</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteItem('${pid}','${sid}','${it.id}')">✕</button>
-            </div></div>
-          <div class="field"><label>${s.type==='reviews'?'Customer name':'Title'}</label><input id="it_t_${it.id}" value="${escapeAttr(it.title||'')}"/></div>
-          <div class="field"><label>${s.type==='reviews'?'What they said':'Description'}</label><textarea id="it_d_${it.id}" rows="3">${escapeHtml(it.text||'')}</textarea></div>
-          ${s.type==='reviews'?`<div class="field"><label>Stars</label><select id="it_s_${it.id}">${[5,4,3].map(n=>`<option ${Number(it.stars||5)===n?'selected':''}>${n}</option>`).join('')}</select></div>`:''}
-        </div>`).join('')}
-      <button class="btn btn-ghost" onclick="addItem('${pid}','${sid}')">+ Add ${label.toLowerCase()}</button>`;
+      <div class="wb-card">
+        <div class="wb-card-h"><b>${rev?'Review':(s.type==='steps'?'Step':'Point')} ${i+1}</b>
+          <span><button class="wb-mini" onclick="moveItem('${pid}','${sid}','${it.id}',-1)" ${i===0?'disabled':''}>▲</button>
+          <button class="wb-mini" onclick="moveItem('${pid}','${sid}','${it.id}',1)" ${i===s.items.length-1?'disabled':''}>▼</button>
+          <button class="wb-mini del" onclick="deleteItem('${pid}','${sid}','${it.id}')">✕</button></span></div>
+        ${field(rev?'Customer name':'Title','it_t_'+it.id, it.title)}
+        <div class="field"><label>${rev?'What they said':'Description'}</label><textarea id="it_d_${it.id}" rows="3">${escapeHtml(it.text||'')}</textarea></div>
+        ${rev?`<div class="field"><label>Stars</label><select id="it_s_${it.id}">${[5,4,3].map(n=>`<option ${Number(it.stars||5)===n?'selected':''}>${n}</option>`).join('')}</select></div>`:''}
+      </div>`).join('')}
+      <button class="wb-btn ghost" onclick="addItem('${pid}','${sid}')">＋ Add ${rev?'a review':(s.type==='steps'?'a step':'a point')}</button>
+      ${rev?'<div class="wb-note">ℹ️ Only add reviews that real customers have given you.</div>':''}`;
   }
   else if(s.type==='gallery'){
-    body = `
-      <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
-      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:10px;">
-        ${(s.photoIds||[]).map(id=>`<div style="position:relative;">
-          <img src="${getPhotoUrl(id)}" style="width:100%;height:90px;object-fit:cover;border-radius:8px;">
-          <button class="btn btn-sm btn-danger" style="position:absolute;top:4px;right:4px;padding:2px 7px;"
-                  onclick="removeGalleryPhoto('${pid}','${sid}','${id}')">✕</button></div>`).join('')}
-      </div>
-      <div class="field"><label>Add photos <span class="link" style="cursor:pointer;font-weight:400" onclick="openMediaGuide('gallery')">(size guide)</span></label><input type="file" accept="image/*" multiple onchange="uploadGalleryPhotos(event,'${pid}','${sid}')"/></div>`;
+    body = `${field('Section title','sec_title', s.title)}
+      <div class="wb-gal" id="wbGal">${(s.photoIds||[]).map(id=>`<div class="g" data-id="${id}"><button class="wb-grip" aria-label="Drag to reorder">⠿</button><img src="${getPhotoUrl(id)}" alt=""><button class="x" onclick="removeGalleryPhoto('${pid}','${sid}','${id}')">✕</button></div>`).join('')}</div>
+      ${wbDrop('dz_gal','Add photos', true)}
+      <div class="small-muted" style="margin-top:6px">Drag the ⠿ on a photo to reorder. <span class="link" style="cursor:pointer" onclick="openMediaGuide('gallery')">Size guide</span></div>`;
   }
   else if(s.type==='video'){
-    body = `
-      <div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
-      <div class="field"><label>YouTube link or MP4 address <span class="link" style="cursor:pointer;font-weight:400" onclick="openMediaGuide('video')">(what works best)</span></label><input id="sec_video" value="${escapeAttr(s.videoUrl||'')}" placeholder="https://www.youtube.com/watch?v=..."/></div>
-      <div class="small-muted">A YouTube link is easiest &mdash; upload the video there, then paste the link here.</div>`;
+    body = `${field('Section title','sec_title', s.title)}
+      ${field('YouTube link or MP4 address','sec_video', s.videoUrl, 'https://www.youtube.com/watch?v=...')}
+      <div class="wb-note">ℹ️ A YouTube link is easiest. Upload the video to YouTube, then paste the link here.</div>`;
   }
   else if(s.type==='cta'){
-    body = `
-      <div class="field"><label>Heading</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
-      <div class="field-row">
-        <div class="field"><label>Button text</label><input id="sec_bt" value="${escapeAttr(s.buttonText||'')}"/></div>
-        <div class="field"><label>Button goes to</label>
-          <select id="sec_bp">${siteData().pages.map(p=>`<option value="${p.id}" ${s.buttonPage===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select></div>
-      </div>`;
+    body = `${field('Heading','sec_title', s.title)}
+      <div class="field-row">${field('Button text','sec_bt', s.buttonText)}
+      <div class="field"><label>Button goes to</label><select id="sec_bp">${wbPageOptions(s.buttonPage,true)}</select></div></div>`;
   }
   else if(s.type==='contact'){
-    body = `<div class="field"><label>Section title</label><input id="sec_title" value="${escapeAttr(s.title||'')}"/></div>
-      <div class="small-muted">Your phone, WhatsApp, email and address come from the Details tab, so you only enter them once.</div>`;
+    body = `${field('Section title','sec_title', s.title)}
+      <div class="wb-note">ℹ️ Phone, WhatsApp, email, address and hours come from the Details tab, so you only type them once.</div>`;
   }
 
   openModal(`
     <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>${SECTION_TYPES[s.type].icon} ${SECTION_TYPES[s.type].label}</h3>
+    <h3>${t.icon} ${t.label}</h3>
     ${body}
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-brand" onclick="saveSiteSection('${pid}','${sid}')">Save</button>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button class="wb-btn danger sm" onclick="deleteSiteSection('${pid}','${sid}')">Remove section</button>
+      <span><button class="wb-btn ghost" onclick="closeModal()">Cancel</button> <button class="wb-btn red" onclick="saveSiteSection('${pid}','${sid}')">Save</button></span>
     </div>`);
+
+  /* wire photo drop zones and live preview */
+  if(s.type==='hero') (s.slides||[]).forEach(sl=>{ wbWireDrop('dz_'+sl.id, files=>uploadSlidePhotoFile(files[0], pid, sid, sl.id)); wbLive(sl.id); });
+  if(s.type==='gallery'){
+    wbWireDrop('dz_gal', files=>uploadGalleryFiles(files, pid, sid));
+    wbSortable(document.getElementById('wbGal'), '.g', ids=>{ const sec = wbFind(pid,sid); if(sec){ sec.photoIds = ids; touchSite(); saveDB(); wbToast('Photo order saved'); } });
+  }
 }
 
-function saveSiteSection(pid, sid){
-  const page = siteData().pages.find(p=>p.id===pid);
-  const s = page && page.sections.find(x=>x.id===sid); if(!s) return;
+/* read the form into the data without closing (so adding an item never loses typing) */
+function wbCollect(pid, sid){
+  const s = wbFind(pid, sid); if(!s) return;
   const val = id => { const e=document.getElementById(id); return e?e.value:undefined; };
-
   if(s.type==='hero'){
     (s.slides||[]).forEach(sl=>{
-      sl.heading = val('sl_h_'+sl.id) ?? sl.heading;
-      sl.sub = val('sl_s_'+sl.id) ?? sl.sub;
-      sl.buttonText = val('sl_bt_'+sl.id) ?? sl.buttonText;
-      sl.buttonPage = val('sl_bp_'+sl.id) ?? sl.buttonPage;
+      sl.heading = val('sl_h_'+sl.id) ?? sl.heading; sl.sub = val('sl_s_'+sl.id) ?? sl.sub;
+      sl.buttonText = val('sl_bt_'+sl.id) ?? sl.buttonText; sl.buttonPage = val('sl_bp_'+sl.id) ?? sl.buttonPage;
       sl.videoUrl = val('sl_v_'+sl.id) ?? sl.videoUrl;
     });
   } else if(s.type==='cars'){
-    s.title = val('sec_title'); s.showAll = val('sec_showall')==='all';
-    s.limit = Number(val('sec_limit'))||6;
+    s.title = val('sec_title'); s.showAll = val('sec_showall')==='all'; s.limit = Number(val('sec_limit'))||6;
   } else if(s.type==='text'){
     s.title = val('sec_title'); s.body = val('sec_body');
   } else if(['steps','features','reviews'].includes(s.type)){
     s.title = val('sec_title');
     (s.items||[]).forEach(it=>{
-      it.title = val('it_t_'+it.id) ?? it.title;
-      it.text  = val('it_d_'+it.id) ?? it.text;
+      it.title = val('it_t_'+it.id) ?? it.title; it.text = val('it_d_'+it.id) ?? it.text;
       const st = val('it_s_'+it.id); if(st) it.stars = Number(st);
     });
-  } else if(s.type==='video'){
-    s.title = val('sec_title'); s.videoUrl = val('sec_video');
-  } else if(s.type==='cta'){
-    s.title = val('sec_title'); s.buttonText = val('sec_bt'); s.buttonPage = val('sec_bp');
-  } else {
-    if(val('sec_title')!==undefined) s.title = val('sec_title');
-  }
-  touchSite(); saveDB(); closeModal(); render();
+  } else if(s.type==='video'){ s.title = val('sec_title'); s.videoUrl = val('sec_video');
+  } else if(s.type==='cta'){ s.title = val('sec_title'); s.buttonText = val('sec_bt'); s.buttonPage = val('sec_bp');
+  } else { if(val('sec_title')!==undefined) s.title = val('sec_title'); }
 }
+function saveSiteSection(pid, sid){
+  wbCollect(pid, sid); touchSite(); saveDB(); closeModal(); render(); wbToast('Saved. Tap Publish to put it live.');
+}
+function wbReopen(pid, sid){ touchSite(); saveDB(); editSiteSection(pid, sid); }
 
-/* slides & items */
-function addSlide(pid,sid){
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  s.slides.push({id:nextId('sl'), heading:'New slide', sub:'', buttonText:'', buttonPage:'stock', photoId:null, videoUrl:''});
-  touchSite(); saveDB(); editSiteSection(pid,sid);
-}
-function deleteSlide(pid,sid,slid){
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  s.slides = s.slides.filter(x=>x.id!==slid); touchSite(); saveDB(); editSiteSection(pid,sid);
-}
-function moveSlide(pid,sid,slid,dir){
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  const i = s.slides.findIndex(x=>x.id===slid), j=i+dir;
-  if(j<0||j>=s.slides.length) return;
-  [s.slides[i],s.slides[j]]=[s.slides[j],s.slides[i]];
-  touchSite(); saveDB(); editSiteSection(pid,sid);
-}
-function addItem(pid,sid){
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  s.items.push({id:nextId('it'), title:'', text:'', stars:5}); touchSite(); saveDB(); editSiteSection(pid,sid);
-}
-function deleteItem(pid,sid,iid){
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  s.items = s.items.filter(x=>x.id!==iid); touchSite(); saveDB(); editSiteSection(pid,sid);
-}
-function moveItem(pid,sid,iid,dir){
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  const i = s.items.findIndex(x=>x.id===iid), j=i+dir;
-  if(j<0||j>=s.items.length) return;
-  [s.items[i],s.items[j]]=[s.items[j],s.items[i]];
-  touchSite(); saveDB(); editSiteSection(pid,sid);
-}
-async function uploadSlidePhoto(ev, pid, sid, slid){
-  const f = ev.target.files && ev.target.files[0]; if(!f) return;
-  const blob = await compressImage(f, 1920, 0.82);   // full-width banner
+function addSlide(pid,sid){ wbCollect(pid,sid); const s = wbFind(pid,sid);
+  s.slides.push({id:nextId('sl'), heading:'New slide', sub:'', buttonText:'', buttonPage:'stock', photoId:null, videoUrl:''}); wbReopen(pid,sid); }
+function deleteSlide(pid,sid,slid){ wbCollect(pid,sid); const s = wbFind(pid,sid); s.slides = s.slides.filter(x=>x.id!==slid); wbReopen(pid,sid); }
+function moveSlide(pid,sid,slid,dir){ wbCollect(pid,sid); const s = wbFind(pid,sid);
+  const i = s.slides.findIndex(x=>x.id===slid), j=i+dir; if(j<0||j>=s.slides.length) return;
+  [s.slides[i],s.slides[j]]=[s.slides[j],s.slides[i]]; wbReopen(pid,sid); }
+function removeSlidePhoto(pid,sid,slid){ wbCollect(pid,sid); const s = wbFind(pid,sid); const sl = s.slides.find(x=>x.id===slid); if(sl) sl.photoId = null; wbReopen(pid,sid); }
+function addItem(pid,sid){ wbCollect(pid,sid); const s = wbFind(pid,sid); s.items.push({id:nextId('it'), title:'', text:'', stars:5}); wbReopen(pid,sid); }
+function deleteItem(pid,sid,iid){ wbCollect(pid,sid); const s = wbFind(pid,sid); s.items = s.items.filter(x=>x.id!==iid); wbReopen(pid,sid); }
+function moveItem(pid,sid,iid,dir){ wbCollect(pid,sid); const s = wbFind(pid,sid);
+  const i = s.items.findIndex(x=>x.id===iid), j=i+dir; if(j<0||j>=s.items.length) return;
+  [s.items[i],s.items[j]]=[s.items[j],s.items[i]]; wbReopen(pid,sid); }
+
+async function uploadSlidePhotoFile(f, pid, sid, slid){
+  if(!f) return; wbCollect(pid,sid); wbToast('Uploading photo…');
+  const blob = await compressImage(f, 1920, 0.82);
   const res = await storePhoto(blob);
   if(!res.ref){ alert("The photo couldn't be saved. Error: " + (res.error||'unknown')); return; }
   notePhotoFallback(res);
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  const sl = s.slides.find(x=>x.id===slid); sl.photoId = res.ref;
-  touchSite(); saveDB(); editSiteSection(pid,sid);
+  const s = wbFind(pid,sid); const sl = s.slides.find(x=>x.id===slid); sl.photoId = res.ref;
+  wbReopen(pid,sid); wbToast('Photo added');
 }
-async function uploadGalleryPhotos(ev, pid, sid){
-  const files = Array.from(ev.target.files||[]); if(!files.length) return;
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  if(!s.photoIds) s.photoIds = [];
+async function uploadGalleryFiles(files, pid, sid){
+  if(!files.length) return; wbCollect(pid,sid); wbToast('Uploading ' + files.length + (files.length===1?' photo…':' photos…'));
+  const s = wbFind(pid,sid); if(!s.photoIds) s.photoIds = [];
   for(const f of files){
-    const blob = await compressImage(f, 1400, 0.82);
-    const res = await storePhoto(blob);
-    if(res.ref){ s.photoIds.push(res.ref); notePhotoFallback(res); }
-    else alert("A photo couldn't be saved. Error: " + (res.error||'unknown'));
+    const blob = await compressImage(f, 1400, 0.82); const res = await storePhoto(blob);
+    if(res.ref){ s.photoIds.push(res.ref); notePhotoFallback(res); } else alert("A photo couldn't be saved. Error: " + (res.error||'unknown'));
   }
-  touchSite(); saveDB(); editSiteSection(pid,sid);
+  wbReopen(pid,sid); wbToast('Photos added');
 }
-function removeGalleryPhoto(pid,sid,photoId){
-  const s = siteData().pages.find(p=>p.id===pid).sections.find(x=>x.id===sid);
-  s.photoIds = (s.photoIds||[]).filter(x=>x!==photoId);
-  touchSite(); saveDB(); editSiteSection(pid,sid);
-}
+function removeGalleryPhoto(pid,sid,photoId){ wbCollect(pid,sid); const s = wbFind(pid,sid); s.photoIds = (s.photoIds||[]).filter(x=>x!==photoId); wbReopen(pid,sid); }
 
 /* ---------- menu ---------- */
 function renderSbMenu(S){
   return `
-  <div class="small-muted" style="margin-bottom:8px;">The links across the top of your website. Use the arrows to reorder.</div>
-  <div class="card" style="padding:0;">
-    <table><thead><tr><th>Label</th><th>Goes to</th><th></th></tr></thead><tbody>
-    ${S.menu.map((m,i)=>`<tr>
-      <td><input value="${escapeAttr(m.label)}" onchange="updateMenuItem('${m.id}','label',this.value)" style="max-width:200px;"/></td>
-      <td><select onchange="updateMenuItem('${m.id}','page',this.value)">
-        ${S.pages.map(p=>`<option value="${p.id}" ${m.page===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}
-      </select></td>
-      <td style="white-space:nowrap;">
-        <button class="btn btn-sm btn-ghost" onclick="moveMenu('${m.id}',-1)" ${i===0?'disabled':''}>↑</button>
-        <button class="btn btn-sm btn-ghost" onclick="moveMenu('${m.id}',1)" ${i===S.menu.length-1?'disabled':''}>↓</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteMenuItem('${m.id}')">✕</button>
-      </td></tr>`).join('')}
-    </tbody></table>
+  <div class="wb-hint">The links across the top of your website. Drag <b>⠿</b> to reorder.</div>
+  <div id="wbMenuList" class="wb-list">
+    ${S.menu.map(m=>`<div class="wb-row" data-id="${m.id}">
+      <button class="wb-grip" aria-label="Drag to reorder">⠿</button>
+      <input class="wb-in" value="${escapeAttr(m.label)}" onchange="updateMenuItem('${m.id}','label',this.value)" aria-label="Label">
+      <select class="wb-in" onchange="updateMenuItem('${m.id}','page',this.value)" aria-label="Goes to">${S.pages.map(p=>`<option value="${p.id}" ${m.page===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select>
+      <button class="wb-mini del" onclick="deleteMenuItem('${m.id}')" aria-label="Remove">✕</button>
+    </div>`).join('')}
   </div>
-  <button class="btn btn-ghost" style="margin-top:10px;" onclick="addMenuItem()">+ Add menu link</button>`;
+  <button class="wb-add" onclick="addMenuItem()"><span>＋</span> Add a menu link</button>`;
 }
-function updateMenuItem(id, field, v){
-  const m = siteData().menu.find(x=>x.id===id); if(!m) return;
-  m[field]=v; touchSite(); saveDB();
-}
-function moveMenu(id,dir){
-  const S=siteData(); const i=S.menu.findIndex(m=>m.id===id), j=i+dir;
-  if(j<0||j>=S.menu.length) return;
-  [S.menu[i],S.menu[j]]=[S.menu[j],S.menu[i]]; touchSite(); saveDB(); render();
-}
-function deleteMenuItem(id){
-  const S=siteData(); S.menu=S.menu.filter(m=>m.id!==id); touchSite(); saveDB(); render();
-}
-function addMenuItem(){
-  const S=siteData();
-  S.menu.push({id:nextId('mi'), label:'New link', page:S.pages[0].id});
-  touchSite(); saveDB(); render();
-}
+function updateMenuItem(id, field, v){ const m = siteData().menu.find(x=>x.id===id); if(!m) return; m[field]=v; touchSite(); saveDB(); }
+function moveMenu(id,dir){ const S=siteData(); const i=S.menu.findIndex(m=>m.id===id), j=i+dir; if(j<0||j>=S.menu.length) return; [S.menu[i],S.menu[j]]=[S.menu[j],S.menu[i]]; touchSite(); saveDB(); render(); }
+function deleteMenuItem(id){ const S=siteData(); S.menu=S.menu.filter(m=>m.id!==id); touchSite(); saveDB(); render(); }
+function addMenuItem(){ const S=siteData(); S.menu.push({id:nextId('mi'), label:'New link', page:S.pages[0].id}); touchSite(); saveDB(); render(); }
 
-/* ---------- settings ---------- */
+/* ---------- details ---------- */
+function wbHoursString(h){
+  const t = x=>String(x||'').replace(/^0/,'');
+  return 'Mon - Sat ' + t(h.weekOpen) + ' - ' + t(h.weekClose) + ' \u00b7 ' + (h.sunClosed ? 'Sun closed' : 'Sun ' + t(h.sunOpen) + ' - ' + t(h.sunClose));
+}
 function renderSbSettings(S){
   const st = S.settings;
+  const h = st.hoursData || {weekOpen:'09:00', weekClose:'18:00', sunOpen:'09:00', sunClose:'16:00', sunClosed:false};
+  const waOk = /^44\d{9,10}$/.test(st.whatsapp||'');
   return `
-  <div class="card">
-    <h3 style="margin-bottom:12px;">Business details</h3>
+  <div class="wb-card2">
+    <h3>📞 How customers reach you</h3>
     <div class="field-row">
-      <div class="field"><label>Business name</label><input id="st_name" value="${escapeAttr(st.name||'')}" onchange="saveSiteSettings()"/></div>
-      <div class="field"><label>Tagline</label><input id="st_tag" value="${escapeAttr(st.tagline||'')}" onchange="saveSiteSettings()"/></div>
+      <div class="field"><label>Phone</label><input id="st_phone" value="${escapeAttr(st.phone||'')}" placeholder="07508 848893" onchange="saveSiteSettings()"/></div>
+      <div class="field"><label>WhatsApp <span class="small-muted">starts with 44, no + or spaces</span></label><input id="st_wa" value="${escapeAttr(st.whatsapp||'')}" placeholder="447508848893" onchange="saveSiteSettings()"/>
+        <div class="small-muted" style="margin-top:4px;color:${waOk?'var(--green)':'var(--amber)'}">${st.whatsapp?(waOk?'✓ Looks right':'Check this: UK numbers look like 447508848893'):'Needed for the Enquire buttons'}</div></div>
     </div>
-    <div class="field-row">
-      <div class="field"><label>Phone</label><input id="st_phone" value="${escapeAttr(st.phone||'')}" onchange="saveSiteSettings()"/></div>
-      <div class="field"><label>WhatsApp <span class="small-muted">(e.g. 447700900123)</span></label><input id="st_wa" value="${escapeAttr(st.whatsapp||'')}" onchange="saveSiteSettings()"/></div>
-      <div class="field"><label>Email</label><input id="st_email" value="${escapeAttr(st.email||'')}" onchange="saveSiteSettings()"/></div>
-    </div>
-    <div class="field"><label>Address</label><textarea id="st_addr" rows="3" onchange="saveSiteSettings()">${escapeHtml((st.address||[]).join('\n'))}</textarea>
-      <div class="small-muted">One line each.</div></div>
-    <div class="field-row">
-      <div class="field"><label>Opening hours</label><input id="st_hours" value="${escapeAttr(st.hours||'')}" onchange="saveSiteSettings()"/></div>
-      <div class="field"><label>Google Maps search</label><input id="st_maps" value="${escapeAttr(st.mapsQuery||'')}" placeholder="Car Express Hemel Hempstead" onchange="saveSiteSettings()"/></div>
-    </div>
+    <div class="field"><label>Email</label><input id="st_email" value="${escapeAttr(st.email||'')}" placeholder="contact@carexpress.co" onchange="saveSiteSettings()"/></div>
   </div>
 
-  <div class="card" style="margin-top:14px;">
-    <h3 style="margin-bottom:12px;">Social links</h3>
+  <div class="wb-card2">
+    <h3>📍 Where you are</h3>
+    <div class="field"><label>Address <span class="small-muted">one line each</span></label><textarea id="st_addr" rows="3" onchange="saveSiteSettings()">${escapeHtml((st.address||[]).join('\n'))}</textarea></div>
+    <div class="field"><label>Google Maps search <span class="small-muted">what to show on the map</span></label><input id="st_maps" value="${escapeAttr(st.mapsQuery||'')}" placeholder="Car Express, Fletcher Way, Hemel Hempstead" onchange="saveSiteSettings()"/></div>
+  </div>
+
+  <div class="wb-card2">
+    <h3>🕘 Opening hours</h3>
+    <div class="wb-hours">
+      <div><b>Monday to Saturday</b>
+        <input type="time" id="hr_wo" value="${h.weekOpen}" onchange="saveSiteSettings()"> to <input type="time" id="hr_wc" value="${h.weekClose}" onchange="saveSiteSettings()"></div>
+      <div><b>Sunday</b>
+        <input type="time" id="hr_so" value="${h.sunOpen}" ${h.sunClosed?'disabled':''} onchange="saveSiteSettings()"> to <input type="time" id="hr_sc" value="${h.sunClose}" ${h.sunClosed?'disabled':''} onchange="saveSiteSettings()">
+        <label class="wb-chk"><input type="checkbox" id="hr_sx" ${h.sunClosed?'checked':''} onchange="saveSiteSettings(true)"> closed</label></div>
+    </div>
+    <div class="wb-hours-prev">The website will show: <b id="hrPrev">${escapeHtml(st.hours||wbHoursString(h))}</b></div>
+  </div>
+
+  <div class="wb-card2">
+    <h3>🔗 Social links <span class="small-muted">optional</span></h3>
     <div class="field-row">
       <div class="field"><label>Facebook</label><input id="st_fb" value="${escapeAttr((st.social||{}).facebook||'')}" onchange="saveSiteSettings()"/></div>
       <div class="field"><label>Instagram</label><input id="st_ig" value="${escapeAttr((st.social||{}).instagram||'')}" onchange="saveSiteSettings()"/></div>
@@ -4782,30 +5325,26 @@ function renderSbSettings(S){
     </div>
   </div>
 
-  <div class="card" style="margin-top:14px;">
-    <h3 style="margin-bottom:12px;">Colours</h3>
-    <div class="field-row">
-      <div class="field"><label>Main colour</label><input id="st_c1" type="color" value="${st.primaryColour||'#DC2226'}" onchange="saveSiteSettings()" style="height:48px;"/></div>
-      <div class="field"><label>Dark colour</label><input id="st_c2" type="color" value="${st.darkColour||'#17428C'}" onchange="saveSiteSettings()" style="height:48px;"/></div>
-    </div>
-  </div>`;
+  <div class="wb-note">🎨 The website is designed in black, red and silver, so there are no colours to pick. Your logo and look are handled for you.</div>`;
 }
-function saveSiteSettings(){
+function saveSiteSettings(rerender){
   const S = siteData(), st = S.settings;
   const v = id => { const e=document.getElementById(id); return e?e.value:undefined; };
-  st.name = v('st_name'); st.tagline = v('st_tag');
   st.phone = v('st_phone'); st.whatsapp = (v('st_wa')||'').replace(/\D/g,''); st.email = v('st_email');
   st.address = (v('st_addr')||'').split('\n').map(x=>x.trim()).filter(Boolean);
-  st.hours = v('st_hours'); st.mapsQuery = v('st_maps');
+  st.mapsQuery = v('st_maps');
   st.social = {facebook:v('st_fb'), instagram:v('st_ig'), tiktok:v('st_tt'), youtube:v('st_yt')};
-  st.primaryColour = v('st_c1'); st.darkColour = v('st_c2');
-  touchSite(); saveDB();
+  if(document.getElementById('hr_wo')){
+    st.hoursData = {weekOpen:v('hr_wo'), weekClose:v('hr_wc'), sunOpen:v('hr_so'), sunClose:v('hr_sc'), sunClosed:!!(document.getElementById('hr_sx')||{}).checked};
+    st.hours = wbHoursString(st.hoursData);
+    const p = document.getElementById('hrPrev'); if(p) p.textContent = st.hours;
+  }
+  touchSite(); saveDB(); if(rerender) render(); else wbToast('Saved');
 }
 
-/* ---------- publish ---------- */
+/* ---------- publish and preview ---------- */
 function sitePayload(){
   const S = JSON.parse(JSON.stringify(siteData()));
-  // swap photo ids for public URLs so the website can load them
   S.pages.forEach(p => p.sections.forEach(sec => {
     if(sec.slides) sec.slides.forEach(sl => { sl.photo = sl.photoId ? photoUrlSync(sl.photoId) : null; delete sl.photoId; });
     if(sec.photoIds){ sec.photos = sec.photoIds.map(id=>photoUrlSync(id)).filter(Boolean); delete sec.photoIds; }
@@ -4814,78 +5353,66 @@ function sitePayload(){
 }
 async function publishSite(){
   if(!isManager()) return;
-  const S = siteData();
-  if(!S.settings.phone || !S.settings.whatsapp){
-    if(!confirm("Your phone or WhatsApp number is missing, so customers won't be able to contact you.\n\nPublish anyway?")) return;
-  }
+  const S = siteData(), miss = wbChecklist().filter(c=>!c.ok && ['Phone number','WhatsApp number'].includes(c.label)).map(c=>c.label);
+  if(miss.length && !confirm("These are missing, so customers won't be able to contact you:\n\n• " + miss.join('\n• ') + "\n\nPublish anyway?")) return;
   try{
-    const {error} = await sb.from('public_site').upsert({
-      id:'site', data: sitePayload(), updated_at: new Date().toISOString()
-    });
+    const {error} = await sb.from('public_site').upsert({id:'site', data: sitePayload(), updated_at: new Date().toISOString()});
     if(error) throw error;
     DB.sitePublishedAt = new Date().toISOString();
-    logChange('stock','Published website', {id:'site',label:'Website'}, '', '',
-      S.pages.length + ' pages');
-    saveDB(); render();
-    alert('Website published. Your changes are live within a few seconds.');
+    logChange('stock','Published website', {id:'site',label:'Website'}, '', '', S.pages.length + ' pages');
+    saveDB(); render(); wbToast('Published. It\u2019s live in a few seconds.');
   }catch(e){
-    alert('Could not publish the site.\n\n' + (e.message||e) +
-          '\n\nIf this is the first time, the public_site table may not be set up yet — see WEBSITE-SETUP.md.');
+    alert('Could not publish the site.\n\n' + (e.message||e) + '\n\nIf this is the first time, the public_site table may not be set up yet — see WEBSITE-SETUP.md.');
   }
 }
+
 function previewSite(){
-  const S = siteData();
+  const S = siteData(), st = S.settings, esc = escapeHtml;
   const page = S.pages.find(p=>p.id===sbPage) || S.pages[0];
-  const w = window.open('','_blank');
-  const st = S.settings;
-  const esc = escapeHtml;
+  const w = window.open('','_blank'); if(!w){ alert('Allow pop-ups to see the preview.'); return; }
+  const cars = (DB.vehicles||[]).filter(v=>v.status!=='sold' && v.published!==false);
+  const link = id => (S.pages.find(p=>p.id===id)||{name:''}).name;
   const sec = s => {
     if(s.visible===false) return '';
-    if(s.type==='hero') return (s.slides||[]).map(sl=>`
-      <div style="background:${st.darkColour};color:#fff;padding:60px 24px;text-align:center;
-        ${sl.photoId?`background-image:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.55)),url('${getPhotoUrl(sl.photoId)}');background-size:cover;background-position:center;`:''}">
-        <h1 style="margin:0 0 10px;font-size:32px;">${esc(sl.heading||'')}</h1>
-        <p style="margin:0 0 18px;opacity:.9">${esc(sl.sub||'')}</p>
-        ${sl.buttonText?`<span style="background:${st.primaryColour};color:#fff;padding:12px 24px;border-radius:4px;display:inline-block;">${esc(sl.buttonText)}</span>`:''}
-      </div>`).join('');
-    if(s.type==='cars') return `<div style="padding:30px 24px;text-align:center;background:#f4f6fa">
-      <h2>${esc(s.title||'Cars')}</h2><p style="color:#667">${s.showAll?'A few cars with a view-all button':'Every available car'} — pulled live from your stock</p></div>`;
-    if(s.type==='text') return `<div style="padding:30px 24px;"><h2>${esc(s.title||'')}</h2>
-      ${(s.body||'').split('\\n\\n').map(p=>`<p>${esc(p)}</p>`).join('')}</div>`;
-    if(s.type==='steps'||s.type==='features') return `<div style="padding:30px 24px;background:#f4f6fa">
-      <h2>${esc(s.title||'')}</h2>${(s.items||[]).map((it,i)=>`<div style="margin:14px 0;">
-      <strong style="color:${st.primaryColour}">${s.type==='steps'?('Step '+(i+1)):''}</strong>
-      <div style="font-weight:700">${esc(it.title||'')}</div><div style="color:#667">${esc(it.text||'')}</div></div>`).join('')}</div>`;
-    if(s.type==='reviews') return `<div style="padding:30px 24px;"><h2>${esc(s.title||'Reviews')}</h2>
-      ${(s.items||[]).map(it=>`<div style="border:1px solid #ddd;border-radius:8px;padding:14px;margin:10px 0;">
-      <div style="color:#E8B33A">${'★'.repeat(Number(it.stars||5))}</div><p>${esc(it.text||'')}</p>
-      <div style="color:#667">— ${esc(it.title||'')}</div></div>`).join('')}</div>`;
-    if(s.type==='gallery') return `<div style="padding:30px 24px;background:#f4f6fa"><h2>${esc(s.title||'Gallery')}</h2>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;">
-      ${(s.photoIds||[]).map(id=>`<img src="${getPhotoUrl(id)}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;">`).join('')}</div></div>`;
-    if(s.type==='video') return `<div style="padding:30px 24px;text-align:center;"><h2>${esc(s.title||'Video')}</h2>
-      <div style="background:#000;color:#fff;padding:50px;border-radius:8px;">${s.videoUrl?esc(s.videoUrl):'No video set'}</div></div>`;
-    if(s.type==='cta') return `<div style="padding:40px 24px;text-align:center;background:${st.primaryColour};color:#fff;">
-      <h2 style="color:#fff">${esc(s.title||'')}</h2>
-      ${s.buttonText?`<span style="background:#fff;color:${st.primaryColour};padding:12px 24px;border-radius:4px;display:inline-block;font-weight:700;">${esc(s.buttonText)}</span>`:''}</div>`;
-    if(s.type==='contact') return `<div style="padding:30px 24px;background:${st.darkColour};color:#fff;">
-      <h2 style="color:#fff">${esc(s.title||'Get in touch')}</h2>
-      <p>📞 ${esc(st.phone||'—')}<br>✉️ ${esc(st.email||'—')}<br>📍 ${esc((st.address||[]).join(', '))}</p>
-      <p style="opacity:.8">${esc(st.hours||'')}</p></div>`;
+    if(s.type==='hero') { const sl=(s.slides||[])[0]||{}; return `<section class="hero" style="${sl.photoId?`--ph:url('${getPhotoUrl(sl.photoId)}')`:''}"><div class="ph"></div><div class="in"><h1>${esc(sl.heading||'')}</h1><p>${esc(sl.sub||'')}</p>${sl.buttonText?`<a class="b">${esc(sl.buttonText)}</a>`:''}${(s.slides||[]).length>1?`<div class="more">+ ${(s.slides||[]).length-1} more slide${(s.slides||[]).length===2?'':'s'}</div>`:''}</div></section>`; }
+    if(s.type==='cars') return `<section class="sx"><h2>${esc(s.title||'Cars')}</h2><p class="m">${cars.length||'Your'} cars appear here, live from your stock, with a body-type and price finder.</p><div class="grid">${[1,2,3].map(()=>'<div class="card"><div class="pic"></div><b>A car from your stock</b></div>').join('')}</div></section>`;
+    if(s.type==='text') return `<section class="sx"><h2>${esc(s.title||'')}</h2>${(s.body||'').split(/\n\s*\n/).map(p=>`<p>${esc(p)}</p>`).join('')}</section>`;
+    if(s.type==='features') return `<section class="sx alt"><h2>${esc(s.title||'')}</h2><div class="grid">${(s.items||[]).map(it=>`<div class="card"><b>${esc(it.title||'')}</b><p>${esc(it.text||'')}</p></div>`).join('')}</div></section>`;
+    if(s.type==='steps') return `<section class="sx"><h2>${esc(s.title||'')}</h2><div class="grid">${(s.items||[]).map((it,i)=>`<div class="card"><span class="n">${i+1}</span><b>${esc(it.title||'')}</b><p>${esc(it.text||'')}</p></div>`).join('')}</div></section>`;
+    if(s.type==='reviews') return `<section class="sx alt"><h2>${esc(s.title||'Reviews')}</h2><div class="grid">${(s.items||[]).map(it=>`<div class="card"><div class="st">${'★'.repeat(Number(it.stars||5))}</div><p>${esc(it.text||'')}</p><small>${esc(it.title||'')}</small></div>`).join('')}</div></section>`;
+    if(s.type==='gallery') return `<section class="sx"><h2>${esc(s.title||'Gallery')}</h2><div class="gal">${(s.photoIds||[]).map(id=>`<img src="${getPhotoUrl(id)}">`).join('')||'<p class="m">No photos yet</p>'}</div></section>`;
+    if(s.type==='video') return `<section class="sx"><h2>${esc(s.title||'Video')}</h2><div class="vid">${s.videoUrl?esc(s.videoUrl):'No video added yet'}</div></section>`;
+    if(s.type==='cta') return `<section class="cta"><h2>${esc(s.title||'')}</h2>${s.buttonText?`<a class="b dark">${esc(s.buttonText)}</a>`:''}</section>`;
+    if(s.type==='contact') return `<section class="sx alt"><h2>${esc(s.title||'Get in touch')}</h2><div class="grid"><div class="card"><b>Call</b><p>${esc(st.phone||'Add your number in Details')}</p></div><div class="card"><b>Visit</b><p>${esc((st.address||[]).join(', '))}</p></div><div class="card"><b>Opening hours</b><p>${esc(st.hours||'')}</p></div></div></section>`;
     return '';
   };
-  w.document.write(`<html><head><title>Preview — ${esc(page?page.name:'')}</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <style>body{margin:0;font-family:system-ui,sans-serif;line-height:1.6}h1,h2{font-family:system-ui}</style></head><body>
-    <div style="background:${st.darkColour};color:#fff;padding:12px 18px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
-      <strong>${esc(st.name||'')}</strong>
-      ${S.menu.map(m=>`<span style="opacity:.85;font-size:14px">${esc(m.label)}</span>`).join('')}
-    </div>
-    <div style="background:#FFF3CD;padding:8px 18px;font-size:13px;">Preview of <b>${esc(page?page.name:'')}</b> — this is a rough guide, the live site uses your full template design.</div>
-    ${page ? page.sections.map(sec).join('') : ''}
-  </body></html>`);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Preview — ${esc(page?page.name:'')}</title><meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+  *{box-sizing:border-box}body{margin:0;background:#000;color:#c8ccd2;font:16px/1.55 system-ui,sans-serif}
+  .bar{position:sticky;top:0;z-index:5;background:#000;border-bottom:1px solid #2b2d31;padding:12px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .bar strong{color:#fff;font-size:20px;font-style:italic}.bar span{font-size:14px}
+  .tip{background:#e10600;color:#fff;padding:8px 20px;font-size:13px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .tip button{background:#000;color:#fff;border:0;padding:4px 12px;cursor:pointer}
+  .wrap{margin:0 auto;transition:max-width .3s;max-width:1100px;background:#000}
+  .hero{position:relative;padding:90px 30px;background:#000;overflow:hidden}.hero .ph{position:absolute;inset:0;background:var(--ph) center/cover;filter:grayscale(1) brightness(.8)}
+  .hero:before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(100deg,rgba(0,0,0,.78) 25%,rgba(225,6,0,.38))}
+  .hero .in{position:relative;z-index:2;max-width:640px}.hero h1{margin:0 0 12px;font-size:44px;line-height:1;color:#eceef1;font-style:italic}.hero p{margin:0 0 20px}
+  .b{display:inline-block;background:#e10600;color:#fff;padding:12px 26px;font-weight:700;font-style:italic}.b.dark{background:#000}.more{margin-top:16px;font-size:13px;opacity:.7}
+  .sx{padding:50px 30px}.sx.alt{background:#0b0b0d;border-block:1px solid #2b2d31}.sx h2{margin:0 0 18px;font-size:34px;color:#eceef1;font-style:italic;line-height:1}
+  .m{color:#868c95}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+  .card{background:#121316;border:1px solid #2b2d31;border-top:3px solid #e10600;padding:18px}.card b{color:#fff;font-size:18px}.card p{margin:6px 0 0}.card small{color:#868c95}
+  .pic{height:110px;background:#1b1c20;margin-bottom:10px}.n{display:block;color:#e10600;font-size:34px;font-weight:800;font-style:italic}.st{color:#e10600;letter-spacing:3px}
+  .gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.gal img{width:100%;height:120px;object-fit:cover}
+  .vid{background:#111;padding:60px;text-align:center;border:1px solid #2b2d31}.cta{background:#e10600;color:#fff;text-align:center;padding:50px 20px}.cta h2{color:#fff;margin:0 0 16px;font-size:34px;font-style:italic}
+  </style></head><body>
+  <div class="tip"><span>Preview of <b>${esc(page?page.name:'')}</b>. The live site adds motion, your logo and live cars.</span><span><button onclick="document.getElementById('w').style.maxWidth='390px'">📱 Phone</button> <button onclick="document.getElementById('w').style.maxWidth='1100px'">🖥 Desktop</button></span></div>
+  <div class="wrap" id="w">
+  <div class="bar"><strong>${esc(st.name||'Car Express')}</strong>${S.menu.map(m=>`<span>${esc(m.label)}</span>`).join('')}</div>
+  ${page ? page.sections.map(sec).join('') || '<section class="sx"><p class="m">This page has no sections yet.</p></section>' : ''}
+  </div></body></html>`);
   w.document.close();
 }
+
 
 
 /* =========================================================================
@@ -5224,6 +5751,816 @@ function openFloatDetail(email){
     </div>`);
 }
 
+
+/* =========================================================================
+   BACKUPS & SAFETY NET
+   - Download a full backup as a file you keep yourself
+   - Restore from one if something goes badly wrong
+   - Deleted records go to a recycle bin for 30 days rather than vanishing
+   ========================================================================= */
+
+function backupPayload(){
+  return {
+    app: 'forecourt-backup', version: 1,
+    business: DB.bizName || '', takenAt: new Date().toISOString(),
+    takenBy: currentUserName || '', data: DB
+  };
+}
+
+function downloadBackup(){
+  if(!isManager()) return;
+  const blob = new Blob([JSON.stringify(backupPayload(), null, 1)], {type:'application/json'});
+  const name = (DB.bizName||'forecourt').replace(/[^a-z0-9]+/gi,'-').toLowerCase()
+             + '-backup-' + todayISO() + '.json';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  DB.lastBackupAt = new Date().toISOString();
+  saveDB();
+  logChange('settings','Downloaded a backup', {id:'backup',label:'Backup'}, '', '', name, '');
+}
+
+function backupAgeDays(){
+  if(!DB.lastBackupAt) return null;
+  return Math.floor((Date.now() - new Date(DB.lastBackupAt).getTime()) / 86400000);
+}
+
+function openBackupPanel(){
+  if(!isManager()) return;
+  const age = backupAgeDays();
+  const counts = {
+    Vehicles: (DB.vehicles||[]).length,
+    Sales: (DB.vehicles||[]).filter(v=>v.sale).length,
+    Customers: (DB.customers||[]).length,
+    Leads: (DB.leads||[]).length,
+    Investors: (DB.muzaribs||[]).length,
+    'Investor entries': (DB.muzaribTx||[]).length,
+    'Change log': (DB.changeLog||[]).length
+  };
+  const bin = (DB.trash||[]).length;
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Backups</h3>
+    ${age===null
+      ? '<div class="overdue-banner"><span>You have never taken a backup. Take one now and keep it somewhere outside this app.</span></div>'
+      : age >= 7
+        ? `<div class="overdue-banner"><span>Your last backup was ${age} days ago. Worth taking a fresh one.</span></div>`
+        : `<div class="small-muted" style="margin-bottom:10px;">Last backup ${age===0?'today':age+' day'+(age===1?'':'s')+' ago'}.</div>`}
+
+    <div class="card" style="padding:14px;margin-bottom:12px;">
+      <div style="font-weight:700;margin-bottom:8px;">What's in the backup</div>
+      <table>${Object.entries(counts).map(([k,v])=>`<tr><td>${k}</td><td class="num" style="text-align:right">${v}</td></tr>`).join('')}</table>
+    </div>
+
+    <div class="row" style="gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-brand" onclick="downloadBackup();closeModal();">⬇ Download backup now</button>
+      ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="document.getElementById('restoreFile').click()">⬆ Restore from a backup</button>`:''}
+      ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="openCloudBackups()">☁ Backup history</button>`:''}
+      ${bin?`<button class="btn btn-ghost" onclick="openRecycleBin()">🗑 Recycle bin (${bin})</button>`:''}
+    </div>
+    <input type="file" id="restoreFile" accept="application/json" style="display:none" onchange="restoreFromFile(event)"/>
+
+    <div class="card" style="padding:14px;margin-top:14px;background:var(--brand-dim);box-shadow:none;">
+      <div style="font-weight:700;margin-bottom:6px;">Where to keep it</div>
+      <div class="small-muted">The file downloads to your phone or computer. Put a copy somewhere else as well
+      &mdash; email it to yourself, or save it to Google Drive. A backup stored only on the device you
+      use every day is not much of a backup.</div>
+    </div>`);
+}
+
+async function restoreFromFile(ev){
+  if(!isSuperAdmin()) return;
+  const f = ev.target.files && ev.target.files[0]; if(!f) return;
+  let payload;
+  try { payload = JSON.parse(await f.text()); }
+  catch(e){ alert("That file couldn't be read. Make sure it's a backup file from this app."); return; }
+  const d = payload && payload.data;
+  if(!d || !Array.isArray(d.vehicles)){ alert("That doesn't look like a backup from this app."); return; }
+
+  const taken = payload.takenAt ? fmtDate(payload.takenAt.slice(0,10)) : 'unknown date';
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Restore from backup</h3>
+    <div class="overdue-banner"><span><b>This replaces everything currently in the app.</b>
+    Anything added since this backup was taken will be lost.</span></div>
+    <table style="margin:12px 0;">
+      <tr><td>Backup taken</td><td><b>${taken}</b></td></tr>
+      <tr><td>By</td><td>${escapeHtml(payload.takenBy||'—')}</td></tr>
+      <tr><td>Business</td><td>${escapeHtml(payload.business||'—')}</td></tr>
+      <tr><td>Vehicles in backup</td><td><b>${d.vehicles.length}</b> (you have ${(DB.vehicles||[]).length} now)</td></tr>
+      <tr><td>Investors in backup</td><td><b>${(d.muzaribs||[]).length}</b> (you have ${(DB.muzaribs||[]).length} now)</td></tr>
+    </table>
+    <div class="field"><label>Type RESTORE to confirm</label><input id="rst_confirm" placeholder="RESTORE"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="doRestore()">Replace everything</button>
+    </div>`);
+  window._restorePayload = d;
+}
+
+function doRestore(){
+  if(!isSuperAdmin()) return;
+  if((document.getElementById('rst_confirm').value||'').trim().toUpperCase() !== 'RESTORE'){
+    alert('Type RESTORE to confirm.'); return;
+  }
+  const d = window._restorePayload; if(!d) return;
+  // keep a copy of what we are about to overwrite, in case it was a mistake
+  try { localStorage.setItem('preRestoreSnapshot', JSON.stringify(DB)); } catch(e){}
+  Object.keys(DB).forEach(k=>{ delete DB[k]; });
+  Object.assign(DB, d);
+  logChange('settings','Restored from a backup', {id:'backup',label:'Backup'}, '', '',
+            (d.vehicles||[]).length + ' vehicles', 'Everything was replaced');
+  saveDB(); closeModal(); render();
+  alert('Restored.\n\nIf this was a mistake, do not make any further changes — tell whoever set this up, the previous data is still recoverable from this device.');
+}
+
+/* ---------- recycle bin ---------- */
+function sendToTrash(kind, record, label){
+  if(!DB.trash) DB.trash = [];
+  DB.trash.unshift({id:nextId('bin'), kind, label, record,
+                    deletedAt:new Date().toISOString(), deletedBy:currentUserName});
+  // keep 30 days
+  const cutoff = Date.now() - 30*86400000;
+  DB.trash = DB.trash.filter(t=> new Date(t.deletedAt).getTime() > cutoff).slice(0,300);
+}
+
+function openRecycleBin(){
+  if(!isManager()) return;
+  const items = DB.trash || [];
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Recycle bin</h3>
+    <div class="small-muted" style="margin-bottom:10px;">
+      Anything deleted is kept here for 30 days. ${isSuperAdmin()?'You can put it back.':'Ask a Super Admin to restore anything you need.'}
+    </div>
+    ${items.length ? `<div class="card" style="padding:0;"><table>
+      <thead><tr><th>What</th><th>Type</th><th>Deleted</th><th>By</th><th></th></tr></thead><tbody>
+      ${items.map(t=>`<tr>
+        <td><b>${escapeHtml(t.label||'—')}</b></td>
+        <td>${escapeHtml(t.kind)}</td>
+        <td>${fmtDate(t.deletedAt.slice(0,10))}</td>
+        <td>${escapeHtml(t.deletedBy||'—')}</td>
+        <td>${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="restoreFromBin('${t.id}')">Put back</button>`:''}</td>
+      </tr>`).join('')}</tbody></table></div>`
+     : '<div class="empty">Nothing has been deleted in the last 30 days.</div>'}
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Close</button></div>`);
+}
+
+function restoreFromBin(binId){
+  if(!isSuperAdmin()) return;
+  const t = (DB.trash||[]).find(x=>x.id===binId); if(!t) return;
+  const target = {vehicle:'vehicles', customer:'customers', lead:'leads',
+                  investor:'muzaribs', expense:'expenses', payroll:'payroll'}[t.kind];
+  if(!target){ alert('That record type cannot be restored automatically.'); return; }
+  if(!DB[target]) DB[target] = [];
+  if(DB[target].some(x=>x.id===t.record.id)){ alert('That record is already back in the app.'); return; }
+  DB[target].push(t.record);
+  DB.trash = DB.trash.filter(x=>x.id!==binId);
+  logChange('settings','Restored from the recycle bin', {id:t.record.id,label:t.label}, '', '', t.kind, '');
+  saveDB(); closeModal(); render();
+}
+
+
+/* =========================================================================
+   AUTOMATIC WEEKLY BACKUPS, stored in your own database.
+   Runs quietly in the background once a week. Only a Super Admin can see
+   the history or restore from it.
+   ========================================================================= */
+
+async function saveCloudBackup(kind, note){
+  try{
+    const row = {
+      taken_by: currentUserName || '',
+      kind: kind || 'auto',
+      vehicles: (DB.vehicles||[]).length,
+      note: note || '',
+      data: DB
+    };
+    const {error} = await sb.from('app_backups').insert(row);
+    if(error) throw error;
+    DB.lastCloudBackupAt = new Date().toISOString();
+    saveDB();
+    return {ok:true};
+  }catch(e){
+    return {ok:false, error: (e && e.message) || String(e)};
+  }
+}
+
+/* DAILY BACKUP. Checked a few seconds after sign-in: if no snapshot has been
+   taken today, one is saved to the database. Runs once a day, not once per login. */
+async function maybeDailyBackup(){
+  if(!isManager()) return;
+  const last = DB.lastCloudBackupAt ? DB.lastCloudBackupAt.slice(0,10) : '';
+  if(last === todayISO()) return;          // already backed up today
+  const r = await saveCloudBackup('auto', 'Automatic daily backup');
+  if(r.ok) console.log('Daily backup saved.');
+}
+
+async function openCloudBackups(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can see the backup history.'); return; }
+  openModal('<h3>Backup history</h3><div class="small-muted">Loading…</div>');
+  let rows = [], err = null;
+  try{
+    const {data, error} = await sb.from('app_backups')
+      .select('id,taken_at,taken_by,kind,vehicles,note').order('taken_at',{ascending:false}).limit(30);
+    if(error) throw error; rows = data || [];
+  }catch(e){ err = (e && e.message) || String(e); }
+
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Backup history</h3>
+    ${err ? `<div class="overdue-banner"><span>Couldn't load the history: ${escapeHtml(err)}<br>
+      If this is the first time, the <b>app_backups</b> table may not be set up yet.</span></div>`
+    : rows.length ? `
+      <div class="small-muted" style="margin-bottom:10px;">A snapshot is taken automatically once a day,
+      the first time anyone signs in. The most recent 30 are kept &mdash; about a month of history.</div>
+      <div class="card" style="padding:0;"><table>
+        <thead><tr><th>Taken</th><th>Type</th><th>Vehicles</th><th>By</th><th></th></tr></thead><tbody>
+        ${rows.map(r=>`<tr>
+          <td>${fmtDate(r.taken_at.slice(0,10))} <span class="small-muted">${r.taken_at.slice(11,16)}</span></td>
+          <td><span class="tag ${r.kind==='auto'?'tag-grey':'tag-green'}">${r.kind==='auto'?'Daily':'Manual'}</span></td>
+          <td>${r.vehicles ?? '—'}</td>
+          <td>${escapeHtml(r.taken_by||'—')}</td>
+          <td><button class="btn btn-sm btn-ghost" onclick="restoreCloudBackup(${r.id})">Restore</button></td>
+        </tr>`).join('')}
+      </tbody></table></div>`
+    : '<div class="empty">No backups stored yet. Take one now and it will then run weekly.</div>'}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="takeManualCloudBackup()" style="margin-right:auto">Take one now</button>
+      <button class="btn btn-brand" onclick="closeModal()">Close</button>
+    </div>`);
+}
+
+async function takeManualCloudBackup(){
+  if(!isSuperAdmin()) return;
+  const r = await saveCloudBackup('manual', 'Taken by hand');
+  if(r.ok){ alert('Backup saved to your database.'); openCloudBackups(); }
+  else alert("Couldn't save the backup.\n\n" + r.error +
+             "\n\nIf this is the first time, run backup-table.sql in Supabase.");
+}
+
+async function restoreCloudBackup(id){
+  if(!isSuperAdmin()) return;
+  let row;
+  try{
+    const {data, error} = await sb.from('app_backups').select('*').eq('id', id).single();
+    if(error) throw error; row = data;
+  }catch(e){ alert("Couldn't load that backup.\n\n" + ((e&&e.message)||e)); return; }
+  if(!row || !row.data || !Array.isArray(row.data.vehicles)){ alert('That backup looks incomplete.'); return; }
+
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Restore this backup?</h3>
+    <div class="overdue-banner"><span><b>Everything currently in the app is replaced.</b>
+      Anything added since this snapshot will be lost.</span></div>
+    <table style="margin:12px 0;">
+      <tr><td>Taken</td><td><b>${fmtDate(row.taken_at.slice(0,10))} at ${row.taken_at.slice(11,16)}</b></td></tr>
+      <tr><td>By</td><td>${escapeHtml(row.taken_by||'—')}</td></tr>
+      <tr><td>Vehicles in it</td><td><b>${row.data.vehicles.length}</b> (you have ${(DB.vehicles||[]).length} now)</td></tr>
+      <tr><td>Investors in it</td><td><b>${(row.data.muzaribs||[]).length}</b> (you have ${(DB.muzaribs||[]).length} now)</td></tr>
+    </table>
+    <div class="field"><label>Type RESTORE to confirm</label><input id="cb_confirm" placeholder="RESTORE"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="openCloudBackups()">Back</button>
+      <button class="btn btn-danger" onclick="doCloudRestore(${id})">Replace everything</button>
+    </div>`);
+  window._cloudRestore = row.data;
+}
+
+async function doCloudRestore(id){
+  if(!isSuperAdmin()) return;
+  if((document.getElementById('cb_confirm').value||'').trim().toUpperCase() !== 'RESTORE'){
+    alert('Type RESTORE to confirm.'); return;
+  }
+  const d = window._cloudRestore; if(!d) return;
+  // snapshot what we're about to overwrite, so a wrong restore is survivable
+  await saveCloudBackup('manual', 'Taken automatically just before a restore');
+  Object.keys(DB).forEach(k=>{ delete DB[k]; });
+  Object.assign(DB, d);
+  logChange('settings','Restored from a stored backup', {id:'backup',label:'Backup #'+id}, '', '',
+            (d.vehicles||[]).length + ' vehicles', 'Everything was replaced');
+  saveDB(); closeModal(); render();
+  alert('Restored from the backup.');
+}
+
+
+/* =========================================================================
+   PERIOD REPORTS — month, quarter and year, with the Muzaribat split.
+   ========================================================================= */
+let reportPeriod = 'month';
+
+function periodBuckets(kind){
+  const out = [];
+  const now = new Date();
+  if(kind==='month'){
+    for(let i=0;i<12;i++){
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      // Build the key from the local date parts. toISOString() converts to UTC,
+      // and under British Summer Time midnight local is 23:00 the previous day,
+      // which rolled every month back by one.
+      const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+      out.push({key, label: d.toLocaleDateString('en-GB',{month:'short',year:'numeric'}),
+                test: v => (v.sale.date||'').slice(0,7) === key});
+    }
+  } else if(kind==='quarter'){
+    for(let i=0;i<8;i++){
+      const d = new Date(now.getFullYear(), now.getMonth()-i*3, 1);
+      const q = Math.floor(d.getMonth()/3), y = d.getFullYear();
+      const key = y+'-Q'+(q+1);
+      if(out.some(o=>o.key===key)) continue;
+      out.push({key, label:'Q'+(q+1)+' '+y,
+                test: v => { const dd=new Date(v.sale.date);
+                  return dd.getFullYear()===y && Math.floor(dd.getMonth()/3)===q; }});
+    }
+  } else {
+    for(let i=0;i<4;i++){
+      const y = now.getFullYear()-i;
+      out.push({key:String(y), label:String(y),
+                test: v => (v.sale.date||'').slice(0,4) === String(y)});
+    }
+  }
+  return out;
+}
+
+function periodFigures(test){
+  const sold = (DB.vehicles||[]).filter(v=>v.sale && test(v));
+  let revenue=0, cost=0, gross=0, admin=0, investor=0, company=0;
+  sold.forEach(v=>{
+    revenue += vehicleNetSale(v);
+    cost    += vehicleCostTotal(v);
+    const g  = vehicleProfit(v); gross += g;
+    if(isMuzaribCar(v)){
+      const s = carSettlement(v);
+      admin += s.admin; investor += s.investor; company += s.company;
+    } else company += g;
+  });
+  return {cars:sold.length, revenue, cost, gross, admin, investor, company};
+}
+
+function overheadsFor(kind, key){
+  const list = DB.monthlyCosts || [];
+  const inPeriod = c => {
+    if(kind==='month')   return c.month === key;
+    if(kind==='year')    return (c.month||'').slice(0,4) === key;
+    const [y,q] = key.split('-Q');
+    const m = Number((c.month||'').slice(5,7));
+    return (c.month||'').slice(0,4)===y && Math.ceil(m/3)===Number(q);
+  };
+  return list.filter(inPeriod).reduce((s,c)=>s+Number(c.amount||0),0);
+}
+
+function renderPeriodReport(){
+  const kind = reportPeriod;
+  const buckets = periodBuckets(kind);
+  const rows = buckets.map(b=>{
+    const f = periodFigures(b.test);
+    const oh = overheadsFor(kind, b.key);
+    return {...b, ...f, overheads:oh, net: f.company - oh};
+  }).filter(r=>r.cars>0 || r.overheads>0);
+
+  const tot = rows.reduce((a,r)=>({cars:a.cars+r.cars, revenue:a.revenue+r.revenue,
+    cost:a.cost+r.cost, gross:a.gross+r.gross, admin:a.admin+r.admin,
+    investor:a.investor+r.investor, company:a.company+r.company,
+    overheads:a.overheads+r.overheads, net:a.net+r.net}),
+    {cars:0,revenue:0,cost:0,gross:0,admin:0,investor:0,company:0,overheads:0,net:0});
+
+  return `
+  <div class="section-title" style="margin-top:24px;">
+    <h2>Performance by period</h2>
+    <div class="chip-row" style="margin:0;">
+      <div class="chip ${kind==='month'?'active':''}" onclick="reportPeriod='month';render()">Monthly</div>
+      <div class="chip ${kind==='quarter'?'active':''}" onclick="reportPeriod='quarter';render()">Quarterly</div>
+      <div class="chip ${kind==='year'?'active':''}" onclick="reportPeriod='year';render()">Yearly</div>
+    </div>
+  </div>
+
+  ${rows.length ? `
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>${kind==='month'?'Month':kind==='quarter'?'Quarter':'Year'}</th>
+        <th style="text-align:right">Sold</th>
+        <th style="text-align:right">Revenue</th>
+        <th style="text-align:right">Cost</th>
+        <th style="text-align:right">Gross profit</th>
+        <th style="text-align:right">Admin</th>
+        <th style="text-align:right">Investors</th>
+        <th style="text-align:right">Company</th>
+        <th style="text-align:right">Overheads</th>
+        <th style="text-align:right">Net</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r=>`<tr>
+          <td><b>${r.label}</b></td>
+          <td style="text-align:right">${r.cars}</td>
+          <td style="text-align:right">${fmtMoney(r.revenue)}</td>
+          <td style="text-align:right">${fmtMoney(r.cost)}</td>
+          <td style="text-align:right;color:${r.gross<0?'var(--red)':'inherit'}">${fmtMoney(r.gross)}</td>
+          <td style="text-align:right">${fmtMoney(r.admin)}</td>
+          <td style="text-align:right">${fmtMoney(r.investor)}</td>
+          <td style="text-align:right">${fmtMoney(r.company)}</td>
+          <td style="text-align:right">${r.overheads?fmtMoney(r.overheads):'—'}</td>
+          <td style="text-align:right;font-weight:700;color:${r.net<0?'var(--red)':'var(--green)'}">${fmtMoney(r.net)}</td>
+        </tr>`).join('')}
+        <tr style="border-top:2px solid var(--ink)">
+          <td><b>Total</b></td>
+          <td style="text-align:right"><b>${tot.cars}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.revenue)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.cost)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.gross)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.admin)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.investor)}</b></td>
+          <td style="text-align:right"><b>${fmtMoney(tot.company)}</b></td>
+          <td style="text-align:right"><b>${tot.overheads?fmtMoney(tot.overheads):'—'}</b></td>
+          <td style="text-align:right;font-weight:700;color:${tot.net<0?'var(--red)':'var(--green)'}"><b>${fmtMoney(tot.net)}</b></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="small-muted" style="margin-top:8px;">
+    Gross profit is the sale less everything the car cost. Admin is the &pound;500 taken on each
+    investor-funded car. Company is what you keep before overheads; Net is after them.
+  </div>
+  <div class="row" style="margin-top:10px;">
+    <button class="btn btn-ghost btn-sm" onclick="exportPeriodCSV()">⬇ Export this table</button>
+  </div>`
+  : '<div class="card"><div class="empty">No sales recorded in this period yet.</div></div>'}`;
+}
+
+function exportPeriodCSV(){
+  const kind = reportPeriod;
+  const rows = periodBuckets(kind).map(b=>{
+    const f = periodFigures(b.test); const oh = overheadsFor(kind,b.key);
+    return [b.label, f.cars, f.revenue, f.cost, f.gross, f.admin, f.investor, f.company, oh, f.company-oh];
+  }).filter(r=>r[1]>0 || r[8]>0);
+  const head = ['Period','Cars sold','Revenue','Cost','Gross profit','Admin','Investors','Company','Overheads','Net'];
+  const csv = [head].concat(rows).map(r=>r.map(x=>
+    typeof x==='number' ? x.toFixed(2) : '"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=(DB.bizName||'forecourt').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'-'+kind+'-report-'+todayISO()+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+
+/* =========================================================================
+   INCOMPLETE RECORDS — flags anything missing that matters.
+   ========================================================================= */
+function recordGaps(v){
+  const out = [];
+  const cost = vehicleCostTotal(v);
+  if(!(cost > 0)) out.push({w:'No purchase price', why:'The margin on this car is meaningless until a cost is entered', hard:true});
+  if(v.sale){
+    const s = v.sale;
+    if(!(Number(s.salePrice) > 0)) out.push({w:'No sale price', why:'Sold, but nothing recorded as received', hard:true});
+    if(!s.date) out.push({w:'No sale date', why:'Will not appear in any month', hard:true});
+    if(!s.invoiceNo) out.push({w:'No invoice number', hard:false});
+    const c = s.customerId ? (DB.customers||[]).find(x=>x.id===s.customerId) : null;
+    if(!c) out.push({w:'No customer', why:'Sold with no buyer recorded', hard:true});
+    else {
+      const miss = [];
+      if(!c.name) miss.push('name');
+      if(!c.phone) miss.push('phone');
+      if(!c.email) miss.push('email');
+      if(!(c.postcode||c.address)) miss.push('address');
+      if(miss.length) out.push({w:'Customer missing ' + miss.join(', '), hard: miss.includes('name')||miss.length>2});
+    }
+    if(s.paperInvoiceOnly) out.push({w:'Paper invoice only', why:'No digital copy was found', hard:false});
+  } else {
+    if(!(Number(v.price) > 0)) out.push({w:'No asking price', why:'In stock but not priced', hard:false});
+  }
+  if(!v.mileage) out.push({w:'No mileage', hard:false});
+  return out;
+}
+function gapCount(hardOnly){
+  return (DB.vehicles||[]).reduce((n,v)=>{
+    const g=recordGaps(v);
+    return n + (hardOnly ? (g.some(x=>x.hard)?1:0) : (g.length?1:0));
+  },0);
+}
+function gapBadge(v){
+  const g=recordGaps(v); if(!g.length) return '';
+  const hard=g.some(x=>x.hard);
+  return `<span class="tag ${hard?'tag-red':'tag-amber'}" title="${escapeAttr(g.map(x=>x.w).join(' · '))}"
+    onclick="event.stopPropagation();openGaps('${v.id}')" style="cursor:pointer">${hard?'⚠':'•'} ${g.length}</span>`;
+}
+function openGaps(id){
+  const v=(DB.vehicles||[]).find(x=>x.id===id); if(!v) return;
+  const g=recordGaps(v);
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${escapeHtml(v.reg)} — what's missing</h3>
+    <div class="small-muted" style="margin-bottom:10px;">${escapeHtml(((v.make||'')+' '+(v.model||'')).trim())}</div>
+    ${g.length ? `<div class="list">${g.map(x=>`
+      <div class="li"><div class="t">
+        <div><b>${x.hard?'⚠ ':''}${escapeHtml(x.w)}</b>${x.why?`<small>${escapeHtml(x.why)}</small>`:''}</div>
+      </div></div>`).join('')}</div>`
+     : '<div class="empty">Nothing missing.</div>'}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+      <button class="btn btn-brand" onclick="closeModal();openVehicle('${v.id}')">Open the record</button>
+    </div>`);
+}
+function openGapList(){
+  if(!isManager()) return;
+  const rows=(DB.vehicles||[]).map(v=>({v, g:recordGaps(v)})).filter(x=>x.g.length)
+    .sort((a,b)=> (b.g.filter(x=>x.hard).length - a.g.filter(x=>x.hard).length) || (b.g.length - a.g.length));
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Incomplete records</h3>
+    <div class="small-muted" style="margin-bottom:10px;">
+      ⚠ means a figure your reports depend on is missing. • is a detail worth filling in.
+    </div>
+    ${rows.length ? `<div class="card" style="padding:0;max-height:420px;overflow:auto;"><table>
+      <thead><tr><th>Reg</th><th>Vehicle</th><th>Status</th><th>What's missing</th></tr></thead><tbody>
+      ${rows.map(({v,g})=>`<tr onclick="closeModal();openVehicle('${v.id}')" style="cursor:pointer">
+        <td><b>${escapeHtml(v.reg)}</b></td>
+        <td>${escapeHtml(((v.make||'')+' '+(v.model||'')).trim())}</td>
+        <td>${v.sale?'<span class="tag tag-grey">Sold</span>':'<span class="tag tag-green">In stock</span>'}</td>
+        <td>${g.map(x=>`<span class="tag ${x.hard?'tag-red':'tag-amber'}" style="margin:1px">${escapeHtml(x.w)}</span>`).join(' ')}</td>
+      </tr>`).join('')}</tbody></table></div>`
+     : '<div class="empty">Every record is complete.</div>'}
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Close</button></div>`);
+}
+
+
+/* =========================================================================
+   DATA REPAIR — run on its own, without re-importing anything.
+   ========================================================================= */
+function repairScan(){
+  const SAME = {'rahman':'Wardak','wardak':'Wardak','wahid':'Waheed','waheed':'Waheed',
+                'yaqboob':'Yaqoob','yaqoob':'Yaqoob','abdulah':'Abdullah','abdullah':'Abdullah'};
+  const dupGroups = [];
+  Object.values(SAME).filter((v,i,a)=>a.indexOf(v)===i).forEach(keepName=>{
+    const g=(DB.muzaribs||[]).filter(m=>SAME[(m.name||'').toLowerCase()]===keepName);
+    if(g.length>1) dupGroups.push({keepName, names:g.map(m=>m.name)});
+  });
+  return {
+    SAME, dupGroups,
+    badTx:   (DB.muzaribTx||[]).filter(t=>t.type==='in').length,
+    ownerLinks:(DB.vehicles||[]).filter(v=>v.owner && !v.muzaribId).length,
+    prepPriced:(DB.vehicles||[]).filter(v=>!v.sale && v.status==='prep' && Number(v.askingPrice||v.price||0)>0).length,
+    priceField:(DB.vehicles||[]).filter(v=>!v.sale && !(Number(v.askingPrice)>0) && Number(v.price)>0).length,
+  };
+}
+
+function openRepair(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can run this.'); return; }
+  const s = repairScan();
+  const rows = [
+    ['Duplicate investor accounts', s.dupGroups.length,
+      s.dupGroups.map(d=>d.names.join(' + ')+' → '+d.keepName).join('; ')],
+    ['Opening balances not counted', s.badTx, 'Saved as "in" instead of "capital", so they total zero'],
+    ['Cars not linked to their investor', s.ownerLinks, 'Investor saved in the wrong field'],
+    ['Asking price in the wrong field', s.priceField, 'Price saved but the list reads a different field'],
+    ['Priced cars still showing as prep', s.prepPriced, 'They are for sale, so they should read Ready to sell'],
+  ];
+  const total = rows.reduce((n,r)=>n+r[1],0);
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Fix the data</h3>
+    <div class="small-muted" style="margin-bottom:12px;">
+      These are faults left by earlier versions of the import. Nothing is deleted —
+      records are merged, re-linked or re-labelled.
+    </div>
+    <div class="card" style="padding:0;"><table>
+      <thead><tr><th>What</th><th style="text-align:right">Found</th><th>Detail</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr>
+        <td>${r[1]?'<b>'+r[0]+'</b>':r[0]}</td>
+        <td style="text-align:right">${r[1]?`<span class="tag tag-red">${r[1]}</span>`:'<span class="tag tag-green">0</span>'}</td>
+        <td class="small-muted">${escapeHtml(r[2]||'')}</td></tr>`).join('')}
+      </tbody></table></div>
+    ${total? '' : '<div class="small-muted" style="margin-top:10px;">Nothing to fix — your data is already correct.</div>'}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+      ${total?`<button class="btn btn-brand" onclick="runRepair()">Fix all ${total}</button>`:''}
+    </div>`);
+}
+
+function runRepair(){
+  if(!isSuperAdmin()) return;
+  const SAME = repairScan().SAME;
+  let merged=0, txFixed=0, linked=0, priced=0, readied=0;
+
+  // 1. opening balances counted as capital
+  (DB.muzaribTx||[]).forEach(t=>{ if(t.type==='in'){ t.type='capital'; txFixed++; } });
+
+  // 2. merge investors recorded under two spellings
+  Object.values(SAME).filter((v,i,a)=>a.indexOf(v)===i).forEach(keepName=>{
+    const g=(DB.muzaribs||[]).filter(m=>SAME[(m.name||'').toLowerCase()]===keepName);
+    if(g.length<2) return;
+    const keep=g.find(m=>(m.name||'').toLowerCase()===keepName.toLowerCase())||g[0];
+    keep.name=keepName;
+    g.filter(m=>m.id!==keep.id).forEach(dup=>{
+      (DB.vehicles||[]).forEach(v=>{ if(v.muzaribId===dup.id) v.muzaribId=keep.id; });
+      (DB.muzaribTx||[]).forEach(t=>{ if(t.muzaribId===dup.id) t.muzaribId=keep.id; });
+      DB.muzaribs=DB.muzaribs.filter(m=>m.id!==dup.id);
+      merged++;
+      logChange('muzaribat','Merged duplicate investor', mzRef(keep),'Name',dup.name,keep.name,'Same person, two spellings');
+    });
+  });
+
+  // 3. re-link cars whose investor sat in the wrong field
+  (DB.vehicles||[]).forEach(v=>{
+    if(v.owner && !v.muzaribId){
+      const name = typeof v.owner==='string' ? v.owner : '';
+      const want = SAME[name.toLowerCase()] || name;
+      const m = (DB.muzaribs||[]).find(x=>(x.name||'').toLowerCase()===want.toLowerCase());
+      if(m){ v.muzaribId=m.id; delete v.owner; linked++; }
+    }
+  });
+
+  // 4. asking price into the field the app reads, then mark it ready
+  (DB.vehicles||[]).forEach(v=>{
+    if(!v.sale && !(Number(v.askingPrice)>0) && Number(v.price)>0){ v.askingPrice=Number(v.price); priced++; }
+    if(!v.sale && v.status==='prep' && Number(v.askingPrice||v.price||0)>0){ v.status='ready'; readied++; }
+  });
+
+  logChange('settings','Ran the data repair',{id:'repair',label:'Repair'},'','',
+    `${merged} merged · ${txFixed} balances · ${linked} links · ${priced} prices · ${readied} ready`,'');
+  saveDB(); closeModal(); render();
+  alert(`Done.\n\n${merged} duplicate investors merged\n${txFixed} opening balances now counted\n${linked} cars re-linked to their investor\n${priced} asking prices corrected\n${readied} cars marked ready to sell`);
+}
+
+
+/* =========================================================================
+   RESERVING A CAR — who wants it, what they asked for, and what must be done
+   before it can go. The jobs appear on the dashboard and in Daily Tasks.
+   ========================================================================= */
+
+function useReservedCustomer(vid){
+  const v=(DB.vehicles||[]).find(x=>x.id===vid); if(!v||!v.reserved) return;
+  const r=v.reserved;
+  // reuse the customer if they are already on file, otherwise create them once
+  if(!DB.customers) DB.customers=[];
+  let c=DB.customers.find(x=>(x.name||'').toLowerCase()===r.name.toLowerCase()
+      && (!r.phone || String(x.phone||'')===String(r.phone)));
+  if(!c){
+    c={id:nextId('cust'), name:r.name, phone:r.phone||'', email:r.email||'',
+       postcode:r.postcode||'', address:r.address||'', createdAt:todayISO(),
+       note:'From the reservation on '+v.reg};
+    DB.customers.push(c); saveDB();
+  }
+  const sel=document.getElementById('s_customer'); if(sel){ 
+    if(!Array.from(sel.options).some(o=>o.value===c.id)){
+      const o=document.createElement('option'); o.value=c.id; o.textContent=c.name+' ('+(c.phone||'')+')';
+      sel.appendChild(o);
+    }
+    sel.value=c.id; sel.dispatchEvent(new Event('change'));
+  }
+  const dep=document.getElementById('s_deposit'); if(dep && r.deposit) dep.value=r.deposit;
+  render();
+}
+
+function openReserve(vid){
+  const v=(DB.vehicles||[]).find(x=>x.id===vid); if(!v) return;
+  const r=v.reserved||{};
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${r.at?'Reservation':'Reserve this car'}</h3>
+    <div class="small-muted" style="margin-bottom:12px;">${escapeHtml(v.reg)} — ${escapeHtml(((v.make||'')+' '+(v.model||'')).trim())}</div>
+
+    <div class="field-row">
+      <div class="field"><label>Customer name</label><input id="rs_name" value="${escapeAttr(r.name||'')}" placeholder="Full name"/></div>
+      <div class="field"><label>Phone</label><input id="rs_phone" value="${escapeAttr(r.phone||'')}" placeholder="07…"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Email</label><input id="rs_email" type="email" value="${escapeAttr(r.email||'')}"/></div>
+      <div class="field"><label>Postcode</label><input id="rs_post" value="${escapeAttr(r.postcode||'')}"/></div>
+    </div>
+    <div class="field"><label>Address</label><input id="rs_addr" value="${escapeAttr(r.address||'')}"/></div>
+    <div class="field-row">
+      <div class="field"><label>Deposit taken (£)</label><input id="rs_dep" type="number" step="0.01" value="${r.deposit||''}"/></div>
+      <div class="field"><label>Collecting on</label><input id="rs_due" type="date" value="${r.dueDate||''}"/></div>
+    </div>
+    <div class="field"><label>What the customer asked for</label>
+      <textarea id="rs_req" rows="2" placeholder="e.g. wants the scratch on the bumper sorted, full tank, 12 months MOT">${escapeHtml(r.request||'')}</textarea></div>
+
+    <div class="field"><label>Jobs to do before it goes</label>
+      <div class="small-muted" style="margin-bottom:6px;">One per line. Each becomes a task with a reminder for the collection date.</div>
+      <textarea id="rs_jobs" rows="4" placeholder="Fix bumper scratch&#10;MOT&#10;Valet&#10;Replace wiper blades">${escapeHtml((r.jobs||[]).map(j=>j.title).join('\n'))}</textarea></div>
+
+    <div class="modal-actions">
+      ${r.at?`<button class="btn btn-ghost" style="margin-right:auto" onclick="cancelReserve('${v.id}')">Cancel the reservation</button>`:''}
+      <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+      <button class="btn btn-brand" onclick="saveReserve('${v.id}')">${r.at?'Save':'Reserve it'}</button>
+    </div>`);
+}
+
+function saveReserve(vid){
+  const v=(DB.vehicles||[]).find(x=>x.id===vid); if(!v) return;
+  const name=(document.getElementById('rs_name').value||'').trim();
+  if(!name){ alert("Put the customer's name in."); return; }
+  const due=document.getElementById('rs_due').value||'';
+  const lines=(document.getElementById('rs_jobs').value||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  const existing=(v.reserved&&v.reserved.jobs)||[];
+
+  v.reserved={
+    name, phone:(document.getElementById('rs_phone').value||'').trim(),
+    email:(document.getElementById('rs_email').value||'').trim(),
+    postcode:(document.getElementById('rs_post').value||'').trim(),
+    address:(document.getElementById('rs_addr').value||'').trim(),
+    deposit:Number(document.getElementById('rs_dep').value)||0,
+    dueDate:due, request:(document.getElementById('rs_req').value||'').trim(),
+    at:(v.reserved&&v.reserved.at)||new Date().toISOString(),
+    by:(v.reserved&&v.reserved.by)||currentUserName,
+    jobs: lines.map(t=>{
+      const was=existing.find(j=>j.title===t);
+      return was || {id:nextId('rjob'), title:t, done:false, taskId:null};
+    })
+  };
+  v.status='reserved';
+
+  // each job becomes a task, so it shows in Daily Tasks and gets a reminder
+  if(!DB.tasks) DB.tasks=[];
+  v.reserved.jobs.forEach(j=>{
+    if(j.taskId && DB.tasks.some(t=>t.id===j.taskId)) return;
+    const t={id:nextId('task'), title:`${v.reg} — ${j.title}`,
+      note:`For ${name}${due?', collecting '+fmtDate(due):''}`,
+      date: due || todayISO(), done:false, priority:'high',
+      assignedTo:'', vehicleId:v.id, reserveJobId:j.id, createdAt:todayISO(), createdBy:currentUserName};
+    DB.tasks.push(t); j.taskId=t.id;
+  });
+
+  // Keep the lead in step — one reservation, not two. If this customer already has
+  // a lead on this car, move it to Reserved; otherwise create one.
+  if(!DB.leads) DB.leads=[];
+  let lead=(DB.leads||[]).find(x=>x.vehicleId===v.id
+      && (x.name||'').toLowerCase()===name.toLowerCase() && x.stage!=='lost' && x.stage!=='sold');
+  if(!lead){
+    lead={id:nextId('lead'), name, phone:v.reserved.phone, email:v.reserved.email,
+      vehicleId:v.id, vehicleText:'', source:'Walk-in', budget:0, stage:'reserved',
+      nextFollowUp: due||'', partEx:'', finance:'', appointment:null,
+      createdAt:todayISO(), createdBy:currentUserName, history:[]};
+    DB.leads.push(lead);
+  } else {
+    lead.phone=lead.phone||v.reserved.phone; lead.email=lead.email||v.reserved.email;
+    lead.stage='reserved';
+  }
+  lead.deposit=v.reserved.deposit;
+  lead.reservedUntil=due||lead.reservedUntil||'';
+  v.reserved.leadId=lead.id;
+
+  logChange('stock','Reserved', vehRef(v), 'Status', '', 'Reserved for '+name,
+    (v.reserved.deposit?fmtMoney(v.reserved.deposit)+' deposit · ':'') + v.reserved.jobs.length + ' job(s) to do');
+  saveDB(); closeModal(); render();
+}
+
+function cancelReserve(vid){
+  const v=(DB.vehicles||[]).find(x=>x.id===vid); if(!v||!v.reserved) return;
+  if(!confirm('Cancel this reservation?\n\nThe jobs stay on your task list — delete them yourself if they are no longer needed.')) return;
+  const lk=(DB.leads||[]).find(x=>x.id===v.reserved.leadId);
+  if(lk && lk.stage==='reserved'){ lk.stage='interested'; }
+  logChange('stock','Reservation cancelled', vehRef(v), 'Status', 'Reserved for '+v.reserved.name, 'Back in stock', '');
+  delete v.reserved;
+  if(v.status==='reserved') v.status='ready';
+  saveDB(); closeModal(); render();
+}
+
+/* Jobs still outstanding across every reserved car. */
+function outstandingReserveJobs(){
+  const out=[];
+  (DB.vehicles||[]).forEach(v=>{
+    if(!v.reserved) return;
+    (v.reserved.jobs||[]).forEach(j=>{
+      const t=(DB.tasks||[]).find(x=>x.id===j.taskId);
+      const done = j.done || (t && t.done);
+      if(!done) out.push({v, job:j, due:v.reserved.dueDate, who:v.reserved.name, task:t});
+    });
+  });
+  return out.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+}
+
+function reserveJobsCard(){
+  const jobs=outstandingReserveJobs();
+  if(!jobs.length) return '';
+  const late=jobs.filter(j=>j.due && j.due < todayISO()).length;
+  return `
+  <div class="section-title"><h2>Reserved cars — jobs still to do</h2></div>
+  <div class="card" style="padding:0;">
+    <table><thead><tr><th>Car</th><th>Job</th><th>For</th><th>Collecting</th><th></th></tr></thead><tbody>
+    ${jobs.map(({v,job,due,who})=>`<tr>
+      <td><b>${escapeHtml(v.reg)}</b></td>
+      <td>${escapeHtml(job.title)}</td>
+      <td>${escapeHtml(who)}</td>
+      <td>${due?`<span class="${due<todayISO()?'tag tag-red':'small-muted'}">${fmtDate(due)}</span>`:'<span class="small-muted">—</span>'}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="markReserveJob('${v.id}','${job.id}')">Done</button></td>
+    </tr>`).join('')}
+    </tbody></table>
+  </div>
+  ${late?`<div class="small-muted" style="margin-top:6px;color:var(--red)">${late} job${late===1?'':'s'} past the collection date.</div>`:''}`;
+}
+
+function markReserveJob(vid, jid){
+  const v=(DB.vehicles||[]).find(x=>x.id===vid); if(!v||!v.reserved) return;
+  const j=(v.reserved.jobs||[]).find(x=>x.id===jid); if(!j) return;
+  j.done=true;
+  const t=(DB.tasks||[]).find(x=>x.id===j.taskId); if(t) t.done=true;
+  logChange('stock','Reservation job done', vehRef(v), j.title, 'outstanding', 'done', '');
+  saveDB(); render();
+}
+
 function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
@@ -5283,6 +6620,8 @@ function bootstrapCurrentUserProfile(){
   currentUserTeamId = me.id;
   currentUserName = me.name;
   currentUserRole = normaliseRole(me.accessLevel);
+  // Take the day's snapshot if one has not been made yet. Never blocks sign-in.
+  setTimeout(()=>{ try{ maybeDailyBackup(); }catch(e){} }, 4000);
 }
 
 /* =========================================================================
