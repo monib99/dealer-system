@@ -408,7 +408,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 20</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 21</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -2140,7 +2140,7 @@ function vehicleSaleTab(v){
     <div class="field"><label>Customer</label>
       <select id="s_customer">
         <option value="">— Select existing customer —</option>
-        ${customerOptions(v.sale?v.sale.customerId:'')}
+        ${customerOptions(v.sale?v.sale.customerId:(v.saleDraftCustomerId||''))}
       </select>
       <div class="small-muted" style="margin-top:6px;">Don't see them? <a class="link" onclick="openAddCustomer(true)">Add a new customer</a></div>
     </div>
@@ -7124,6 +7124,13 @@ function runRepair(){
    before it can go. The jobs appear on the dashboard and in Daily Tasks.
    ========================================================================= */
 
+/* redraw whatever the user is actually looking at: the vehicle page if one is
+   open, otherwise the current tab. Calling render() alone threw them back to
+   the stock list mid-task. */
+function refreshFor(vId){
+  if(currentTab==='stock' && activeVehicleId && (!vId || activeVehicleId===vId)) renderVehicleDetail();
+  else render();
+}
 function useReservedCustomer(vid){
   const v=(DB.vehicles||[]).find(x=>x.id===vid); if(!v||!v.reserved) return;
   const r=v.reserved;
@@ -7145,7 +7152,10 @@ function useReservedCustomer(vid){
     sel.value=c.id; sel.dispatchEvent(new Event('change'));
   }
   const dep=document.getElementById('s_deposit'); if(dep && r.deposit) dep.value=r.deposit;
-  render();
+  v.saleDraftCustomerId = c.id;           // survives a later redraw of this tab
+  saveDB();
+  const btn = document.querySelector(`button[onclick="useReservedCustomer('${v.id}')"]`);
+  if(btn){ btn.textContent='\u2713 Details filled in'; btn.disabled=true; btn.classList.remove('btn-brand'); btn.classList.add('btn-ghost'); }
 }
 
 function openReserve(vid){
@@ -7239,7 +7249,7 @@ function saveReserve(vid){
 
   logChange('stock','Reserved', vehRef(v), 'Status', '', 'Reserved for '+name,
     (v.reserved.deposit?fmtMoney(v.reserved.deposit)+' deposit · ':'') + v.reserved.jobs.length + ' job(s) to do');
-  saveDB(); closeModal(); render();
+  saveDB(); closeModal(); refreshFor(v.id);
 }
 
 function cancelReserve(vid){
@@ -7250,7 +7260,7 @@ function cancelReserve(vid){
   logChange('stock','Reservation cancelled', vehRef(v), 'Status', 'Reserved for '+v.reserved.name, 'Back in stock', '');
   delete v.reserved;
   if(v.status==='reserved') v.status='ready';
-  saveDB(); closeModal(); render();
+  saveDB(); closeModal(); refreshFor(v.id);
 }
 
 /* Jobs still outstanding across every reserved car. */
@@ -7293,7 +7303,7 @@ function markReserveJob(vid, jid){
   j.done=true;
   const t=(DB.tasks||[]).find(x=>x.id===j.taskId); if(t) t.done=true;
   logChange('stock','Reservation job done', vehRef(v), j.title, 'outstanding', 'done', '');
-  saveDB(); render();
+  saveDB(); refreshFor(v.id);
 }
 
 function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('overlay').classList.add('open'); }
