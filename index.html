@@ -408,7 +408,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 24</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 25</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -2184,6 +2184,8 @@ function vehicleSaleTab(v){
     </div>`;
   }
   const r = v.reserved;
+  const sx = v.sale;
+  const hasPx = !!(sx && ((sx.partEx && (sx.partEx.reg || sx.partEx.make || sx.partEx.model)) || Number(sx.partExValue)>0));
   return `<div class="card">
     <h3 style="margin-top:0">Record a sale for ${v.reg}</h3>
     ${r?`<div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
@@ -2206,23 +2208,29 @@ function vehicleSaleTab(v){
       <div class="field"><label>Discount (£)</label><input id="s_discount" type="number" value="0"/></div>
       <div class="field"><label>Sale date</label><input id="s_date" type="date" value="${todayISO()}"/></div>
     </div>
-    <div class="field-row">
-      <div class="field"><label>Part exchange reg</label><input id="s_pxreg" placeholder="AB12 CDE" style="text-transform:uppercase" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.reg)||'')}"/></div>
-      <div class="field"><label>Part exchange value (£)</label><input id="s_pxval" type="number" value="${(v.sale&&v.sale.partExValue)||0}"/></div>
+    <label style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="s_hasPx" ${hasPx?'checked':''} style="width:17px;height:17px" onchange="togglePxFields(this.checked)"/>
+      <span><strong>Is the customer part exchanging a car?</strong></span>
+    </label>
+    <div id="pxFields" style="display:${hasPx?'block':'none'};border-left:3px solid var(--line);padding-left:12px;margin:6px 0 10px">
+      <div class="field-row">
+        <div class="field"><label>Part exchange reg</label><input id="s_pxreg" placeholder="AB12 CDE" style="text-transform:uppercase" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.reg)||'')}"/></div>
+        <div class="field"><label>Part exchange value (£)</label><input id="s_pxval" type="number" value="${(v.sale&&v.sale.partExValue)||0}"/></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Make</label><input id="s_pxmake" placeholder="Ford" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.make)||'')}"/></div>
+        <div class="field"><label>Model</label><input id="s_pxmodel" placeholder="Focus Zetec" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.model)||'')}"/></div>
+        <div class="field"><label>Year</label><input id="s_pxyear" placeholder="2013" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.year)||'')}"/></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Mileage</label><input id="s_pxmiles" type="number" placeholder="92400" value="${(v.sale&&v.sale.partEx&&v.sale.partEx.mileage)||''}"/></div>
+        <div class="field"><label>Colour</label><input id="s_pxcolour" placeholder="Blue" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.color)||'')}"/></div>
+      </div>
+      <div class="field"><label>Faults the customer has declared on the part exchange</label>
+        <textarea id="s_pxFaults" rows="2" placeholder="e.g. EML on intermittently, nearside wing scuffed, clutch slipping in 5th — printed above their signature"
+          style="width:100%;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;">${escapeHtml((v.sale&&v.sale.pxFaults)||'')}</textarea></div>
+      <div class="small-muted">Added to company stock automatically when you confirm the sale, with the allowance as its purchase cost.</div>
     </div>
-    <div class="field-row">
-      <div class="field"><label>Make</label><input id="s_pxmake" placeholder="Ford" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.make)||'')}"/></div>
-      <div class="field"><label>Model</label><input id="s_pxmodel" placeholder="Focus Zetec" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.model)||'')}"/></div>
-      <div class="field"><label>Year</label><input id="s_pxyear" placeholder="2013" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.year)||'')}"/></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Mileage</label><input id="s_pxmiles" type="number" placeholder="92400" value="${(v.sale&&v.sale.partEx&&v.sale.partEx.mileage)||''}"/></div>
-      <div class="field"><label>Colour</label><input id="s_pxcolour" placeholder="Blue" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.color)||'')}"/></div>
-    </div>
-    <div class="small-muted" style="margin:-4px 0 8px">Fill these in and the part exchange is added to company stock automatically when you confirm the sale, with the allowance as its purchase cost.</div>
-    <div class="field"><label>Faults the customer has declared on the part exchange</label>
-      <textarea id="s_pxFaults" rows="2" placeholder="e.g. EML on intermittently, nearside wing scuffed, clutch slipping in 5th — printed above their signature"
-        style="width:100%;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;">${escapeHtml((v.sale&&v.sale.pxFaults)||'')}</textarea></div>
     <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13.5px;cursor:pointer">
       <input type="checkbox" id="s_tradeSale" ${(v.sale&&v.sale.tradeSale)?'checked':''} style="width:17px;height:17px"/>
       <span><strong>Trade sale</strong> — buyer is a business, not a consumer. Prints the trade terms instead of the consumer ones.</span>
@@ -2305,8 +2313,20 @@ function licenceCard(v){
     </label>
   </div>`;
 }
+function togglePxFields(on){
+  const box = document.getElementById('pxFields');
+  if(box) box.style.display = on ? 'block' : 'none';
+  if(!on){   // clear it so an unticked box can never leave a stray part exchange behind
+    ['s_pxreg','s_pxmake','s_pxmodel','s_pxyear','s_pxmiles','s_pxcolour','s_pxFaults']
+      .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+    const val=document.getElementById('s_pxval'); if(val) val.value=0;
+  }
+}
+function pxTicked(){ const b=document.getElementById('s_hasPx'); return !b || b.checked; }
 /* the part exchange, as typed on the sale form */
 function pxFromForm(){
+  const box = document.getElementById('s_hasPx');
+  if(box && !box.checked) return {reg:'',make:'',model:'',year:'',mileage:'',color:''};
   const val = id => (document.getElementById(id)||{value:''}).value.trim();
   return {
     reg:   val('s_pxreg').toUpperCase(),
@@ -2369,7 +2389,7 @@ function confirmSale(vId){
     discount: Number(document.getElementById('s_discount').value)||0,
     partEx: pxFromForm(),
     partExDesc: pxLabel(pxFromForm()),
-    partExValue: Number(document.getElementById('s_pxval').value)||0,
+    partExValue: pxTicked() ? (Number(document.getElementById('s_pxval').value)||0) : 0,
     adminCharge: Number(document.getElementById('s_admin').value)||0,
     deliveryCharge: Number(document.getElementById('s_delivery').value)||0,
     warranty: Number(document.getElementById('s_warranty').value)||0,
@@ -2381,7 +2401,7 @@ function confirmSale(vId){
     payCard: Number((document.getElementById('s_payCard')||{value:0}).value)||0,
     payCash: Number((document.getElementById('s_payCash')||{value:0}).value)||0,
     advertisedPrice: Number(v.askingPrice)||0,
-    pxFaults: (document.getElementById('s_pxFaults')||{value:''}).value.trim(),
+    pxFaults: pxTicked() ? (document.getElementById('s_pxFaults')||{value:''}).value.trim() : '',
     tradeSale: !!(document.getElementById('s_tradeSale')||{}).checked,
     soldBy: (v.sale && v.sale.soldBy) || currentUserName || '',
     invoiceRef: (v.sale && v.sale.invoiceRef) || nextInvoiceRef(),
@@ -2491,8 +2511,8 @@ function draftSaleFromForm(v){
     time: txt('s_time'),
     soldBy: currentUserName || '',
     salePrice: num('s_price'), discount: num('s_discount'),
-    partEx: px, partExDesc: pxLabel(px), partExValue: num('s_pxval'),
-    pxFaults: txt('s_pxFaults'),
+    partEx: px, partExDesc: pxLabel(px), partExValue: pxTicked() ? num('s_pxval') : 0,
+    pxFaults: pxTicked() ? txt('s_pxFaults') : '',
     adminCharge: num('s_admin'), deliveryCharge: num('s_delivery'),
     warranty: num('s_warranty'), extraPackage: num('s_extra'),
     deposit: num('s_deposit'),
