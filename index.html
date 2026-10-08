@@ -408,7 +408,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 22</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 23</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -2121,6 +2121,7 @@ function vehicleSaleTab(v){
         <tr><td style="font-weight:700">Net received</td><td style="font-weight:700">${fmtMoney(vehicleNetSale(v))}</td></tr>
         <tr><td style="font-weight:700">Profit</td><td style="font-weight:700;color:${vehicleProfit(v)>=0?'var(--green)':'var(--red)'}">${fmtMoney(vehicleProfit(v))}</td></tr>
       </table>
+      ${licenceCard(v)}
       <div style="margin-top:14px;display:flex;gap:10px;">
         <button class="btn btn-brand" onclick="printInvoice('${v.id}')">🖨 View / print invoice</button>
         <button class="btn btn-ghost" onclick="undoSale('${v.id}')">Undo sale</button>
@@ -2141,6 +2142,7 @@ function vehicleSaleTab(v){
       <button class="btn btn-sm btn-brand" style="margin-top:8px" onclick="useReservedCustomer('${v.id}')">
         Use these details</button>
     </div>`:''}
+    ${licenceCard(v)}
     <div class="field"><label>Customer</label>
       <select id="s_customer">
         <option value="">— Select existing customer —</option>
@@ -2192,7 +2194,64 @@ function vehicleSaleTab(v){
       <div class="field"><label>Card (£)</label><input id="s_payCard" type="number" step="0.01" value="${(v.sale&&v.sale.payCard)||0}"/></div>
       <div class="field"><label>Cash (£)</label><input id="s_payCash" type="number" step="0.01" value="${(v.sale&&v.sale.payCash)||0}"/></div>
     </div>
-    <button class="btn btn-brand" onclick="confirmSale('${v.id}')">Confirm sale &amp; generate invoice</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-brand" onclick="confirmSale('${v.id}')">Confirm sale &amp; generate invoice</button>
+      <button class="btn btn-ghost" onclick="printDraftInvoice('${v.id}')">\u{1F4E7} Draft invoice to send</button>
+    </div>
+    <div class="small-muted" style="margin-top:6px">The draft is a proforma for an online buyer to pay against. It records nothing and does not use an invoice number \u2014 confirm the sale once the money arrives.</div>
+  </div>`;
+}
+
+/* ---- customer ID / driving licence ---- */
+async function uploadLicence(vId, input){
+  const file = input.files[0]; if(!file) return;
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const isPdf = file.type==='application/pdf';
+  const blob = isPdf ? file : await compressImage(file);
+  const res = await storePhoto(blob);
+  if(!res.ref){ alert("The licence couldn't be saved. Error: " + (res.error||'unknown')); return; }
+  if(!v.licenceDocs) v.licenceDocs=[];
+  v.licenceDocs.push({id:res.ref, isPdf, addedAt: todayISO(), by: currentUserName||''});
+  logChange('sale','Uploaded customer ID for', vehRef(v), 'Driving licence', '', 'added');
+  saveDB(); renderVehicleDetail(); notePhotoFallback(res);
+}
+function openLicence(vId, idx){
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const d = (v.licenceDocs||[])[idx]; if(!d) return;
+  const url = getPhotoUrl(d.id); if(!url) return;
+  if(isInlineRef(d.id)){
+    try{
+      const parts = d.id.split(','), mime = (parts[0].match(/:(.*?);/)||[])[1] || 'application/octet-stream';
+      const bin = atob(parts[1]), arr = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      window.open(URL.createObjectURL(new Blob([arr],{type:mime}))); return;
+    }catch(e){}
+  }
+  window.open(url);
+}
+async function removeLicence(vId, idx){
+  if(!confirm('Delete this ID document?')) return;
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const d = (v.licenceDocs||[])[idx]; if(!d) return;
+  v.licenceDocs.splice(idx,1);
+  logChange('sale','Deleted customer ID for', vehRef(v), 'Driving licence', 'on file', 'removed');
+  await deletePhoto(d.id); saveDB(); renderVehicleDetail();
+}
+function licenceCard(v){
+  const docs = v.licenceDocs||[];
+  return `<div class="card" style="box-shadow:none;border:1px dashed var(--line);padding:12px;margin:12px 0">
+    <div style="font-weight:700;margin-bottom:2px">Customer ID / driving licence</div>
+    <div class="small-muted" style="margin-bottom:8px">Photo or scan of the buyer’s licence, held against this sale. Personal data — keep it only as long as you need it.</div>
+    ${docs.length?`<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      ${docs.map((d,i)=>`<span class="tag tag-brand" style="display:inline-flex;align-items:center;gap:6px">
+        <a class="link" style="font-size:12px" onclick="openLicence('${v.id}',${i})">${d.isPdf?'\u{1F4C4}':'\u{1F5BC}'} ID ${i+1}${d.addedAt?' · '+fmtDate(d.addedAt):''}</a>
+        <a class="link" style="font-size:12px;color:var(--red)" onclick="removeLicence('${v.id}',${i})">✕</a></span>`).join('')}
+    </div>`:''}
+    <label class="btn btn-ghost btn-sm" style="cursor:pointer">
+      \u{1F4F7} ${docs.length?'Add another':'Upload licence'}
+      <input type="file" accept="image/*,application/pdf" capture="environment" style="display:none"
+        onchange="uploadLicence('${v.id}', this)"/>
+    </label>
   </div>`;
 }
 /* the part exchange, as typed on the sale form */
@@ -2358,8 +2417,8 @@ function depositFromLead(vId){
 }
 /* what the customer actually owes: the admin charge is on the invoice even though
    it never enters the investor split */
-function invoiceTotals(v){
-  const s = v.sale || {};
+function invoiceTotals(v, sale){
+  const s = sale || v.sale || {};
   const price = Number(s.salePrice)||0, disc = Number(s.discount)||0, px = Number(s.partExValue)||0;
   const admin = Number(s.adminCharge)||0, del = Number(s.deliveryCharge)||0;
   const warr = Number(s.warranty)||0, extra = Number(s.extraPackage)||0;
@@ -2370,11 +2429,42 @@ function invoiceTotals(v){
           advertised: Number(s.advertisedPrice)||Number(v.askingPrice)||0};
 }
 
-function printInvoice(vId){
-  const v = DB.vehicles.find(x=>x.id===vId); if(!v || !v.sale) return;
-  const s = v.sale;
+/* a proforma built from what is on screen, without recording the sale */
+function draftSaleFromForm(v){
+  const num = id => Number((document.getElementById(id)||{value:0}).value)||0;
+  const txt = id => (document.getElementById(id)||{value:''}).value.trim();
+  const px = pxFromForm();
+  return {
+    customerId: txt('s_customer') || v.saleDraftCustomerId || '',
+    date: txt('s_date') || todayISO(),
+    time: txt('s_time'),
+    soldBy: currentUserName || '',
+    salePrice: num('s_price'), discount: num('s_discount'),
+    partEx: px, partExDesc: pxLabel(px), partExValue: num('s_pxval'),
+    pxFaults: txt('s_pxFaults'),
+    adminCharge: num('s_admin'), deliveryCharge: num('s_delivery'),
+    warranty: num('s_warranty'), extraPackage: num('s_extra'),
+    deposit: num('s_deposit'),
+    payBank: 0, payCard: 0, payCash: 0,
+    advertisedPrice: Number(v.askingPrice)||0,
+    extrasText: txt('s_extrasText'),
+    tradeSale: !!(document.getElementById('s_tradeSale')||{}).checked,
+    invoiceRef: (v.sale && v.sale.invoiceRef) || ''
+  };
+}
+function printDraftInvoice(vId){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const d = draftSaleFromForm(v);
+  if(!d.customerId){ alert('Pick the customer first — the proforma needs their name and address.'); return; }
+  if(!d.salePrice){ alert('Enter the sale price first.'); return; }
+  printInvoice(vId, d);
+}
+function printInvoice(vId, draftSale){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const s = draftSale || v.sale; if(!s) return;
+  const isDraft = !!draftSale;
   const cust = DB.customers.find(c=>c.id===s.customerId) || {};
-  const t = invoiceTotals(v);
+  const t = invoiceTotals(v, s);
   const e = x => String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const m = n => fmtMoney(n||0);
   const row = (label, val, cls) => `<tr class="${cls||''}"><th>${e(label)}</th><td>${val}</td></tr>`;
@@ -2424,8 +2514,8 @@ function printInvoice(vId){
       ${DB.invoiceVatNo?'<br>VAT No '+e(DB.invoiceVatNo):''}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo)+', registered in England &amp; Wales':''}
     </small>
   </div>
-  <div class="ref"><b>INVOICE</b>
-    Ref: <strong>${e(s.invoiceRef||'—')}</strong><br>
+  <div class="ref"><b>${isDraft?'PROFORMA':'INVOICE'}</b>
+    Ref: <strong>${e(s.invoiceRef||(isDraft?'DRAFT':'—'))}</strong><br>
     Date: ${e(fmtDate(s.date))}${s.time?'<br>Time: '+e(s.time):''}
     ${s.soldBy?'<br>Sold by: '+e(s.soldBy):''}
     ${DB.marginScheme?'<br><strong style="font-size:10.5px">Margin Scheme — second-hand goods</strong>':''}
@@ -2460,6 +2550,12 @@ function printInvoice(vId){
   </div>
 </div>
 
+${isDraft?`<div style="border:1.5px solid #15181c;border-radius:4px;padding:8px 11px;margin-bottom:10px;font-size:10.5px;line-height:1.5">
+  <strong>Proforma invoice \u2014 this is a request for payment, not a receipt.</strong>
+  The vehicle is reserved for you once we receive the amount shown below. Ownership passes only when
+  payment has cleared in full. Please check our bank details by telephone before sending any money
+  \u2014 we never notify a change of bank details by email or text.
+</div>`:''}
 <h2>Price details</h2>
 <table class="money">
   ${t.advertised?row('Advertised price', m(t.advertised)):''}
@@ -2498,14 +2594,14 @@ ${(t.px>0 || (s.partExDesc||'').trim() || (s.pxFaults||'').trim())?`<div class="
   <div class="note">${e(s.noteSnapshot||invoiceNote())}</div>
 </div>
 
-<div class="sigs">
-  <div><div class="sigline">Seller’s signature / date</div></div>
-  <div><div class="sigline">I understand and agree to the above T&amp;C — customer’s signature / date</div></div>
-</div>
+${isDraft?'':`<div class="sigs">
+  <div><div class="sigline">Seller\u2019s signature / date</div></div>
+  <div><div class="sigline">I understand and agree to the above T&amp;C \u2014 customer\u2019s signature / date</div></div>
+</div>`}
 
 ${DB.invoiceAdr?`<div class="foot" style="text-align:left;border:0;padding-top:8px">If we cannot settle a complaint between us, you may refer it to ${e(DB.invoiceAdr)}.</div>`:''}
 <div class="foot">${e(DB.invoiceLegalName||DB.bizName||'')}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo):''}${DB.invoiceVatNo?' · VAT No '+e(DB.invoiceVatNo):''}${DB.invoiceFooter?' · '+e(DB.invoiceFooter):''}</div>
-<script>window.print();<\/script>
+${isDraft?'':'<scr'+'ipt>window.print();<\\/scr'+'ipt>'}
 </body></html>`;
 
   const win = window.open('','_blank');
