@@ -408,7 +408,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 21</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 22</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -2125,6 +2125,10 @@ function vehicleSaleTab(v){
         <button class="btn btn-brand" onclick="printInvoice('${v.id}')">🖨 View / print invoice</button>
         <button class="btn btn-ghost" onclick="undoSale('${v.id}')">Undo sale</button>
       </div>
+      ${(function(){ const px = v.sale.pxVehicleId && DB.vehicles.find(x=>x.id===v.sale.pxVehicleId);
+        return px ? `<div class="small-muted" style="margin-top:10px">Part exchange
+          <a class="link" onclick="openVehicle('${px.id}')">${escapeHtml(px.reg)}${px.make?' \u00b7 '+escapeHtml([px.make,px.model].filter(Boolean).join(' ')):''}</a>
+          is in company stock at ${fmtMoney((px.costs&&px.costs.purchase)||0)}.</div>` : ''; })()}
     </div>`;
   }
   const r = v.reserved;
@@ -2150,9 +2154,19 @@ function vehicleSaleTab(v){
       <div class="field"><label>Sale date</label><input id="s_date" type="date" value="${todayISO()}"/></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Part exchange description</label><input id="s_pxdesc" placeholder="e.g. 2012 Corsa reg AB12 CDE"/></div>
-      <div class="field"><label>Part exchange value (£)</label><input id="s_pxval" type="number" value="0"/></div>
+      <div class="field"><label>Part exchange reg</label><input id="s_pxreg" placeholder="AB12 CDE" style="text-transform:uppercase" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.reg)||'')}"/></div>
+      <div class="field"><label>Part exchange value (£)</label><input id="s_pxval" type="number" value="${(v.sale&&v.sale.partExValue)||0}"/></div>
     </div>
+    <div class="field-row">
+      <div class="field"><label>Make</label><input id="s_pxmake" placeholder="Ford" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.make)||'')}"/></div>
+      <div class="field"><label>Model</label><input id="s_pxmodel" placeholder="Focus Zetec" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.model)||'')}"/></div>
+      <div class="field"><label>Year</label><input id="s_pxyear" placeholder="2013" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.year)||'')}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Mileage</label><input id="s_pxmiles" type="number" placeholder="92400" value="${(v.sale&&v.sale.partEx&&v.sale.partEx.mileage)||''}"/></div>
+      <div class="field"><label>Colour</label><input id="s_pxcolour" placeholder="Blue" value="${escapeAttr((v.sale&&v.sale.partEx&&v.sale.partEx.color)||'')}"/></div>
+    </div>
+    <div class="small-muted" style="margin:-4px 0 8px">Fill these in and the part exchange is added to company stock automatically when you confirm the sale, with the allowance as its purchase cost.</div>
     <div class="field"><label>Faults the customer has declared on the part exchange</label>
       <textarea id="s_pxFaults" rows="2" placeholder="e.g. EML on intermittently, nearside wing scuffed, clutch slipping in 5th — printed above their signature"
         style="width:100%;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;">${escapeHtml((v.sale&&v.sale.pxFaults)||'')}</textarea></div>
@@ -2181,6 +2195,59 @@ function vehicleSaleTab(v){
     <button class="btn btn-brand" onclick="confirmSale('${v.id}')">Confirm sale &amp; generate invoice</button>
   </div>`;
 }
+/* the part exchange, as typed on the sale form */
+function pxFromForm(){
+  const val = id => (document.getElementById(id)||{value:''}).value.trim();
+  return {
+    reg:   val('s_pxreg').toUpperCase(),
+    make:  val('s_pxmake'),
+    model: val('s_pxmodel'),
+    year:  val('s_pxyear'),
+    mileage: Number(val('s_pxmiles'))||'',
+    color: val('s_pxcolour')
+  };
+}
+function pxLabel(p){
+  if(!p) return '';
+  const bits = [p.year, p.make, p.model].filter(Boolean).join(' ');
+  const extra = [p.color, p.mileage?Number(p.mileage).toLocaleString('en-GB')+' miles':''].filter(Boolean).join(', ');
+  return [bits, p.reg, extra].filter(Boolean).join(' \u00b7 ');
+}
+/* a part exchange becomes a company car in stock, once */
+function pxIntoStock(v){
+  const s = v.sale, p = s && s.partEx;
+  if(!p) return;
+  if(!p.reg && !p.make && !p.model && !(Number(s.partExValue)>0)) return;   // nothing entered
+  let nv = s.pxVehicleId ? DB.vehicles.find(x=>x.id===s.pxVehicleId) : null;
+  const fresh = !nv;
+  if(fresh){
+    nv = { id: nextId('veh'), status:'repair', askingPrice:0, dateAdded: todayISO(),
+           ownerType:'company', muzaribId:null,
+           costs:{purchase:0,delivery:0,service:0,mot:0,bodywork:0,mechanical:0,autotrader:0,fuel:0,other:0},
+           checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, ans:'', note:''})),
+           issues:[], photos:[], invoicePhotoIds:[], sale:null };
+    DB.vehicles.push(nv);
+    s.pxVehicleId = nv.id;
+  }
+  nv.reg     = p.reg || ('PX-' + String(nv.id).slice(-5).toUpperCase());
+  nv.make    = p.make || '';
+  nv.model   = p.model || '';
+  nv.year    = p.year || '';
+  nv.color   = p.color || '';
+  nv.mileage = p.mileage || '';
+  nv.costs.purchase = Number(s.partExValue)||0;
+  nv.pxFromVehicleId = v.id;
+  nv.notes = 'Taken in part exchange against ' + v.reg + ' on ' + fmtDate(s.date)
+           + (s.pxFaults ? ' \u2014 declared faults: ' + s.pxFaults : '');
+  if(s.pxFaults && fresh){
+    nv.issues = nv.issues || [];
+    nv.issues.push({id:nextId('iss'), type:'mechanical', desc:'Declared on part exchange: '+s.pxFaults,
+      reportedBy: currentUserName||'', createdAt: todayISO(), reminderDate: todayISO(),
+      status:'open', photoId:null, link1:'', link2:''});
+  }
+  logChange('stock', fresh?'Added from part exchange':'Updated part exchange vehicle', vehRef(nv),
+    'Purchase', '', fmtMoney(nv.costs.purchase), 'Taken against ' + v.reg);
+}
 function confirmSale(vId){
   const v = DB.vehicles.find(x=>x.id===vId);
   const customerId = document.getElementById('s_customer').value;
@@ -2190,7 +2257,8 @@ function confirmSale(vId){
     customerId, date: document.getElementById('s_date').value,
     salePrice: Number(document.getElementById('s_price').value)||0,
     discount: Number(document.getElementById('s_discount').value)||0,
-    partExDesc: document.getElementById('s_pxdesc').value,
+    partEx: pxFromForm(),
+    partExDesc: pxLabel(pxFromForm()),
     partExValue: Number(document.getElementById('s_pxval').value)||0,
     adminCharge: Number(document.getElementById('s_admin').value)||0,
     deliveryCharge: Number(document.getElementById('s_delivery').value)||0,
@@ -2221,18 +2289,9 @@ function confirmSale(vId){
   logChange('sale', wasSold?'Edited sale of':'Recorded sale of', vehRef(v), 'Sale price',
     wasSold?fmtMoney(prevSale.salePrice):'', fmtMoney(v.sale.salePrice),
     'Profit ' + fmtMoney(vehicleProfit(v)) + (isMuzaribCar(v) ? ' · investor ' + muzaribName(v.muzaribId) + ' receives ' + fmtMoney(carSettlement(v).investor) : ''));
+  pxIntoStock(v);
   saveDB();
   renderVehicleDetail();
-  if(v.sale.partExValue>0 && confirm('Add the part-exchange vehicle to stock now?')){
-    const nv = {
-      id: nextId('veh'), reg:'PX-'+v.sale.partExDesc.replace(/\s+/g,'').slice(0,10).toUpperCase(), make:'', model:v.sale.partExDesc,
-      year:'', color:'', mileage:'', status:'repair', askingPrice:0, dateAdded: todayISO(),
-      costs:{purchase:v.sale.partExValue,delivery:0,service:0,mot:0,bodywork:0,mechanical:0,autotrader:0,fuel:0,other:0},
-      checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, ans:'', note:''})),
-      issues:[], photos:[], invoicePhotoIds:[], sale:null
-    };
-    DB.vehicles.push(nv); saveDB();
-  }
 }
 function undoSale(vId){
   if(!confirm('Undo this sale? The vehicle will return to stock.')) return;
