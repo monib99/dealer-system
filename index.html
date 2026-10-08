@@ -408,7 +408,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 26</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 29</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -595,6 +595,7 @@ async function loadDB(){
   }
 
   hideLoadFailure();
+  try{ repairMissingCustomerDates(); }catch(e){}
   render();
   subscribeToChanges();
 }
@@ -1122,6 +1123,14 @@ function pendingCostCount(v){ return (v.works||[]).filter(w=>w.costPending).leng
 /* =========================================================================
    STOCK
    ========================================================================= */
+/* Sold cars are most useful newest-first; everything else newest into stock. */
+function setStockFilter(k){
+  const salesSorts = ['soldlast','soldfirst'];
+  if(k==='sold' && !salesSorts.includes(stockSort)) stockSort = 'soldlast';
+  else if(k!=='sold' && salesSorts.includes(stockSort)) stockSort = 'newest';
+  stockFilter = k;
+  render();
+}
 function renderStock(){
   const isCurrent = v => !v.sale && v.status!=='sold' && v.status!=='scrap';
   let list = DB.vehicles.filter(v=>{
@@ -1142,7 +1151,9 @@ function renderStock(){
     longest:  (a,b)=> (a.dateAdded||'').localeCompare(b.dateAdded||''),
     reg:      (a,b)=> (a.reg||'').localeCompare(b.reg||''),
   };
-  list = list.sort(sorters[stockSort] || sorters.newest);
+  // belt and braces: the Sold tab never shows an arbitrary order
+  const effSort = (stockFilter==='sold' && !['soldlast','soldfirst'].includes(stockSort)) ? 'soldlast' : stockSort;
+  list = list.sort(sorters[effSort] || sorters.newest);
 
   const counts = {};
   DB.vehicles.forEach(v=>counts[v.status]=(counts[v.status]||0)+1);
@@ -1160,7 +1171,7 @@ function renderStock(){
   <div class="chip-row">
     ${filters.map(([k,l])=>{
       const n = k==='current' ? currentCount : (k==='all' ? DB.vehicles.length : (counts[k]||0));
-      return `<div class="chip ${stockFilter===k?'active':''}" onclick="stockFilter='${k}';render()">${l}${n?' ('+n+')':''}</div>`;
+      return `<div class="chip ${stockFilter===k?'active':''}" onclick="setStockFilter('${k}')">${l}${n?' ('+n+')':''}</div>`;
     }).join('')}
   </div>
   <div class="toolbar">
@@ -1169,7 +1180,7 @@ function renderStock(){
       ${[['newest','Newest in stock'],['oldest','Oldest in stock'],['longest','Longest unsold'],
          ['soldlast','Sold most recently'],['soldfirst','Sold earliest'],
          ['margin','Biggest margin'],['costhigh','Most expensive'],['reg','Registration A–Z']]
-        .map(([k,l])=>`<option value="${k}" ${stockSort===k?'selected':''}>${l}</option>`).join('')}
+        .map(([k,l])=>`<option value="${k}" ${effSort===k?'selected':''}>${l}</option>`).join('')}
     </select>
     <button class="btn btn-ghost btn-sm" onclick="exportStockCSV()">⬇ Export CSV</button>
     ${isManager()?`<button class="btn btn-ghost btn-sm" onclick="openSourcingCheck()">💷 Check a car before buying</button><button class="btn btn-brand btn-sm" onclick="publishToWebsite()">🌐 Publish to website</button><button class="btn btn-ghost btn-sm" onclick="openGapList()">⚠ Incomplete (${gapCount(false)})</button><button class="btn btn-ghost btn-sm" onclick="exportStockForWebsite()">⬇ stock.json</button><span class="small-muted">${DB.websitePublishedAt?`Last published ${fmtDate(DB.websitePublishedAt.slice(0,10))} · ${DB.websitePublishedCount||0} cars`:'Not published yet'}</span>`:''}
@@ -2197,11 +2208,13 @@ function vehicleSaleTab(v){
     </div>`:''}
     ${licenceCard(v)}
     <div class="field"><label>Customer</label>
+      <input id="s_custSearch" placeholder="Search name, phone, email or postcode…" style="margin-bottom:6px"
+        oninput="searchSalesCustomer('${v.id}')"/>
       <select id="s_customer">
         <option value="">— Select existing customer —</option>
         ${customerOptions(v.sale?v.sale.customerId:(v.saleDraftCustomerId||''))}
       </select>
-      <div class="small-muted" style="margin-top:6px;">Don't see them? <a class="link" onclick="openAddCustomer(true)">Add a new customer</a></div>
+      <div class="small-muted" style="margin-top:6px;">Showing the 5 most recent — search above for anyone else. Not on the list? <a class="link" onclick="openAddCustomer(true)">Add a new customer</a></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Sale price (£)</label><input id="s_price" type="number" value="${v.askingPrice||0}"/></div>
@@ -3252,15 +3265,38 @@ function customersVisible(){
   return custView==='recent' ? list.slice(0,25) : list;
 }
 /* For the sale form: the 25 most recent, plus whoever is already selected. */
-function customerOptions(selectedId){
-  const recent=customersSorted().slice(0,25);
-  if(selectedId && !recent.some(c=>c.id===selectedId)){
-    const c=(DB.customers||[]).find(x=>x.id===selectedId);
-    if(c) recent.unshift(c);
+/* Five most recent by default — the search box reaches the rest. */
+function customerOptions(selectedId, query){
+  const all = (DB.customers||[]);
+  const q = (query||'').trim().toLowerCase();
+  let list;
+  if(q){
+    list = customersSorted().filter(c =>
+      ((c.name||'')+' '+(c.phone||'')+' '+(c.email||'')+' '+(c.postcode||''))
+        .toLowerCase().includes(q)).slice(0,30);
+  } else {
+    list = customersSorted().slice(0,5);
   }
-  const rest=(DB.customers||[]).length - recent.length;
-  return recent.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}${c.phone?' ('+escapeHtml(c.phone)+')':''}</option>`).join('')
-    + (rest>0?`<option disabled>──────────  ${rest} older customers — use Add new / search  ──────────</option>`:'');
+  if(selectedId && !list.some(c=>c.id===selectedId)){
+    const c = all.find(x=>x.id===selectedId);
+    if(c) list.unshift(c);
+  }
+  const opts = list.map(c=>`<option value="${c.id}" ${c.id===selectedId?'selected':''}>${escapeHtml(c.name)}${c.phone?' ('+escapeHtml(c.phone)+')':''}</option>`).join('');
+  let note = '';
+  if(q)            note = list.length ? '' : `<option disabled>No customer matches “${escapeHtml(query)}”</option>`;
+  else if(all.length > list.length)
+                   note = `<option disabled>────  ${all.length - list.length} more — type a name or phone above  ────</option>`;
+  return opts + note;
+}
+/* rebuild the picker as you type, keeping whoever is already chosen */
+function searchSalesCustomer(vId){
+  const box = document.getElementById('s_custSearch');
+  const sel = document.getElementById('s_customer');
+  if(!sel) return;
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">\u2014 Select existing customer \u2014</option>'
+                + customerOptions(keep, box ? box.value : '');
+  if(keep) sel.value = keep;
 }
 function renderCustomers(){
   return `
@@ -3390,15 +3426,42 @@ function openAddCustomer(fromSale){
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add customer</h3>
     <div class="field"><label>Name</label><input id="c_name"/></div>
     <div class="field-row"><div class="field"><label>Phone</label><input id="c_phone"/></div><div class="field"><label>Email</label><input id="c_email"/></div></div>
-    <div class="field"><label>Address</label><input id="c_address"/></div>
+    <div class="field-row"><div class="field"><label>Address</label><input id="c_address"/></div>
+      <div class="field"><label>Postcode</label><input id="c_postcode" style="text-transform:uppercase"/></div></div>
     <div class="field"><label>Notes</label><textarea id="c_notes" rows="2"></textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="saveCustomer(${fromSale})">Add</button></div>`);
 }
 function saveCustomer(fromSale){
   const name = document.getElementById('c_name').value.trim(); if(!name){alert('Name required');return;}
-  const c = {id:nextId('cust'), name, phone:document.getElementById('c_phone').value, email:document.getElementById('c_email').value, address:document.getElementById('c_address').value, notes:document.getElementById('c_notes').value};
-  DB.customers.push(c); saveDB(); closeModal();
+  const c = {id:nextId('cust'), name,
+    phone:document.getElementById('c_phone').value,
+    email:document.getElementById('c_email').value,
+    address:document.getElementById('c_address').value,
+    postcode:(document.getElementById('c_postcode')||{value:''}).value.trim().toUpperCase(),
+    notes:document.getElementById('c_notes').value,
+    createdAt: todayISO()};          // without this they sort to the bottom and vanish
+  if(!DB.customers) DB.customers=[];
+  DB.customers.push(c);
+  if(fromSale){
+    // pick them straight away, so the sale form shows who you just added
+    const v = DB.vehicles.find(x=>x.id===activeVehicleId);
+    if(v) v.saleDraftCustomerId = c.id;
+  }
+  saveDB(); closeModal();
   if(fromSale) renderVehicleDetail(); else render();
+}
+
+/* customers added before this fix have no created date and no sale yet, so they
+   sorted below 300+ imported records and never showed in the picker */
+function repairMissingCustomerDates(){
+  let n = 0;
+  (DB.customers||[]).forEach(c=>{
+    if(c.createdAt) return;
+    const hasSale = (DB.vehicles||[]).some(v=>v.sale && v.sale.customerId===c.id);
+    if(!hasSale){ c.createdAt = todayISO(); n++; }
+  });
+  if(n){ saveDB(); }
+  return n;
 }
 function deleteCustomer(id){ if(!confirm('Remove this customer?'))return; DB.customers=DB.customers.filter(x=>x.id!==id); saveDB(); render(); }
 
