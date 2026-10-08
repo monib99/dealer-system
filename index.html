@@ -379,6 +379,8 @@
 .cl-yes{ color:#1f7a52; font-weight:700; margin-left:10px; } .cl-no{ color:#c0271b; font-weight:700; margin-left:8px; } .cl-left{ color:var(--grey); margin-left:8px; }
 .cl-bar{ height:8px; background:#e8ebf1; border-radius:6px; margin-top:6px; overflow:hidden; } .cl-bar i{ display:block; height:100%; background:#e10600; transition:width .3s; border-radius:6px; }
 .cl-filters{ display:flex; gap:6px; flex-wrap:wrap; } .cl-filters button{ border:1px solid var(--line); background:#fff; border-radius:20px; padding:6px 14px; font:600 13px 'IBM Plex Sans',sans-serif; cursor:pointer; } .cl-filters button.on{ background:#000; color:#fff; border-color:#000; }
+.cl-filters button.pr{ margin-left:6px; background:#f3f5f9; }
+.cl-filters button.pr:hover{ background:#e9ecf3; }
 .cl-card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:14px 16px 6px; margin-bottom:12px; box-shadow:var(--shadow-sm); }
 .cl-gh{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; } .cl-gh h3{ margin:0; font-size:21px; } .cl-gc{ font:600 12px 'IBM Plex Sans',sans-serif; background:#eef0f4; color:var(--ink-soft); padding:2px 9px; border-radius:12px; vertical-align:middle; margin-left:6px; }
 .cl-row{ display:grid; grid-template-columns:minmax(150px,230px) auto 1fr auto; gap:10px; align-items:center; padding:8px 8px 8px 8px; border-top:1px solid #eef0f4; border-left:3px solid transparent; transition:background .2s,border-color .2s; }
@@ -406,7 +408,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-01 · build 12</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-08 · build 20</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -483,28 +485,61 @@ const DEFAULT_DB = () => ({
   seq: 1
 });
 const CHECKLIST_GROUPS = [
-  {name:'Paperwork & legal', icon:'📄', items:[
+  {name:'Paperwork & legal', icon:'\u{1F4C4}', items:[
     'V5C logbook present', 'Registration & VIN match the V5C', 'MOT valid or MOT history checked', 'HPI / history check clear',
-    'Mileage matches the records', 'Service history / book', 'Keys (x2)', 'Number plates correct and secure']},
-  {name:'Exterior & bodywork', icon:'🚗', items:[
-    'Bodywork exterior', 'Paint matches, no mismatched panels', 'Dents, scratches and rust checked', 'Bumpers and trims secure',
-    'Door and boot seals, shut lines even', 'Wing mirrors & glass', 'Windscreen free of chips and cracks', 'Wipers and washer jets work', 'Roof and sunroof (if fitted)']},
-  {name:'Lights & electrics', icon:'💡', items:[
+    'Mileage matches the records', 'Service history / book', 'Next service due date noted', 'Outstanding recalls checked',
+    'Previous keepers noted', 'Owner\u2019s handbook / manual', 'Keys (x2)', 'Number plates correct and secure']},
+  {name:'Exterior & bodywork', icon:'\u{1F697}', items:[
+    'Bodywork exterior', 'Paint matches, no mismatched panels', 'Dents, scratches and rust checked', 'Underside and sills free of corrosion',
+    'Jacking points sound', 'Bumpers and trims secure', 'Door and boot seals, shut lines even', 'Doors, boot and bonnet open and shut properly',
+    'Wing mirrors & glass', 'Windscreen free of chips and cracks', 'Headlight lenses clear, not hazed',
+    'Wipers and washer jets work', 'Roof and sunroof (if fitted)', 'Tow bar and electrics (if fitted)']},
+  {name:'Lights & electrics', icon:'\u{1F4A1}', items:[
     'Lights (all)', 'Indicators and hazards', 'Brake lights and reverse light', 'Fog lights (if fitted)', 'Horn',
-    'Battery & electrics', 'Warning lights clear on the dash', 'Central locking and remote', 'Electric windows and mirrors']},
-  {name:'Wheels, tyres & brakes', icon:'🛞', items:[
-    'Tyres & tread', 'Tyres matching per axle, no cracks or bulges', 'Alloys free of kerb damage', 'Spare wheel / kit', 'Locking wheel nut key present',
-    'Brakes', 'Brake discs and pads checked', 'Handbrake holds']},
-  {name:'Engine & mechanical', icon:'🔧', items:[
-    'Fluid levels', 'Oil level and colour', 'Coolant level, no leaks', 'Starts first time, no smoke', 'Engine bay clean, no leaks',
-    'Belts and hoses', 'Exhaust, no blowing or leaks', 'Clutch and gearbox smooth', 'Suspension, no knocks', 'Steering, no play', 'Air conditioning blows cold', 'Heater and demister work']},
-  {name:'Interior', icon:'🪑', items:[
-    'Interior condition', 'Seats and seatbelts work', 'Carpets and mats', 'Headlining and trim', 'Radio, Bluetooth and sockets work', 'No damp or smoke smells', 'Boot clean, parcel shelf present']},
-  {name:'Road test', icon:'🛣', items:[
-    'Test drive', 'Drives straight, no pulling', 'Brakes pull up straight', 'Gears change smoothly', 'No noises or vibration', 'Engine temperature normal', 'Warning lights stay off after the drive']},
-  {name:'Final prep', icon:'✨', items:[
-    'Valeted inside and out', 'Fuel in the tank', 'Photos taken (all angles)', 'Price and description written', 'Ready for handover']},
+    'Battery & electrics', 'Battery health tested', 'Battery terminals clean and tight',
+    'Warning lights clear on the dash', 'Airbag warning light out', 'ABS and traction warning lights out',
+    'Central locking and remote', 'Both key fobs tested', 'Electric windows and mirrors',
+    'Parking sensors and reversing camera', 'Sat nav / infotainment screen', 'Aftermarket wiring checked']},
+  {name:'Wheels, tyres & brakes', icon:'\u{1F6DE}', items:[
+    'Tyres & tread', 'Tread depths recorded on all four', 'Tyres matching per axle, no cracks or bulges',
+    'Tyre age (DOT date) acceptable', 'Tyre pressures set, including spare', 'Alloys free of kerb damage',
+    'Spare wheel / kit', 'Locking wheel nut key present',
+    'Brakes', 'Brake discs and pads checked', 'Brake fluid level and condition', 'Brake pipes and hoses, no corrosion',
+    'Handbrake holds', 'Wheel bearings, no hum', 'Wheel alignment / tracking checked']},
+  {name:'Engine & mechanical', icon:'\u{1F527}', items:[
+    'Fluid levels', 'Oil level and colour', 'Coolant level, no leaks', 'Screenwash topped up', 'Power steering fluid (if applicable)',
+    'Starts first time, no smoke', 'Engine bay clean, no leaks', 'Cambelt or chain history confirmed',
+    'Belts and hoses', 'Radiator and cooling fan', 'Engine mounts, no excessive movement',
+    'Turbo, no smoke or whine under load', 'DPF and EGR (diesel)', 'AdBlue level (if fitted)',
+    'Exhaust, no blowing or leaks', 'Emissions / catalytic converter', 'Clutch and gearbox smooth',
+    'Driveshafts and CV boots', 'Suspension, no knocks', 'Steering, no play',
+    'Air conditioning blows cold', 'Heater and demister work']},
+  {name:'Interior', icon:'\u{1FA91}', items:[
+    'Interior condition', 'Seats and seatbelts work', 'Rear seats fold and latch', 'ISOFIX child seat points',
+    'Airbags present and undeployed', 'Dashboard, switches and controls', 'Steering wheel and pedal wear matches mileage',
+    'Carpets and mats', 'Headlining and trim', 'Radio, Bluetooth and sockets work',
+    'No damp or smoke smells', 'Boot clean, parcel shelf present', 'Boot floor and spare well dry']},
+  {name:'Road test', icon:'\u{1F6E3}', items:[
+    'Test drive', 'Road test at 30, 50 and 70 mph', 'Drives straight, no pulling', 'Brakes pull up straight',
+    'Brake test under load', 'Clutch bite point correct, no slip', 'Gears change smoothly',
+    'No noises or vibration', 'Suspension quiet over bumps', 'Cruise control (if fitted)', 'Stop-start system (if fitted)',
+    'Handbrake holds on a hill', 'Engine temperature normal', 'Warning lights stay off after the drive']},
+  {name:'Final prep', icon:'\u2728', items:[
+    'Valeted inside and out', 'Fuel in the tank', 'Photos taken (all angles)', 'Price and description written',
+    'Advertised online', 'Service book stamped if serviced', 'Warranty explained and paperwork ready',
+    'Both keys handed over', 'Ready for handover', 'Inspection signed off']},
 ];
+const QUICK_CHECK = new Set([
+  'V5C logbook present','Registration & VIN match the V5C','MOT valid or MOT history checked','HPI / history check clear',
+  'Mileage matches the records','Keys (x2)',
+  'Dents, scratches and rust checked','Underside and sills free of corrosion','Windscreen free of chips and cracks',
+  'Lights (all)','Warning lights clear on the dash','Airbag warning light out','ABS and traction warning lights out','Battery health tested',
+  'Tyres & tread','Tread depths recorded on all four','Tyres matching per axle, no cracks or bulges','Brakes','Brake discs and pads checked','Handbrake holds',
+  'Starts first time, no smoke','Engine bay clean, no leaks','Cambelt or chain history confirmed','Coolant level, no leaks','Oil level and colour',
+  'Clutch and gearbox smooth','Suspension, no knocks','Steering, no play','Exhaust, no blowing or leaks',
+  'Seats and seatbelts work','No damp or smoke smells',
+  'Test drive','Drives straight, no pulling','Brakes pull up straight','Gears change smoothly','Warning lights stay off after the drive'
+]);
 const CHECKLIST_TEMPLATE = CHECKLIST_GROUPS.reduce((a,g)=>a.concat(g.items),[]);
 
 let DB = DEFAULT_DB();
@@ -1317,7 +1352,7 @@ function saveNewVehicle(){
     askingPrice: Number(document.getElementById('f_asking').value)||0,
     dateAdded: todayISO(),
     costs:{purchase:0,delivery:0,service:0,mot:0,bodywork:0,mechanical:0,autotrader:0,fuel:0,other:0},
-    checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, note:''})),
+    checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, ans:'', note:''})),
     issues:[], photos:[], invoicePhotoIds:[], sale:null
   };
   DB.vehicles.push(v);
@@ -1838,24 +1873,28 @@ let clFilter = 'all';
 function vehicleChecklistTab(v){
   const list = ensureChecklist(v);
   const counts = clCounts(list);
+  const inScope = c => clFilter!=='quick' || QUICK_CHECK.has(c.name);
+  const sum = clFilter==='quick' ? clCounts(list.filter(inScope)) : counts;
   const groups = CHECKLIST_GROUPS.map(g=>({g, rows:list.map((c,idx)=>({c,idx})).filter(x=>clGroupOf(x.c.name)===g.name)}));
   const other = list.map((c,idx)=>({c,idx})).filter(x=>!clGroupOf(x.c.name));
   if(other.length) groups.push({g:{name:'Other', icon:'📝'}, rows:other});
-  const show = x => clFilter==='all' ? true : clFilter==='todo' ? !x.c.ans : x.c.ans==='no';
+  const show = x => clFilter==='all' ? true : clFilter==='quick' ? QUICK_CHECK.has(x.c.name) : clFilter==='todo' ? !x.c.ans : x.c.ans==='no';
   return `
   <div class="cl">
     <div class="cl-top">
-      <div class="cl-sum"><div><b id="clDone">${counts.done}</b> of ${counts.total} checked
-        <span class="cl-yes" id="clYes">${counts.yes} yes</span> <span class="cl-no" id="clNo">${counts.no} no</span> <span class="cl-left" id="clLeft">${counts.left} left</span></div>
-        <div class="cl-bar"><i id="clBar" style="width:${counts.total?Math.round(counts.done/counts.total*100):0}%"></i></div></div>
+      <div class="cl-sum"><div><b id="clDone">${sum.done}</b> of ${sum.total} ${clFilter==='quick'?'essentials ':''}checked
+        <span class="cl-yes" id="clYes">${sum.yes} yes</span> <span class="cl-no" id="clNo">${sum.no} no</span> <span class="cl-left" id="clLeft">${sum.left} left</span></div>
+        <div class="cl-bar"><i id="clBar" style="width:${sum.total?Math.round(sum.done/sum.total*100):0}%"></i></div></div>
       <div class="cl-filters">
-        ${[['all','Everything'],['todo','Still to do'],['no','Failed (No)']].map(([k,l])=>`<button class="${clFilter===k?'on':''}" onclick="clFilter='${k}';renderVehicleDetail()">${l}</button>`).join('')}
+        ${[['all',`Everything (${counts.total})`],['quick',`Quick check (${counts.quick})`],['todo','Still to do'],['no','Failed (No)']].map(([k,l])=>`<button class="${clFilter===k?'on':''}" onclick="clFilter='${k}';renderVehicleDetail()">${l}</button>`).join('')}
+        <button class="pr" onclick="printChecklist('${v.id}')">\u{1F5A8} Print sheet</button>
       </div>
     </div>
     ${groups.map(({g,rows})=>{
       const vis = rows.filter(show); if(!vis.length) return '';
-      const gd = rows.filter(x=>x.c.ans).length;
-      return `<div class="cl-card"><div class="cl-gh"><h3>${g.icon||''} ${g.name} <span class="cl-gc" id="clg_${CHECKLIST_GROUPS.indexOf(g)}">${gd}/${rows.length}</span></h3>
+      const grows = rows.filter(x=>inScope(x.c));
+      const gd = grows.filter(x=>x.c.ans).length;
+      return `<div class="cl-card"><div class="cl-gh"><h3>${g.icon||''} ${g.name} <span class="cl-gc" id="clg_${CHECKLIST_GROUPS.indexOf(g)}">${gd}/${grows.length}</span></h3>
         ${g.name!=='Other'?`<button class="btn btn-sm btn-ghost" onclick="clGroupYes('${v.id}',${CHECKLIST_GROUPS.indexOf(g)})">All yes</button>`:''}</div>
         ${vis.map(({c,idx})=>`
         <div class="cl-row ${c.ans||''}" id="clr_${idx}">
@@ -1883,11 +1922,15 @@ function ensureChecklist(v){
 function clGroupOf(name){ const g = CHECKLIST_GROUPS.find(g=>g.items.includes(name)); return g ? g.name : null; }
 function clCounts(list){
   const yes = list.filter(c=>c.ans==='yes').length, no = list.filter(c=>c.ans==='no').length;
-  return {total:list.length, yes, no, done:yes+no, left:list.length-yes-no};
+  const q = list.filter(c=>QUICK_CHECK.has(c.name));
+  return {total:list.length, yes, no, done:yes+no, left:list.length-yes-no,
+          quick:q.length, quickDone:q.filter(c=>c.ans).length};
 }
 /* updates the screen without jumping back to the top */
 function clRefresh(v){
-  const list = v.checklist, k = clCounts(list);
+  const list = v.checklist;
+  const inScope = c => clFilter!=='quick' || QUICK_CHECK.has(c.name);
+  const k = clFilter==='quick' ? clCounts(list.filter(inScope)) : clCounts(list);
   list.forEach((c,idx)=>{
     const r = document.getElementById('clr_'+idx); if(!r) return;
     r.className = 'cl-row ' + (c.ans||'');
@@ -1900,7 +1943,7 @@ function clRefresh(v){
   const set = (id,t)=>{ const e = document.getElementById(id); if(e) e.textContent = t; };
   set('clDone',k.done); set('clYes',k.yes+' yes'); set('clNo',k.no+' no'); set('clLeft',k.left+' left');
   const bar = document.getElementById('clBar'); if(bar) bar.style.width = (k.total?Math.round(k.done/k.total*100):0)+'%';
-  CHECKLIST_GROUPS.forEach((g,gi)=>{ const rows = list.filter(c=>clGroupOf(c.name)===g.name); set('clg_'+gi, rows.filter(c=>c.ans).length+'/'+rows.length); });
+  CHECKLIST_GROUPS.forEach((g,gi)=>{ const rows = list.filter(c=>clGroupOf(c.name)===g.name && inScope(c)); set('clg_'+gi, rows.filter(c=>c.ans).length+'/'+rows.length); });
 }
 function setCheck(vId, idx, ans){
   const v = DB.vehicles.find(x=>x.id===vId); const c = v.checklist[idx]; if(!c) return;
@@ -1914,6 +1957,41 @@ function clGroupYes(vId, gi){
   const v = DB.vehicles.find(x=>x.id===vId); const g = CHECKLIST_GROUPS[gi]; if(!g) return;
   v.checklist.forEach(c=>{ if(g.items.includes(c.name) && !c.ans){ c.ans='yes'; c.ok=true; } });
   saveDB(); renderVehicleDetail();
+}
+
+/* printable inspection sheet */
+function printChecklist(vId){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const list = ensureChecklist(v), k = clCounts(list);
+  const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const byGroup = {};
+  list.forEach(c=>{ const g = clGroupOf(c.name) || 'Other'; (byGroup[g]=byGroup[g]||[]).push(c); });
+  const order = CHECKLIST_GROUPS.map(g=>g.name).concat(Object.keys(byGroup).filter(n=>!CHECKLIST_GROUPS.some(g=>g.name===n)));
+  const mark = c => c.ans==='yes' ? '✓' : c.ans==='no' ? '✗' : '☐';
+  const title = `${esc(v.reg||'')} — ${esc([v.make,v.model].filter(Boolean).join(' '))}`;
+  const html = `<!doctype html><meta charset="utf-8"><title>Vehicle inspection — ${title}</title>
+<style>body{font-family:-apple-system,Segoe UI,Arial,sans-serif;margin:26px;color:#111}
+h1{font-size:19px;margin:0 0 2px}
+h2{font-size:12px;margin:16px 0 5px;border-bottom:1.5px solid #999;padding-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+.meta{font-size:11.5px;color:#555;margin-bottom:4px}
+table{width:100%;border-collapse:collapse}
+td{font-size:11.5px;padding:3.5px 6px;border-bottom:1px solid #e8e8e8;vertical-align:top}
+td.b{width:20px;text-align:center;font-weight:700}
+td.b.no{color:#c0271b} td.b.yes{color:#1f7a52}
+td.n{width:40%;color:#444}
+tr.fail td{background:#fff6f5}
+.sig{margin-top:24px;font-size:11.5px;display:flex;gap:40px}
+.sig div{margin-top:20px;border-top:1px solid #333;width:230px;padding-top:4px}
+@media print{body{margin:12mm}}</style>
+<h1>Vehicle inspection — ${title}</h1>
+<div class="meta">Mileage: ${esc(v.mileage||'—')} · Year: ${esc(v.year||'—')} · ${k.yes} pass, ${k.no} fail, ${k.left} not checked (of ${k.total}) · Printed ${new Date().toLocaleDateString('en-GB')}</div>
+${order.map(g=>{ const rows = byGroup[g]; if(!rows || !rows.length) return '';
+  return `<h2>${esc(g)}</h2><table>${rows.map(c=>`<tr class="${c.ans==='no'?'fail':''}"><td class="b ${c.ans||''}">${mark(c)}</td><td>${esc(c.name)}</td><td class="n">${esc(c.note||'')}</td></tr>`).join('')}</table>`;
+}).join('')}
+<div class="sig"><div>Inspected by / date</div><div>Checked by / date</div></div>`;
+  const w = window.open('', '_blank');
+  if(!w){ alert('Allow pop-ups to print the inspection sheet.'); return; }
+  w.document.write(html); w.document.close(); setTimeout(()=>w.print(), 400);
 }
 /* a "No" can become an outstanding issue in one tap */
 function checkToIssue(vId, idx){
@@ -2075,11 +2153,30 @@ function vehicleSaleTab(v){
       <div class="field"><label>Part exchange description</label><input id="s_pxdesc" placeholder="e.g. 2012 Corsa reg AB12 CDE"/></div>
       <div class="field"><label>Part exchange value (£)</label><input id="s_pxval" type="number" value="0"/></div>
     </div>
+    <div class="field"><label>Faults the customer has declared on the part exchange</label>
+      <textarea id="s_pxFaults" rows="2" placeholder="e.g. EML on intermittently, nearside wing scuffed, clutch slipping in 5th — printed above their signature"
+        style="width:100%;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;">${escapeHtml((v.sale&&v.sale.pxFaults)||'')}</textarea></div>
+    <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="s_tradeSale" ${(v.sale&&v.sale.tradeSale)?'checked':''} style="width:17px;height:17px"/>
+      <span><strong>Trade sale</strong> — buyer is a business, not a consumer. Prints the trade terms instead of the consumer ones.</span>
+    </label>
     <div class="field-row">
       <div class="field"><label>Admin charge (£)</label><input id="s_admin" type="number" value="0"/></div>
       <div class="field"><label>Delivery charge (£)</label><input id="s_delivery" type="number" value="0"/></div>
       <div class="field"><label>Warranty (£)</label><input id="s_warranty" type="number" value="0"/></div>
       <div class="field"><label>Extra package (£)</label><input id="s_extra" type="number" value="0"/></div>
+    </div>
+    <div class="field"><label>Any extras (shown on the invoice)</label>
+      <input id="s_extrasText" placeholder="e.g. 3 MONTHS WARRANTY (GEARBOX AND ENGINE)" value="${(v.sale&&v.sale.extrasText)||''}"/></div>
+    <div class="section-title" style="margin-top:14px"><h2>Payment</h2></div>
+    <div class="field-row">
+      <div class="field"><label>Deposit taken (£)</label><input id="s_deposit" type="number" step="0.01" value="${(v.sale&&v.sale.deposit)||depositFromLead(v.id)}"/></div>
+      <div class="field"><label>Sale time</label><input id="s_time" type="time" value="${(v.sale&&v.sale.time)||nowTime()}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Bank transfer (£)</label><input id="s_payBank" type="number" step="0.01" value="${(v.sale&&v.sale.payBank)||0}"/></div>
+      <div class="field"><label>Card (£)</label><input id="s_payCard" type="number" step="0.01" value="${(v.sale&&v.sale.payCard)||0}"/></div>
+      <div class="field"><label>Cash (£)</label><input id="s_payCash" type="number" step="0.01" value="${(v.sale&&v.sale.payCash)||0}"/></div>
     </div>
     <button class="btn btn-brand" onclick="confirmSale('${v.id}')">Confirm sale &amp; generate invoice</button>
   </div>`;
@@ -2099,8 +2196,28 @@ function confirmSale(vId){
     deliveryCharge: Number(document.getElementById('s_delivery').value)||0,
     warranty: Number(document.getElementById('s_warranty').value)||0,
     extraPackage: Number(document.getElementById('s_extra').value)||0,
+    extrasText: (document.getElementById('s_extrasText')||{value:''}).value.trim(),
+    time: (document.getElementById('s_time')||{value:''}).value,
+    deposit: Number((document.getElementById('s_deposit')||{value:0}).value)||0,
+    payBank: Number((document.getElementById('s_payBank')||{value:0}).value)||0,
+    payCard: Number((document.getElementById('s_payCard')||{value:0}).value)||0,
+    payCash: Number((document.getElementById('s_payCash')||{value:0}).value)||0,
+    advertisedPrice: Number(v.askingPrice)||0,
+    pxFaults: (document.getElementById('s_pxFaults')||{value:''}).value.trim(),
+    tradeSale: !!(document.getElementById('s_tradeSale')||{}).checked,
+    soldBy: (v.sale && v.sale.soldBy) || currentUserName || '',
+    invoiceRef: (v.sale && v.sale.invoiceRef) || nextInvoiceRef(),
   };
   v.status='sold';
+  /* freeze the wording as issued, so reprinting an old invoice shows what was signed
+     rather than whatever the terms say today */
+  if(!v.sale.termsSnapshot){
+    v.sale.termsSnapshot   = termsForSale(v.sale).slice();
+    v.sale.pxTermsSnapshot = invoicePxTerms().slice();
+    v.sale.declSnapshot    = invoiceDeclaration().slice();
+    v.sale.noteSnapshot    = invoiceNote();
+    v.sale.issuedAt        = new Date().toISOString();
+  }
   logChange('sale', wasSold?'Edited sale of':'Recorded sale of', vehRef(v), 'Sale price',
     wasSold?fmtMoney(prevSale.salePrice):'', fmtMoney(v.sale.salePrice),
     'Profit ' + fmtMoney(vehicleProfit(v)) + (isMuzaribCar(v) ? ' · investor ' + muzaribName(v.muzaribId) + ' receives ' + fmtMoney(carSettlement(v).investor) : ''));
@@ -2111,7 +2228,7 @@ function confirmSale(vId){
       id: nextId('veh'), reg:'PX-'+v.sale.partExDesc.replace(/\s+/g,'').slice(0,10).toUpperCase(), make:'', model:v.sale.partExDesc,
       year:'', color:'', mileage:'', status:'repair', askingPrice:0, dateAdded: todayISO(),
       costs:{purchase:v.sale.partExValue,delivery:0,service:0,mot:0,bodywork:0,mechanical:0,autotrader:0,fuel:0,other:0},
-      checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, note:''})),
+      checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, ans:'', note:''})),
       issues:[], photos:[], invoicePhotoIds:[], sale:null
     };
     DB.vehicles.push(nv); saveDB();
@@ -2125,30 +2242,216 @@ function undoSale(vId){
     isMuzaribCar(v) ? 'Reversed the settlement for ' + muzaribName(v.muzaribId) : '');
   v.sale=null; v.status='ready'; saveDB(); renderVehicleDetail();
 }
+
+/* ---- invoice numbering, terms and helpers ---- */
+const INVOICE_TERMS_DEFAULT = [
+  'I confirm my details are correct and that I am responsible for any offences, charges, fines or penalties from the date and time of this invoice. The vehicle must be taxed and insured before it is driven away.',
+  'This is a used vehicle. Wear and tear consistent with its age and mileage is not a fault. All faults and MOT advisories known to us have been disclosed and are reflected in the price.',
+  'An MOT confirms the vehicle met the minimum standard on the test date only — it is not a warranty. Check mileage at gov.uk/check-mot-history; we accept no liability for mileage data from other sources.',
+  'Specification details come from third-party data and may contain errors. Confirm anything you are relying on with us in writing before purchase.',
+  'Tell us about any fault as soon as you notice it and before any work is done, so we can inspect it and put it right. Repairs we arrange are at our premises or an approved garage, within a reasonable time. Work done elsewhere without our written agreement may not be reimbursed. A courtesy car is at additional cost.',
+  'Ownership passes only when payment has cleared in full.',
+  'We are not responsible for funds sent to any account other than the one on this invoice. We never change bank details by email or text — phone us to confirm.',
+  'A deposit reserves the vehicle and comes off the price. If you do not proceed we may keep enough of it to cover our reasonable costs of holding the car off sale. Cars not collected within 7 days may incur £20 per day storage.',
+  'Any warranty is governed by its own document and is in addition to your legal rights. Remapping, modification, towing beyond the maker’s limits, track use or taxi/private hire use may invalidate it.',
+  'Sales agreed at a distance may be cancelled within 14 days of delivery. The car must come back as supplied, and you cover return and any loss of value from use beyond inspection.',
+  'I confirm receipt of the keys, V5C and documents listed. We use your details only for the sale, DVLA, warranty and our legal obligations.',
+  'Nothing here removes your statutory rights under the Consumer Rights Act 2015.'
+];
+const INVOICE_PX_TERMS_DEFAULT = [
+  'The part exchange is mine to sell, free of finance, not an insurance write-off or stolen, and the mileage is correct.',
+  'I have disclosed every fault I know of — mechanical, electrical, structural and bodywork — including warning lights, intermittent faults, past accident damage, and any fault reset or masked.',
+  'If a known fault was hidden, or anything above is untrue, you may recover the repair cost or the drop in value (whichever is lower), or the allowance itself — told to me in writing within 14 days, with evidence.',
+  'The valuation is based on the condition presented and may be revised on inspection. Any finance settlement is to the figure I supplied, valid on the sale date; I remain liable for anything beyond it.'
+];
+const INVOICE_TRADE_TERMS_DEFAULT = [
+  'Trade sale between businesses. The buyer buys in the course of a business, not as a consumer.',
+  'Sold as seen, tried and approved. The buyer relies on their own inspection and judgement, not on any statement by us.',
+  'The Consumer Rights Act 2015 does not apply. Statutory terms as to quality, condition, description and fitness are excluded so far as the law allows. No warranty unless a separate warranty document is supplied.',
+  'Nothing excludes liability for death or personal injury caused by negligence, or for fraud.',
+  'Ownership passes on cleared funds. Tax, insurance, offences, charges, fines and penalties pass to the buyer from the date and time of this invoice. We are not responsible for funds sent to any account other than the one on this invoice; we never change bank details by email or text.'
+];
+const INVOICE_DECLARATION_DEFAULT = [
+  'I have been given full opportunity to examine the vehicle and accept its condition.',
+  'I understand that no warranty as to the accuracy of the mileage has been given or implied.',
+  'I have test driven / checked the vehicle carefully and happy with it and acknowledge the issues with this vehicle and would like to purchase it.'
+];
+const INVOICE_NOTE_DEFAULT = 'NOTE: If the customer decides not to proceed with the purchase after delivery, they will be responsible for covering the delivery cost.';
+function invoiceTerms(){ return (DB.invoiceTerms && DB.invoiceTerms.length) ? DB.invoiceTerms : INVOICE_TERMS_DEFAULT; }
+function invoicePxTerms(){ return (DB.invoicePxTerms && DB.invoicePxTerms.length) ? DB.invoicePxTerms : INVOICE_PX_TERMS_DEFAULT; }
+function invoiceTradeTerms(){ return (DB.invoiceTradeTerms && DB.invoiceTradeTerms.length) ? DB.invoiceTradeTerms : INVOICE_TRADE_TERMS_DEFAULT; }
+function termsForSale(s){ return (s && s.tradeSale) ? invoiceTradeTerms() : invoiceTerms(); }
+function invoiceDeclaration(){ return (DB.invoiceDeclaration && DB.invoiceDeclaration.length) ? DB.invoiceDeclaration : INVOICE_DECLARATION_DEFAULT; }
+function invoiceNote(){ return DB.invoiceNote || INVOICE_NOTE_DEFAULT; }
+function invoicePrefix(){ return DB.invoicePrefix || (String(DB.bizName||'INV').split(/\s+/).map(w=>w[0]||'').join('').toUpperCase().slice(0,3) || 'INV'); }
+function nextInvoiceRef(){
+  const used = DB.vehicles.filter(x=>x.sale && x.sale.invoiceRef)
+    .map(x=>parseInt(String(x.sale.invoiceRef).replace(/\D+/g,''),10)).filter(n=>!isNaN(n));
+  const start = Number(DB.invoiceStart)||0;
+  const n = Math.max(start, used.length?Math.max.apply(null,used):0) + 1;
+  DB.invoiceSeq = n;
+  return invoicePrefix()+'-'+n;
+}
+function nowTime(){ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function depositFromLead(vId){
+  const l = (DB.leads||[]).filter(x=>x.vehicleId===vId && Number(x.deposit)>0).pop();
+  return l ? Number(l.deposit) : 0;
+}
+/* what the customer actually owes: the admin charge is on the invoice even though
+   it never enters the investor split */
+function invoiceTotals(v){
+  const s = v.sale || {};
+  const price = Number(s.salePrice)||0, disc = Number(s.discount)||0, px = Number(s.partExValue)||0;
+  const admin = Number(s.adminCharge)||0, del = Number(s.deliveryCharge)||0;
+  const warr = Number(s.warranty)||0, extra = Number(s.extraPackage)||0;
+  const dep = Number(s.deposit)||0;
+  const total = price - disc - px + admin + del + warr + extra;
+  const paid = (Number(s.payBank)||0)+(Number(s.payCard)||0)+(Number(s.payCash)||0);
+  return {price, disc, px, admin, del, warr, extra, dep, total, due: total - dep, paid,
+          advertised: Number(s.advertisedPrice)||Number(v.askingPrice)||0};
+}
+
 function printInvoice(vId){
-  const v = DB.vehicles.find(x=>x.id===vId); const s=v.sale;
-  const cust = DB.customers.find(c=>c.id===s.customerId)||{};
-  const win = window.open('','_blank');
-  win.document.write(`
-    <html><head><title>Invoice — ${v.reg}</title>
-    <style>body{font-family:'IBM Plex Sans',Arial,sans-serif;padding:40px;color:#181B1F;} h1{font-family:'Barlow Condensed',sans-serif;} table{width:100%;border-collapse:collapse;margin-top:20px;} td{padding:8px;border-bottom:1px solid #ddd;} .tot{font-weight:700;font-size:18px;} </style>
-    </head><body>
-    <h1>${DB.bizName}</h1>
-    <p>Invoice date: ${fmtDate(s.date)}</p>
-    <p><strong>Customer:</strong> ${cust.name||''}<br/>${cust.phone||''} ${cust.email||''}<br/>${cust.address||''}</p>
-    <p><strong>Vehicle:</strong> ${v.reg} — ${v.make||''} ${v.model||''} ${v.year||''}</p>
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v || !v.sale) return;
+  const s = v.sale;
+  const cust = DB.customers.find(c=>c.id===s.customerId) || {};
+  const t = invoiceTotals(v);
+  const e = x => String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const m = n => fmtMoney(n||0);
+  const row = (label, val, cls) => `<tr class="${cls||''}"><th>${e(label)}</th><td>${val}</td></tr>`;
+  const pair = (label, val) => `<tr><th>${e(label)}</th><td>${e(val||'—')}</td></tr>`;
+  const logo = (typeof BRAND_LOGO === 'string' && BRAND_LOGO) ? `<img src="${BRAND_LOGO}" alt="">` : '';
+  const addr = [cust.address, cust.postcode].filter(Boolean).join(', ');
+
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>Invoice ${e(s.invoiceRef||'')} — ${e(v.reg||'')}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;color:#15181c;margin:0;padding:22px;font-size:12px;line-height:1.42}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:2.5px solid #15181c;padding-bottom:10px;margin-bottom:12px}
+  .head img{max-height:62px;max-width:260px;display:block}
+  .biz{font-size:20px;font-weight:800;letter-spacing:.3px}
+  .biz small{display:block;font-size:11px;font-weight:400;color:#555;letter-spacing:0;margin-top:3px}
+  .ref{text-align:right;font-size:11.5px;white-space:nowrap}
+  .ref b{display:block;font-size:17px;letter-spacing:.5px}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;margin:0 0 5px;padding-bottom:3px;border-bottom:1.5px solid #15181c}
+  .cols{display:flex;gap:16px;align-items:flex-start}
+  .cols > *{flex:1;min-width:0}
+  table{width:100%;border-collapse:collapse;margin-bottom:12px}
+  th,td{text-align:left;padding:3.5px 6px;border-bottom:1px solid #e4e6ea;vertical-align:top;font-size:11.5px}
+  th{width:42%;font-weight:600;color:#4a5159}
+  td{font-weight:600}
+  .money th{width:58%} .money td{text-align:right;white-space:nowrap}
+  tr.sub td,tr.sub th{border-top:1.5px solid #15181c;font-size:12.5px}
+  tr.due td,tr.due th{font-size:15px;font-weight:800;border-bottom:none;padding-top:7px}
+  .terms{font-size:9.3px;line-height:1.4;color:#30363d}
+  .terms li{margin-bottom:3px}
+  .terms ol{margin:0;padding-left:15px}
+  .decl{border:1.2px solid #15181c;border-radius:4px;padding:8px 10px;margin-top:4px;font-size:9.8px;line-height:1.45}
+  .decl ul{margin:4px 0 6px;padding-left:16px}
+  .note{font-weight:700;margin-top:5px}
+  .sigs{display:flex;gap:30px;margin-top:20px}
+  .sigs div{flex:1}
+  .sigline{border-top:1px solid #15181c;margin-top:30px;padding-top:4px;font-size:10.5px;color:#4a5159}
+  .foot{margin-top:14px;padding-top:7px;border-top:1px solid #d4d8de;font-size:9.5px;color:#6b7280;text-align:center}
+  @media print{body{padding:10mm;font-size:11px} .noprint{display:none}}
+</style></head><body>
+
+<div class="head">
+  <div>${logo}
+    <div class="biz" style="${logo?'font-size:15px;margin-top:6px':''}">${e(DB.invoiceLegalName||DB.bizName||'')}</div>
+    <small>${e(DB.invoiceAddress||'')}
+      ${DB.invoicePhone?'<br>Tel '+e(DB.invoicePhone):''}${DB.invoiceEmail?' · '+e(DB.invoiceEmail):''}${DB.invoiceWeb?' · '+e(DB.invoiceWeb):''}
+      ${DB.invoiceVatNo?'<br>VAT No '+e(DB.invoiceVatNo):''}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo)+', registered in England &amp; Wales':''}
+    </small>
+  </div>
+  <div class="ref"><b>INVOICE</b>
+    Ref: <strong>${e(s.invoiceRef||'—')}</strong><br>
+    Date: ${e(fmtDate(s.date))}${s.time?'<br>Time: '+e(s.time):''}
+    ${s.soldBy?'<br>Sold by: '+e(s.soldBy):''}
+    ${DB.marginScheme?'<br><strong style="font-size:10.5px">Margin Scheme — second-hand goods</strong>':''}
+  </div>
+</div>
+
+<div class="cols">
+  <div>
+    <h2>Customer details</h2>
     <table>
-      <tr><td>Sale price</td><td>${fmtMoney(s.salePrice)}</td></tr>
-      <tr><td>Discount</td><td>-${fmtMoney(s.discount)}</td></tr>
-      ${s.partExValue?`<tr><td>Part exchange (${s.partExDesc||''})</td><td>-${fmtMoney(s.partExValue)}</td></tr>`:''}
-      ${s.adminCharge?`<tr><td>Admin charge</td><td>${fmtMoney(s.adminCharge)}</td></tr>`:''}
-      ${s.deliveryCharge?`<tr><td>Delivery charge</td><td>${fmtMoney(s.deliveryCharge)}</td></tr>`:''}
-      ${s.warranty?`<tr><td>Warranty</td><td>${fmtMoney(s.warranty)}</td></tr>`:''}
-      ${s.extraPackage?`<tr><td>Extra package</td><td>${fmtMoney(s.extraPackage)}</td></tr>`:''}
-      <tr class="tot"><td>Total due</td><td>${fmtMoney(vehicleNetSale(v))}</td></tr>
+      ${pair('Name', cust.name)}
+      ${pair('Address', addr)}
+      ${pair('Tel', cust.phone)}
+      ${pair('E-mail', cust.email)}
     </table>
-    <script>window.print();<\/script>
-    </body></html>`);
+    <h2>Vehicle details</h2>
+    <table>
+      ${pair('Make', v.make)}
+      ${pair('Model', v.model)}
+      ${pair('Reg', v.reg)}
+      ${pair('Year / first registered', v.year)}
+      ${pair('Mileage', v.mileage ? Number(v.mileage).toLocaleString('en-GB') : '')}
+      ${pair('VIN number', v.vin)}
+      ${pair('MOT', v.motExpiry ? fmtDate(v.motExpiry) : '')}
+      ${pair('Any extras', s.extrasText)}
+      ${DB.marginScheme?pair('Stock book ref', v.stockNo || v.reg):''}
+    </table>
+  </div>
+  <div class="terms">
+    <h2>${s.tradeSale?'Trade sale terms':'Terms and conditions'}</h2>
+    <ol>${(s.termsSnapshot||termsForSale(s)).map(x=>`<li>${e(x)}</li>`).join('')}</ol>
+  </div>
+</div>
+
+<h2>Price details</h2>
+<table class="money">
+  ${t.advertised?row('Advertised price', m(t.advertised)):''}
+  ${row('Sale price', m(t.price))}
+  ${t.disc?row('Discount', '-'+m(t.disc)):''}
+  ${t.px?row('P/X allowance'+(s.partExDesc?' ('+e(s.partExDesc)+')':''), '-'+m(t.px)):''}
+  ${t.del?row('Delivery cost (non-refundable)', m(t.del)):''}
+  ${t.admin?row(s.tradeSale?'Admin charges (non-transferable and non-refundable)':'Admin charge', m(t.admin)):''}
+  ${t.warr?row('Warranty', m(t.warr)):''}
+  ${t.extra?row('Extra package', m(t.extra)):''}
+  ${row('Total balance', m(t.total), 'sub')}
+  ${t.dep?row('Deposit received', '-'+m(t.dep)):''}
+  ${row('Balance due', m(t.due), 'due')}
+</table>
+
+${(s.payBank||s.payCard||s.payCash)?`<table class="money">
+  ${s.payBank?row('Bank transfer', m(s.payBank)):''}
+  ${s.payCard?row('Card', m(s.payCard)):''}
+  ${s.payCash?row('Cash', m(s.payCash)):''}
+  ${row('Total received', m(t.paid+t.dep), 'sub')}
+</table>`:''}
+
+${(DB.invoiceBankAcc||DB.invoiceBankSort)?`<table class="money"><tr><th>Payment to ${e(DB.invoiceLegalName||DB.bizName||'')} — account ${e(DB.invoiceBankAcc||'')}, sort code ${e(DB.invoiceBankSort||'')}</th><td></td></tr></table>`:''}
+
+${(t.px>0 || (s.partExDesc||'').trim() || (s.pxFaults||'').trim())?`<div class="decl">
+  <strong>Part exchange — customer declaration</strong>
+  <div style="margin:3px 0 4px">Vehicle taken in part exchange: <strong>${e(s.partExDesc||'—')}</strong> · allowance <strong>${m(t.px)}</strong></div>
+  <div style="margin-bottom:4px">Faults declared by the customer: <strong>${e(s.pxFaults||'None declared')}</strong></div>
+  <ol style="margin:4px 0 6px;padding-left:16px">${(s.pxTermsSnapshot||invoicePxTerms()).map(x=>`<li>${e(x)}</li>`).join('')}</ol>
+  <div class="sigline" style="margin-top:24px">Customer’s signature / date — part exchange declaration</div>
+</div>`:''}
+
+<div class="decl">
+  <strong>Customer declaration</strong>
+  <ul>${(s.declSnapshot||invoiceDeclaration()).map(x=>`<li>${e(x)}</li>`).join('')}</ul>
+  <div class="note">${e(s.noteSnapshot||invoiceNote())}</div>
+</div>
+
+<div class="sigs">
+  <div><div class="sigline">Seller’s signature / date</div></div>
+  <div><div class="sigline">I understand and agree to the above T&amp;C — customer’s signature / date</div></div>
+</div>
+
+${DB.invoiceAdr?`<div class="foot" style="text-align:left;border:0;padding-top:8px">If we cannot settle a complaint between us, you may refer it to ${e(DB.invoiceAdr)}.</div>`:''}
+<div class="foot">${e(DB.invoiceLegalName||DB.bizName||'')}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo):''}${DB.invoiceVatNo?' · VAT No '+e(DB.invoiceVatNo):''}${DB.invoiceFooter?' · '+e(DB.invoiceFooter):''}</div>
+<script>window.print();<\/script>
+</body></html>`;
+
+  const win = window.open('','_blank');
+  if(!win){ alert('Allow pop-ups to print the invoice.'); return; }
+  win.document.write(html); win.document.close();
 }
 
 /* =========================================================================
@@ -2759,7 +3062,91 @@ function renderCustomers(){
     `).join('')}
     </tbody></table>`}
   </div>
+  ${isManager() ? invoiceSettingsCard() : ''}
   `;
+}
+
+/* ---- what appears on every invoice ---- */
+function invoiceSettingsCard(){
+  const ta = (id, label, val, rows) => `<div class="field"><label>${label}</label>
+    <textarea id="${id}" rows="${rows}" style="width:100%;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;">${escapeHtml(val)}</textarea></div>`;
+  return `
+  <div class="section-title" style="margin-top:22px"><h2>Invoice settings</h2></div>
+  <div class="card">
+    <div class="small-muted" style="margin-bottom:10px;">These appear on every invoice you print. <strong>One point per line</strong> \u2014 a blank line is ignored. Wording checked by a solicitor is worth the money before you rely on it.</div>
+    <div class="field-row">
+      <div class="field"><label>Registered company name</label><input id="iv_legal" value="${escapeAttr(DB.invoiceLegalName||'')}" placeholder="Example Motors LTD."/></div>
+      <div class="field"><label>Company number</label><input id="iv_cono" value="${escapeAttr(DB.invoiceCompanyNo||'')}" placeholder="12345678"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Business address</label><input id="iv_addr" value="${escapeAttr(DB.invoiceAddress||'')}" placeholder="London Road, Biggleswade, Bedfordshire SG18 8ET"/></div>
+      <div class="field"><label>Phone</label><input id="iv_phone" value="${escapeAttr(DB.invoicePhone||'')}" placeholder="01767 312429"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Email</label><input id="iv_email" value="${escapeAttr(DB.invoiceEmail||'')}" placeholder="contact@example.com"/></div>
+      <div class="field"><label>Website</label><input id="iv_web" value="${escapeAttr(DB.invoiceWeb||'')}" placeholder="www.example.com"/></div>
+      <div class="field"><label>VAT number</label><input id="iv_vat" value="${escapeAttr(DB.invoiceVatNo||'')}" placeholder="373883946"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Bank account number</label><input id="iv_bankacc" value="${escapeAttr(DB.invoiceBankAcc||'')}" placeholder="90704415"/></div>
+      <div class="field"><label>Sort code</label><input id="iv_banksort" value="${escapeAttr(DB.invoiceBankSort||'')}" placeholder="20-05-73"/></div>
+      <div class="field"><label>Complaints / ADR body</label><input id="iv_adr" value="${escapeAttr(DB.invoiceAdr||'')}" placeholder="The Motor Ombudsman"/></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="iv_margin" ${DB.marginScheme?'checked':''} style="width:17px;height:17px"/>
+      <span><strong>VAT margin scheme</strong> \u2014 prints &ldquo;Margin Scheme \u2014 second-hand goods&rdquo;, your VAT number and a stock book reference, and never shows VAT separately. Tick this if you sell used cars under the margin scheme.</span>
+    </label>
+    <div class="field-row">
+      <div class="field"><label>Invoice prefix</label><input id="iv_prefix" value="${escapeAttr(DB.invoicePrefix||invoicePrefix())}" placeholder="JBG"/></div>
+      <div class="field"><label>Carry on from number</label><input id="iv_start" type="number" value="${Number(DB.invoiceStart)||0}" placeholder="545"/></div>
+      <div class="field"><label>Footer line</label><input id="iv_footer" value="${escapeAttr(DB.invoiceFooter||'')}" placeholder="Thank you for your business"/></div>
+    </div>
+    ${ta('iv_terms','Terms and conditions \u2014 consumer sales', invoiceTerms().join('\n'), 9)}
+    ${ta('iv_pxterms','Part exchange declaration \u2014 prints only when a car is taken in part exchange', invoicePxTerms().join('\n'), 6)}
+    ${ta('iv_trade','Trade sale terms \u2014 prints instead of the consumer terms when a sale is ticked as a trade sale', invoiceTradeTerms().join('\n'), 6)}
+    ${ta('iv_decl','Customer declaration', invoiceDeclaration().join('\n'), 4)}
+    ${ta('iv_note','Closing note', invoiceNote(), 2)}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-brand" onclick="saveInvoiceSettings()">Save invoice settings</button>
+      <button class="btn btn-ghost" onclick="resetInvoiceTerms()">Restore the standard wording</button>
+    </div>
+  </div>`;
+}
+function saveInvoiceSettings(){
+  const val = id => (document.getElementById(id)||{value:''}).value;
+  const lines = id => val(id).split('\n').map(x=>x.trim()).filter(Boolean);
+  DB.invoiceLegalName = val('iv_legal').trim();
+  DB.invoiceCompanyNo = val('iv_cono').trim();
+  DB.invoiceAddress = val('iv_addr').trim();
+  DB.invoicePhone   = val('iv_phone').trim();
+  DB.invoiceEmail   = val('iv_email').trim();
+  DB.invoiceWeb     = val('iv_web').trim();
+  DB.invoiceVatNo   = val('iv_vat').trim();
+  DB.invoiceBankAcc = val('iv_bankacc').trim();
+  DB.invoiceBankSort= val('iv_banksort').trim();
+  DB.invoiceAdr     = val('iv_adr').trim();
+  DB.marginScheme   = !!(document.getElementById('iv_margin')||{}).checked;
+  DB.invoicePrefix  = val('iv_prefix').trim().toUpperCase();
+  DB.invoiceStart   = Number(val('iv_start'))||0;
+  DB.invoiceFooter  = val('iv_footer').trim();
+  DB.invoiceTerms       = lines('iv_terms');
+  DB.invoicePxTerms     = lines('iv_pxterms');
+  DB.invoiceTradeTerms  = lines('iv_trade');
+  DB.invoiceDeclaration = lines('iv_decl');
+  DB.invoiceNote        = val('iv_note').trim();
+  saveDB();
+  if(typeof logChange==='function') logChange('settings','Updated','Invoice settings','Terms','', DB.invoiceTerms.length+' points');
+  alert('Saved. New invoices will use this straight away.');
+  render();
+}
+function resetInvoiceTerms(){
+  if(!confirm('Put the standard terms, declaration and note back?')) return;
+  DB.invoiceTerms = INVOICE_TERMS_DEFAULT.slice();
+  DB.invoicePxTerms = INVOICE_PX_TERMS_DEFAULT.slice();
+  DB.invoiceTradeTerms = INVOICE_TRADE_TERMS_DEFAULT.slice();
+  DB.invoiceDeclaration = INVOICE_DECLARATION_DEFAULT.slice();
+  DB.invoiceNote = INVOICE_NOTE_DEFAULT;
+  saveDB(); render();
 }
 function openAddCustomer(fromSale){
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add customer</h3>
