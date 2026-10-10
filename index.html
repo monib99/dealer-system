@@ -408,7 +408,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-10 · build 34</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-10 · build 36</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -481,6 +481,8 @@ const DEFAULT_DB = () => ({
   floats: [],
   site: null,
   muzaribTx: [],
+  attendance: [],
+  shifts: {},
   audit: [],
   seq: 1
 });
@@ -2734,6 +2736,285 @@ ${isDraft?'':'<scr'+'ipt>window.print();<\\/scr'+'ipt>'}
 }
 
 /* =========================================================================
+   ATTENDANCE
+   Everyone clocks themselves in and out. The Super Admin sets the shifts,
+   approves anything logged outside them, and can fill in a day for someone
+   who forgot — or for a mechanic who was never going to use the app.
+   ========================================================================= */
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const SHIFT_GRACE_MIN = 20;        // how far either side of a shift is still "on time"
+
+function attendance(){ if(!DB.attendance) DB.attendance = []; return DB.attendance; }
+function shifts(){ if(!DB.shifts) DB.shifts = {}; return DB.shifts; }
+function memberByEmail(email){
+  const e = (email||'').trim().toLowerCase();
+  return (DB.team||[]).find(m=>(m.email||'').trim().toLowerCase()===e) || null;
+}
+function myMember(){ return memberByEmail(currentUserEmail); }
+/* A member's shift for a given date, or null if they are not down to work. */
+function shiftFor(memberId, dateStr){
+  const sh = shifts()[memberId];
+  if(!sh) return null;
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = DOW[d.getDay()].toLowerCase();
+  if(!(sh.days||[]).includes(day)) return null;
+  return {start: sh.start || '09:00', end: sh.end || '18:00'};
+}
+function minsOf(hhmm){ if(!hhmm) return null; const [h,m]=String(hhmm).split(':').map(Number); return h*60+(m||0); }
+function nowHHMM(){ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function attendanceRecord(memberId, dateStr){
+  return attendance().find(a=>a.memberId===memberId && a.date===dateStr) || null;
+}
+/* Was this in/out within the shift, allowing for the grace period? */
+function withinShift(memberId, dateStr, inAt, outAt){
+  const sh = shiftFor(memberId, dateStr);
+  if(!sh) return false;                       // not rostered — needs a look
+  const s = minsOf(sh.start), e = minsOf(sh.end);
+  const i = minsOf(inAt), o = minsOf(outAt);
+  if(i!=null && i < s - SHIFT_GRACE_MIN) return false;
+  if(i!=null && i > s + SHIFT_GRACE_MIN) return false;
+  if(o!=null && o < e - SHIFT_GRACE_MIN) return false;
+  if(o!=null && o > e + SHIFT_GRACE_MIN) return false;
+  return true;
+}
+function attHoursText(a){
+  const i = minsOf(a.inAt), o = minsOf(a.outAt);
+  if(i==null || o==null) return '—';
+  const mins = Math.max(0, o - i);
+  return Math.floor(mins/60) + 'h ' + String(mins%60).padStart(2,'0') + 'm';
+}
+function attStatusTag(a){
+  if(a.status==='pending')  return '<span class="tag tag-amber">Needs your OK</span>';
+  if(a.status==='rejected') return '<span class="tag tag-red">Not approved</span>';
+  if(a.source==='admin')    return '<span class="tag tag-blue">Added by you</span>';
+  return '<span class="tag tag-green">On shift</span>';
+}
+function attCountsAsWorked(a){ return a && a.status!=='rejected' && a.inAt; }
+
+/* ---- clocking in and out ---- */
+function clockIn(){
+  const m = myMember();
+  if(!m){ alert('Your sign-in email is not on the team list yet. Ask a Super Admin to add you.'); return; }
+  const date = todayISO();
+  let a = attendanceRecord(m.id, date);
+  if(a && a.inAt){ alert('You already clocked in at ' + a.inAt + '.'); return; }
+  const t = nowHHMM();
+  const ok = withinShift(m.id, date, t, null);
+  if(!a){
+    a = {id:nextId('att'), memberId:m.id, name:m.name, email:m.email, date,
+         inAt:t, outAt:null, source:'self', status: ok?'ok':'pending', note:''};
+    attendance().push(a);
+  } else { a.inAt = t; a.status = ok?'ok':'pending'; }
+  if(!ok) a.note = (a.note?a.note+' · ':'') + (shiftFor(m.id,date) ? 'Outside shift' : 'Not rostered today');
+  logChange('team','Clocked in', {id:m.id,label:m.name}, 'Start', '', t, ok?'':'Outside shift — needs approval');
+  saveDB(); render();
+  if(!ok) alert('Clocked in at ' + t + '.\n\nThis is outside your shift, so it needs approving before it counts.');
+}
+function clockOut(){
+  const m = myMember(); if(!m) return;
+  const date = todayISO();
+  const a = attendanceRecord(m.id, date);
+  if(!a || !a.inAt){ alert('Clock in first.'); return; }
+  if(a.outAt){ alert('You already clocked out at ' + a.outAt + '.'); return; }
+  const t = nowHHMM();
+  a.outAt = t;
+  const ok = withinShift(m.id, date, a.inAt, t);
+  if(!ok && a.status!=='pending'){ a.status='pending'; a.note = (a.note?a.note+' · ':'') + 'Left outside shift'; }
+  logChange('team','Clocked out', {id:m.id,label:m.name}, 'Finish', '', t, ok?'':'Outside shift — needs approval');
+  saveDB(); render();
+}
+function approveAttendance(id, yes){
+  if(!isSuperAdmin()) return;
+  const a = attendance().find(x=>x.id===id); if(!a) return;
+  a.status = yes ? 'ok' : 'rejected';
+  a.approvedBy = currentUserName; a.approvedAt = new Date().toISOString();
+  logChange('team', yes?'Approved attendance for':'Rejected attendance for', {id:a.memberId,label:a.name},
+    fmtDate(a.date), 'pending', yes?'approved':'rejected', (a.inAt||'')+(a.outAt?'–'+a.outAt:''));
+  saveDB(); render();
+}
+function deleteAttendance(id){
+  if(!isSuperAdmin()) return;
+  const a = attendance().find(x=>x.id===id); if(!a) return;
+  if(!confirm('Delete '+a.name+"'s record for "+fmtDate(a.date)+'?')) return;
+  logChange('team','Deleted attendance for', {id:a.memberId,label:a.name}, fmtDate(a.date),
+    (a.inAt||'')+(a.outAt?'–'+a.outAt:''), 'removed', '');
+  DB.attendance = attendance().filter(x=>x.id!==id);
+  saveDB(); render();
+}
+
+/* ---- screens ---- */
+let attFrom = '', attTo = '';
+function attRangeDefaults(){
+  if(!attTo)   attTo   = todayISO();
+  if(!attFrom) attFrom = addDays(todayISO(), -6);
+}
+function myClockCard(){
+  const m = myMember();
+  if(!m) return '';
+  const date = todayISO(), a = attendanceRecord(m.id, date), sh = shiftFor(m.id, date);
+  const line = sh ? `Your shift today is <strong>${sh.start}–${sh.end}</strong>.`
+                  : `You are not down to work today — anything you log will need approving.`;
+  return `<div class="card" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-weight:700;font-size:16px">${escapeHtml(m.name)} — ${new Date(date+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long', day:'numeric', month:'long'})}</div>
+        <div class="small-muted">${line}</div>
+        ${a?`<div style="margin-top:6px">In <strong>${a.inAt||'—'}</strong>${a.outAt?` · Out <strong>${a.outAt}</strong> · ${attHoursText(a)}`:''} ${attStatusTag(a)}</div>`:''}
+      </div>
+      <div style="display:flex;gap:8px">
+        ${(!a||!a.inAt)?`<button class="btn btn-brand" onclick="clockIn()">Clock in</button>`:''}
+        ${(a&&a.inAt&&!a.outAt)?`<button class="btn btn-amber" onclick="clockOut()">Clock out</button>`:''}
+        ${(a&&a.inAt&&a.outAt)?`<span class="tag tag-green">Done for today</span>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+function attendanceSection(){
+  attRangeDefaults();
+  const mine = myMember();
+  const canSeeAll = isManager();
+  const pending = attendance().filter(a=>a.status==='pending');
+  const inRange = attendance().filter(a=>a.date>=attFrom && a.date<=attTo)
+    .filter(a=>canSeeAll || (mine && a.memberId===mine.id));
+  const people = (canSeeAll ? DB.team : (mine?[mine]:[]));
+  const daysFor = id => inRange.filter(a=>a.memberId===id && attCountsAsWorked(a)).length;
+  const hoursFor = id => inRange.filter(a=>a.memberId===id && attCountsAsWorked(a) && a.inAt && a.outAt)
+    .reduce((s,a)=>s + Math.max(0, minsOf(a.outAt)-minsOf(a.inAt)), 0);
+
+  return `
+  <div class="section-title"><h2>Attendance</h2>
+    <span style="display:flex;gap:8px;flex-wrap:wrap">
+      ${isSuperAdmin()?`<button class="btn btn-ghost btn-sm" onclick="openShiftSetup()">\u{1F552} Shifts</button>
+        <button class="btn btn-brand btn-sm" onclick="openAddAttendance()">+ Add a day for someone</button>`:''}
+    </span>
+  </div>
+  ${myClockCard()}
+  ${(isSuperAdmin() && pending.length)?`<div class="card" style="margin-bottom:12px;border-left:4px solid var(--amber)">
+    <div style="font-weight:700;margin-bottom:6px">${pending.length} to approve</div>
+    <table><tbody>
+    ${pending.sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(a=>`<tr>
+      <td>${fmtDate(a.date)}</td><td><b>${escapeHtml(a.name||'')}</b></td>
+      <td>${a.inAt||'—'}${a.outAt?' – '+a.outAt:''}</td>
+      <td class="small-muted">${escapeHtml(a.note||'')}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm btn-brand" onclick="approveAttendance('${a.id}',true)">Approve</button>
+        <button class="btn btn-sm btn-danger" onclick="approveAttendance('${a.id}',false)">Reject</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>`:''}
+
+  <div class="toolbar" style="margin-bottom:10px">
+    <label class="small-muted">From <input type="date" value="${attFrom}" onchange="attFrom=this.value;render()"/></label>
+    <label class="small-muted">To <input type="date" value="${attTo}" onchange="attTo=this.value;render()"/></label>
+    <button class="btn btn-ghost btn-sm" onclick="attFrom=addDays(todayISO(),-6);attTo=todayISO();render()">Last 7 days</button>
+    <button class="btn btn-ghost btn-sm" onclick="attFrom=todayISO().slice(0,8)+'01';attTo=todayISO();render()">This month</button>
+  </div>
+
+  <div class="card" style="padding:0;margin-bottom:12px">
+    ${people.length===0?'<div class="empty">No team members yet.</div>':`
+    <table><thead><tr><th>Who</th><th>Days in</th><th>Hours</th><th>Shift</th></tr></thead><tbody>
+    ${people.map(m=>{
+      const sh = shifts()[m.id];
+      const mins = hoursFor(m.id);
+      return `<tr><td><b>${escapeHtml(m.name)}</b>${m.role?` <span class="small-muted">${escapeHtml(m.role)}</span>`:''}</td>
+        <td style="font-weight:700">${daysFor(m.id)}</td>
+        <td>${Math.floor(mins/60)}h ${String(mins%60).padStart(2,'0')}m</td>
+        <td class="small-muted">${sh?`${(sh.days||[]).map(d=>d[0].toUpperCase()+d.slice(1,3)).join(' ')} · ${sh.start}–${sh.end}`:'No shift set'}</td></tr>`;
+    }).join('')}
+    </tbody></table>`}
+  </div>
+
+  <div class="card" style="padding:0;">
+    ${inRange.length===0?'<div class="empty">Nothing logged in this period.</div>':`
+    <table><thead><tr><th>Date</th><th>Who</th><th>In</th><th>Out</th><th>Hours</th><th>Status</th>${isSuperAdmin()?'<th></th>':''}</tr></thead><tbody>
+    ${inRange.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(a=>`<tr>
+      <td style="white-space:nowrap">${fmtDate(a.date)} <span class="small-muted">${DOW[new Date(a.date+'T12:00:00').getDay()]}</span></td>
+      <td>${escapeHtml(a.name||'')}</td><td>${a.inAt||'—'}</td><td>${a.outAt||'—'}</td>
+      <td>${attHoursText(a)}</td><td>${attStatusTag(a)}${a.note?`<div class="small-muted">${escapeHtml(a.note)}</div>`:''}</td>
+      ${isSuperAdmin()?`<td style="white-space:nowrap">
+        <button class="btn btn-sm btn-ghost" onclick="openAddAttendance('${a.id}')">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteAttendance('${a.id}')">✕</button></td>`:''}
+    </tr>`).join('')}
+    </tbody></table>`}
+  </div>`;
+}
+/* Super Admin: fill in a day for anyone, or correct one. */
+function openAddAttendance(id){
+  if(!isSuperAdmin()) return;
+  const a = id ? attendance().find(x=>x.id===id) : null;
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>${a?'Edit':'Add'} a day</h3>
+    <div class="field"><label>Who</label>
+      <select id="at_member" ${a?'disabled':''}>
+        ${(DB.team||[]).map(m=>`<option value="${m.id}" ${a&&a.memberId===m.id?'selected':''}>${escapeHtml(m.name)}${m.role?' — '+escapeHtml(m.role):''}</option>`).join('')}
+      </select></div>
+    <div class="field-row">
+      <div class="field"><label>Date</label><input id="at_date" type="date" value="${a?a.date:todayISO()}"/></div>
+      <div class="field"><label>In</label><input id="at_in" type="time" value="${a&&a.inAt?a.inAt:'09:00'}"/></div>
+      <div class="field"><label>Out</label><input id="at_out" type="time" value="${a&&a.outAt?a.outAt:'18:00'}"/></div>
+    </div>
+    <div class="field"><label>Note</label><input id="at_note" value="${a?escapeAttr(a.note||''):''}" placeholder="e.g. mechanic, cash job"/></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveAttendance(${a?`'${a.id}'`:'null'})">Save</button></div>`);
+}
+function saveAttendance(id){
+  if(!isSuperAdmin()) return;
+  const val = x => (document.getElementById(x)||{value:''}).value;
+  const memberId = id ? attendance().find(x=>x.id===id).memberId : val('at_member');
+  const m = (DB.team||[]).find(x=>x.id===memberId);
+  if(!m){ alert('Choose who it was for.'); return; }
+  const date = val('at_date') || todayISO();
+  if(!id){
+    const clash = attendanceRecord(memberId, date);
+    if(clash){ alert(m.name + ' already has a record for ' + fmtDate(date) + '. Edit that one instead.'); return; }
+  }
+  const rec = id ? attendance().find(x=>x.id===id)
+                 : {id:nextId('att'), memberId, name:m.name, email:m.email, date, source:'admin'};
+  rec.date = date; rec.inAt = val('at_in') || null; rec.outAt = val('at_out') || null;
+  rec.note = val('at_note'); rec.status = 'ok'; rec.source = rec.source || 'admin';
+  rec.approvedBy = currentUserName;
+  if(!id) attendance().push(rec);
+  logChange('team', id?'Edited attendance for':'Added a day for', {id:m.id,label:m.name}, fmtDate(date),
+    '', (rec.inAt||'')+(rec.outAt?'–'+rec.outAt:''), rec.note||'');
+  saveDB(); closeModal(); render();
+}
+/* Super Admin: who works which days, and between what hours. */
+function openShiftSetup(){
+  if(!isSuperAdmin()) return;
+  const days = ['mon','tue','wed','thu','fri','sat','sun'];
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Shifts</h3>
+    <div class="small-muted" style="margin-bottom:10px;">Anything clocked more than ${SHIFT_GRACE_MIN} minutes outside these comes to you to approve.</div>
+    <div style="max-height:52vh;overflow:auto">
+    ${(DB.team||[]).map(m=>{ const sh = shifts()[m.id] || {days:[], start:'09:00', end:'18:00'};
+      return `<div class="card" style="box-shadow:none;border:1px solid var(--line);padding:10px;margin-bottom:8px">
+        <div style="font-weight:700;margin-bottom:6px">${escapeHtml(m.name)}${m.role?` <span class="small-muted">${escapeHtml(m.role)}</span>`:''}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          ${days.map(d=>`<label class="chip ${(sh.days||[]).includes(d)?'active':''}" style="cursor:pointer">
+            <input type="checkbox" data-shift="${m.id}" value="${d}" ${(sh.days||[]).includes(d)?'checked':''} style="display:none"
+              onchange="this.parentNode.classList.toggle('active', this.checked)"/>${d[0].toUpperCase()+d.slice(1)}</label>`).join('')}
+        </div>
+        <div class="field-row" style="margin:0">
+          <div class="field"><label>Starts</label><input type="time" id="sh_start_${m.id}" value="${sh.start||'09:00'}"/></div>
+          <div class="field"><label>Finishes</label><input type="time" id="sh_end_${m.id}" value="${sh.end||'18:00'}"/></div>
+        </div>
+      </div>`;}).join('') || '<div class="empty">No team members yet.</div>'}
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveShifts()">Save shifts</button></div>`);
+}
+function saveShifts(){
+  if(!isSuperAdmin()) return;
+  if(!DB.shifts) DB.shifts = {};
+  (DB.team||[]).forEach(m=>{
+    const picked = [...document.querySelectorAll(`input[data-shift="${m.id}"]:checked`)].map(x=>x.value);
+    const st = (document.getElementById('sh_start_'+m.id)||{value:'09:00'}).value;
+    const en = (document.getElementById('sh_end_'+m.id)||{value:'18:00'}).value;
+    if(picked.length) DB.shifts[m.id] = {days:picked, start:st, end:en};
+    else delete DB.shifts[m.id];
+  });
+  logChange('team','Updated shifts', {id:'shifts',label:'Shifts'}, '', '', Object.keys(DB.shifts).length+' set', '');
+  saveDB(); closeModal(); render();
+}
+
+/* =========================================================================
    TASKS
    ========================================================================= */
 let taskView = 'board';
@@ -2967,12 +3248,17 @@ function renderTeamOverview(){
   ${investorCashPanel()}
 
   <div class="section-title"><h2>Company spend by staff</h2>
-    <button class="btn btn-amber btn-sm" onclick="openAddExpense()">+ Log my spend</button>
+    <span style="display:flex;gap:8px;flex-wrap:wrap">
+      ${isSuperAdmin()?`<button class="btn btn-ghost btn-sm" onclick="openCashIn()">⬇ Cash in</button>`:''}
+      <button class="btn btn-amber btn-sm" onclick="openAddExpense()">+ Log my spend</button>
+    </span>
   </div>
+  ${spendSourceChips(myExpenses)}
+  ${spendSourceSummary(spendShown(myExpenses))}
   <div class="card" style="padding:0;">
-    ${myExpenses.length===0?'<div class="empty">No spend logged yet.</div>':`
+    ${spendShown(myExpenses).length===0?'<div class="empty">Nothing logged for this.</div>':`
     <table><thead><tr><th>Date</th><th>Employee</th><th>Paid from</th><th>Note</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>
-    ${myExpenses.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
+    ${spendShown(myExpenses).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>{
       const notOwed = !!e.muzaribId || e.fundedBy==='company' || e.fundedBy==='float';
       const bal = notOwed ? 0 : expenseBalance(e), status = expenseStatusLabel(e);
       const statusTag = notOwed
@@ -2984,11 +3270,15 @@ function renderTeamOverview(){
       <td>${fmtMoney(expensePaidAmount(e))}</td><td style="font-weight:700;color:${bal>0?'var(--red)':'var(--green)'}">${fmtMoney(bal)}</td>
       <td>${e.photoId?`<button class="btn btn-sm btn-ghost" onclick="viewExpensePhotoById('${e.id}')">View</button>`:'—'}</td>
       <td>${statusTag}</td>
-      <td>${(bal>0 && isManager())?`<button class="btn btn-sm btn-brand" onclick="openRecordPayment('${e.id}')">Record payment</button>`:''} ${(isManager()||e.userEmail===currentUserEmail)?`<button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">✕</button>`:''}</td>
+      <td style="white-space:nowrap">${(bal>0 && isManager())?`<button class="btn btn-sm btn-brand" onclick="openRecordPayment('${e.id}')">Record payment</button>`:''}
+        ${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="openEditExpense('${e.id}')" title="Change the amount or whose money it was">Edit</button>`:''}
+        ${(isManager()||e.userEmail===currentUserEmail)?`<button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">✕</button>`:''}</td>
       </tr>`;
     }).join('')}
     </tbody></table>`}
   </div>
+
+  ${attendanceSection()}
 
   ${isManager() ? `
   <div class="section-title"><h2>Payroll</h2><button class="btn btn-brand btn-sm" onclick="openAddPayroll()">+ Add pay record</button></div>
@@ -3247,6 +3537,154 @@ function investorCashPanel(){
     ${fmtMoney(used)} of investor cash has gone on our own costs. He is still owed it — hand him
     ${fmtMoney(used)} of stock to square it off.</div>`:''}
   `;
+}
+/* ---- editing a spend after the event (Super Admin) ----------------------
+   Lets an old entry be put against the right pot of cash: my own money, the
+   company, or a particular investor.                                        */
+function openEditExpense(id){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can change a logged spend.'); return; }
+  const e = (DB.expenses||[]).find(x=>x.id===id); if(!e) return;
+  const car = e.vehicleId ? (DB.vehicles||[]).find(v=>v.id===e.vehicleId) : null;
+  const inv = muzaribs().filter(m=>m.active!==false);
+  const cur = e.muzaribId ? ('mz:'+e.muzaribId) : (e.fundedBy||'own');
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Edit this spend</h3>
+    <div class="small-muted" style="margin-bottom:10px;">Logged by ${escapeHtml(e.employee||'')} on ${fmtDate(e.date)}</div>
+    <div class="field"><label>Whose money was it?</label>
+      <select id="x_funded">
+        <option value="own"     ${cur==='own'?'selected':''}>My own money — company to pay me back</option>
+        <option value="float"   ${cur==='float'?'selected':''}>Money the company gave me</option>
+        <option value="company" ${cur==='company'?'selected':''}>Company money — paid straight from the business</option>
+        ${inv.length?`<optgroup label="Investor cash I'm holding">
+          ${inv.map(m=>{const p=muzaribPosition(m.id);
+            return `<option value="mz:${m.id}" ${cur==='mz:'+m.id?'selected':''}>${escapeHtml(m.name)} — ${fmtMoney(p.cashInHand)} in hand</option>`;}).join('')}
+        </optgroup>`:''}
+      </select></div>
+    <div class="field-row">
+      <div class="field"><label>Date</label><input id="x_date" type="date" value="${e.date||todayISO()}"/></div>
+      <div class="field"><label>Amount (£)</label><input id="x_amount" type="number" step="0.01" value="${Number(e.amount)||0}"/></div>
+    </div>
+    <div class="field"><label>What was it for</label><textarea id="x_note" rows="2">${escapeHtml(e.note||'')}</textarea></div>
+    ${car?`<div class="small-muted" style="margin-bottom:10px;">Tied to <strong>${escapeHtml(car.reg)}</strong> as ${escapeHtml(COST_LABELS[e.costType]||e.costType||'a cost')}.
+      Changing the amount changes that car's cost too. To move it to a different car, delete it and log it again.</div>`:''}
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveEditExpense('${e.id}')">Save changes</button></div>`);
+}
+function saveEditExpense(id){
+  if(!isSuperAdmin()) return;
+  const e = (DB.expenses||[]).find(x=>x.id===id); if(!e) return;
+  const funded = (document.getElementById('x_funded')||{value:'own'}).value;
+  const mzId   = funded.startsWith('mz:') ? funded.slice(3) : null;
+  const amount = Number((document.getElementById('x_amount')||{value:0}).value)||0;
+  const date   = (document.getElementById('x_date')||{value:e.date}).value || e.date;
+  const note   = (document.getElementById('x_note')||{value:''}).value;
+  if(amount<=0){ alert('Enter an amount greater than zero.'); return; }
+
+  const was = {amount:Number(e.amount)||0, funded:(e.muzaribId?('mz:'+e.muzaribId):(e.fundedBy||'own'))};
+
+  // a car's cost follows the amount
+  if(e.vehicleId && amount !== was.amount){
+    const v = (DB.vehicles||[]).find(x=>x.id===e.vehicleId);
+    if(v){
+      const k = e.costType || 'other';
+      if(!v.costs) v.costs = {};
+      v.costs[k] = Math.max(0, (Number(v.costs[k])||0) - was.amount + amount);
+      logChange('stock','Spend corrected on', vehRef(v), COST_LABELS[k]||k, fmtMoney(was.amount), fmtMoney(amount), note||'');
+    }
+  }
+
+  removeExpenseInvestorTx(e);          // drop the old investor link, whatever it was
+  e.amount = amount; e.date = date; e.note = note;
+  e.fundedBy = funded; e.muzaribId = mzId;
+  e.status = (funded==='own') ? (expensePaidAmount(e)>=amount ? 'paid' : 'owed') : (mzId ? 'investor' : funded);
+  e.mzTxId = null;
+  syncExpenseToInvestor(e);            // and make the right one
+
+  logChange('money','Corrected a logged spend by', {id:e.id, label:(e.employee||'staff')}, 'Paid from',
+    fundingLabelFor(was.funded), fundingLabelFor(funded),
+    (was.amount!==amount ? fmtMoney(was.amount)+' → '+fmtMoney(amount)+' · ' : '') + (note||''));
+  saveDB(); closeModal(); render();
+}
+function fundingLabelFor(v){
+  if(!v) return '';
+  if(v.startsWith('mz:')){ const m = muzarib(v.slice(3)); return m?m.name:'Investor'; }
+  return {own:'My own money', float:'Company float', company:'Company'}[v] || v;
+}
+let spendSource = 'all';
+/* Which pot a spend came out of, as a key we can filter on. */
+function spendShown(list){
+  return spendSource==='all' ? list : (list||[]).filter(e=>expenseSourceKey(e)===spendSource);
+}
+function expenseSourceKey(e){
+  if(e.muzaribId) return 'mz:'+e.muzaribId;
+  return e.fundedBy || 'own';
+}
+/* Cash in: money handed to me, from an investor or from the business. */
+function openCashIn(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can record cash in.'); return; }
+  const inv = muzaribs().filter(m=>m.active!==false);
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Cash in</h3>
+    <div class="small-muted" style="margin-bottom:10px;">Money handed to you to spend. Each spend you log can then be taken off it.</div>
+    <div class="field"><label>Who handed it over?</label>
+      <select id="ci_from">
+        ${inv.map(m=>`<option value="mz:${m.id}">${escapeHtml(m.name)} — investor</option>`).join('')}
+        ${inv.length?'':'<option value="" disabled selected>No investors set up yet</option>'}
+      </select>
+      ${inv.length?'':`<div class="small-muted" style="margin-top:6px;">Add the investor under Muzaribat first.</div>`}</div>
+    <div class="field-row">
+      <div class="field"><label>Date</label><input id="ci_date" type="date" value="${todayISO()}"/></div>
+      <div class="field"><label>Amount (£)</label><input id="ci_amount" type="number" step="0.01"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>How</label>
+        <select id="ci_method"><option>Cash</option><option>Bank transfer</option><option>Card</option></select></div>
+      <div class="field"><label>Note</label><input id="ci_note" placeholder="e.g. for opening stock"/></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" ${inv.length?'':'disabled'} onclick="saveCashIn()">Record cash in</button></div>`);
+}
+function saveCashIn(){
+  if(!isSuperAdmin()) return;
+  const from = (document.getElementById('ci_from')||{value:''}).value;
+  const amt  = Number((document.getElementById('ci_amount')||{value:0}).value)||0;
+  if(!from.startsWith('mz:')){ alert('Choose who handed the cash over.'); return; }
+  if(amt<=0){ alert('Enter an amount greater than zero.'); return; }
+  const id = from.slice(3), m = muzarib(id); if(!m){ alert('That investor no longer exists.'); return; }
+  if(!DB.muzaribTx) DB.muzaribTx = [];
+  DB.muzaribTx.push({id:nextId('mztx'), muzaribId:id, type:'capital', amount:amt,
+    date:(document.getElementById('ci_date')||{value:todayISO()}).value || todayISO(),
+    method:(document.getElementById('ci_method')||{value:'Cash'}).value,
+    note:(document.getElementById('ci_note')||{value:''}).value, addedBy: currentUserName});
+  logChange('money','Cash in from', mzRef(m), 'Capital', '', fmtMoney(amt),
+    'Recorded in the spend log · now ' + fmtMoney(muzaribPosition(id).cashInHand) + ' in hand');
+  saveDB(); closeModal(); render();
+}
+/* The filter row, with what is left in whichever pot is selected. */
+function spendSourceChips(list){
+  const chips = [['all','Everything']];
+  const have = new Set(list.map(expenseSourceKey));
+  if(have.has('own')||spendSource==='own')         chips.push(['own','My own money']);
+  if(have.has('float')||spendSource==='float')     chips.push(['float','Company float']);
+  if(have.has('company')||spendSource==='company') chips.push(['company','Company']);
+  muzaribs().forEach(m=>{
+    const k='mz:'+m.id, p=muzaribPosition(m.id);
+    if(have.has(k) || p.capital>0) chips.push([k, m.name+' · '+fmtMoney(p.cashInHand)+' left']);
+  });
+  return `<div class="chip-row" style="margin:0 0 10px;">
+    ${chips.map(([k,l])=>`<div class="chip ${spendSource===k?'active':''}" onclick="spendSource='${k}';render()">${escapeHtml(l)}</div>`).join('')}
+  </div>`;
+}
+function spendSourceSummary(list){
+  if(spendSource==='all' || !spendSource.startsWith('mz:')) return '';
+  const m = muzarib(spendSource.slice(3)); if(!m) return '';
+  const p = muzaribPosition(m.id);
+  const spent = list.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  return `<div class="card" style="margin-bottom:10px;">
+    <strong>${escapeHtml(m.name)}</strong> &mdash; handed over ${fmtMoney(p.capital)} ·
+    ${fmtMoney(spent)} spent on the ${list.length} item${list.length===1?'':'s'} below ·
+    ${fmtMoney(p.tiedUp)} turned into his stock ·
+    <strong style="color:${p.cashInHand<0?'var(--red)':'var(--green)'}">${fmtMoney(p.cashInHand)} left in hand</strong>
+    <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="openInvestorCashRecord('${m.id}')">Full cash record</button>
+  </div>`;
 }
 function openAddExpense(){
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Log my spend</h3>
@@ -7997,8 +8435,8 @@ function setupNotifications(){
   updateNotifyToggleLabel();
   if(notificationsEnabledLocally() && typeof Notification!=='undefined' && Notification.permission==='granted'){
     if(notifyInterval) clearInterval(notifyInterval);
-    notifyInterval = setInterval(()=>{ checkAndNotify(); checkLeadReminders(); }, 30*60*1000); // every 30 min while the tab is open
-    setTimeout(()=>{ checkAndNotify(); checkLeadReminders(); }, 4000); // and once shortly after load
+    notifyInterval = setInterval(()=>{ checkAndNotify(); checkLeadReminders(); checkAttendanceReminders(); }, 10*60*1000); // every 10 min while the tab is open
+    setTimeout(()=>{ checkAndNotify(); checkLeadReminders(); checkAttendanceReminders(); }, 4000); // and once shortly after load
   }
 }
 async function toggleNotifications(){
@@ -8023,6 +8461,35 @@ function updateNotifyToggleLabel(){
   const el = document.getElementById('notifyToggle');
   if(!el) return;
   el.textContent = notificationsEnabledLocally() ? '🔔 Reminders on — tap to turn off' : '🔕 Turn on reminders';
+}
+/* A nudge when your shift starts, and again if the day is running out and
+   you still have not clocked in or out. Once each per day, per device. */
+function checkAttendanceReminders(){
+  if(!notificationsEnabledLocally() || typeof Notification==='undefined' || Notification.permission!=='granted') return;
+  const m = myMember(); if(!m) return;
+  const date = todayISO();
+  const sh = shiftFor(m.id, date);
+  const a = attendanceRecord(m.id, date);
+  const now = minsOf(nowHHMM());
+  const fired = k => localStorage.getItem('att_'+k+'_'+date)==='1';
+  const mark  = k => { try{ localStorage.setItem('att_'+k+'_'+date,'1'); }catch(e){} };
+  const say = (title, body, key) => {
+    if(fired(key)) return;
+    try{ const n = new Notification(title,{body}); n.onclick=()=>{ window.focus(); App.go('team'); }; mark(key); }catch(e){}
+  };
+  if(sh){
+    const start = minsOf(sh.start), end = minsOf(sh.end);
+    if(!a || !a.inAt){
+      if(now >= start - 10 && now < start + 120)
+        say('Your shift starts at ' + sh.start, 'Tap to clock in.', 'start');
+      else if(now >= start + 120)
+        say('You have not clocked in today', 'Your shift was ' + sh.start + '–' + sh.end + '. Log it before you forget.', 'missing');
+    } else if(!a.outAt && now >= end - 5){
+      say('Time to clock out', 'You clocked in at ' + a.inAt + '.', 'out');
+    }
+  } else if(a && a.inAt && !a.outAt && now >= 17*60){
+    say('You are still clocked in', 'You clocked in at ' + a.inAt + '.', 'out');
+  }
 }
 function checkAndNotify(){
   if(!notificationsEnabledLocally() || typeof Notification==='undefined' || Notification.permission!=='granted') return;
