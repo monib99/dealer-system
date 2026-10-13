@@ -1162,14 +1162,43 @@ const STUDIO_BG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBA
 const STUDIO_PLATE = {cx:0.501, cy:0.713, rx:0.331, ry:0.140};
 let studioBgImg = null, studioRemover = null, studioBusy = false;
 
+function studioBgSrc(){ return DB.studioBgRef ? getPhotoUrl(DB.studioBgRef) : STUDIO_BG; }
+function studioFit(){
+  const f = DB.studioFit || {};
+  return {w: Number(f.w)||0.62, y: (f.y===undefined?0.42:Number(f.y))};
+}
 function studioBackdrop(){
-  if(studioBgImg) return Promise.resolve(studioBgImg);
+  const src = studioBgSrc();
+  if(studioBgImg && studioBgImg.dataset.src === src) return Promise.resolve(studioBgImg);
   return new Promise((ok, no)=>{
     const img = new Image();
-    img.onload = ()=>{ studioBgImg = img; ok(img); };
+    img.crossOrigin = 'anonymous';
+    img.onload = ()=>{ img.dataset.src = src; studioBgImg = img; ok(img); };
     img.onerror = ()=> no(new Error('The studio backdrop could not be loaded.'));
-    img.src = STUDIO_BG;
+    img.src = src;
   });
+}
+async function studioUploadBg(input){
+  const file = input.files && input.files[0]; if(!file) return;
+  if(!/^image\//.test(file.type)){ alert('Pick an image file.'); return; }
+  studioSay('<div class="small-muted">Saving the backdrop\u2026</div>');
+  const res = await storePhoto(file);
+  if(!res.ref){ studioSay('<div style="color:var(--red);font-size:13px">Could not save it: '+escapeHtml(res.error||'unknown')+'</div>'); return; }
+  DB.studioBgRef = res.ref; studioBgImg = null; saveDB();
+  closeModal(); openStudioPhotos();
+}
+function studioResetBg(){
+  if(!DB.studioBgRef) return;
+  if(!confirm('Go back to the built-in studio room?')) return;
+  DB.studioBgRef = null; studioBgImg = null; saveDB();
+  closeModal(); openStudioPhotos();
+}
+function studioSetFit(which, value){
+  const f = studioFit();
+  f[which] = Number(value);
+  DB.studioFit = f; saveDB();
+  const lbl = document.getElementById('st_fit_'+which);
+  if(lbl) lbl.textContent = which==='w' ? Math.round(f.w*100)+'%' : (f.y>=0?'+':'')+Math.round(f.y*100);
 }
 function studioApiKey(){ return (DB.removeBgKey||'').trim(); }
 
@@ -1210,12 +1239,13 @@ async function studioCompose(cutBlob){
 
   const px = STUDIO_PLATE.cx*W, py = STUDIO_PLATE.cy*H;
   const prx = STUDIO_PLATE.rx*W;
-  let cw = W * 0.62;
+  const fit = studioFit();
+  let cw = W * fit.w;
   let ch = cw * car.height / car.width;
   const maxH = H * 0.46;
   if(ch > maxH){ ch = maxH; cw = ch * car.width / car.height; }
   const cx = px - cw/2;
-  const baseY = py + STUDIO_PLATE.ry*H*0.42;   // wheels a little in front of centre
+  const baseY = py + STUDIO_PLATE.ry*H*fit.y;  // where the wheels stand
   const cy = baseY - ch;
 
   // contact shadow on the floor, under the wheels
@@ -1286,6 +1316,28 @@ function openStudioPhotos(){
         <label>remove.bg key <span class="small-muted">— leave blank for the free one</span></label>
         <input id="st_key" value="${escapeAttr(DB.removeBgKey||'')}" placeholder="paste a key to use remove.bg instead"/>
       </div>
+    </div>
+    <div class="card" style="padding:10px;margin-bottom:10px">
+      <div style="font-weight:700;margin-bottom:7px;font-size:13px">Backdrop</div>
+      <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+        <img src="${studioBgSrc()}" style="width:190px;border-radius:7px;border:1px solid var(--line)"/>
+        <div style="flex:1;min-width:190px">
+          <div class="small-muted" style="margin-bottom:6px">
+            ${DB.studioBgRef ? 'Your own picture.' : 'The built-in ' + escapeHtml(DB.bizName||'') + ' room.'}</div>
+          <input type="file" accept="image/*" id="st_bgfile" onchange="studioUploadBg(this)" style="font-size:12px"/>
+          ${DB.studioBgRef?`<button class="btn btn-ghost btn-sm" style="margin-top:7px" onclick="studioResetBg()">Use the built-in room</button>`:''}
+          <div class="small-muted" style="margin-top:7px">Any photo of an empty studio or showroom works. Landscape, and leave room at the bottom for the car to stand.</div>
+        </div>
+      </div>
+      <div class="field-row" style="margin-top:10px">
+        <div class="field"><label>Car size <b id="st_fit_w">${Math.round(studioFit().w*100)}%</b></label>
+          <input type="range" min="0.35" max="0.90" step="0.01" value="${studioFit().w}"
+                 oninput="studioSetFit('w', this.value)"/></div>
+        <div class="field"><label>How far down it stands <b id="st_fit_y">${(studioFit().y>=0?'+':'')+Math.round(studioFit().y*100)}</b></label>
+          <input type="range" min="-1.2" max="1.6" step="0.02" value="${studioFit().y}"
+                 oninput="studioSetFit('y', this.value)"/></div>
+      </div>
+      <div class="small-muted">Move these, then press <b>Try one first</b> to see the result.</div>
     </div>
     <div id="st_prog"></div>
     <div class="modal-actions">
