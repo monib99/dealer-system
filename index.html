@@ -187,6 +187,22 @@
   .task-card .tt{ font-weight:600; margin-bottom:3px;}
   .task-card .assignee{ color:var(--brand); font-size:11.5px; font-weight:600;}
   .task-card .notes{ color:var(--grey); font-size:11.5px; margin-top:4px; white-space:pre-wrap;}
+  .task-card{ border-left-width:4px; border-left-style:solid; }
+  .who-strip{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+  .who-chip{ display:flex; align-items:center; gap:7px; cursor:pointer; user-select:none;
+             border:1.5px solid var(--line); border-radius:999px; padding:5px 12px 5px 5px;
+             background:var(--card); font-size:12.5px; font-weight:600; color:var(--ink); }
+  .who-chip:hover{ border-color:var(--ink-soft); }
+  .who-chip.on{ border-color:currentColor; box-shadow:0 0 0 2px rgba(20,23,27,.06); }
+  .who-chip .av{ width:24px; height:24px; border-radius:50%; display:flex; align-items:center;
+                 justify-content:center; font-size:10.5px; font-weight:800; letter-spacing:.2px; }
+  .who-chip .ct{ font-weight:600; font-size:11.5px; color:var(--grey); }
+  .pchip{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700;
+          border-radius:999px; padding:2px 9px 2px 2px; }
+  .pchip .av{ width:19px; height:19px; border-radius:50%; display:flex; align-items:center;
+              justify-content:center; font-size:9.5px; font-weight:800; }
+  .day-col.is-today{ background:var(--brand-dim); border-radius:10px; padding:8px; margin:-8px; }
+  .swatch{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:middle; }
   .chip-row{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
   .chip{ padding:6px 13px; border-radius:20px; border:1px solid var(--line); font-size:13px; font-weight:600; cursor:pointer; background:#fff; transition:background-color .12s ease, color .12s ease, border-color .12s ease;}
   .chip.active{ background:var(--ink); color:#fff; border-color:var(--ink);}
@@ -408,7 +424,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-10 · build 36</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-10 · build 38</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -985,6 +1001,8 @@ function renderDashboard(){
     <button class="btn btn-sm btn-ghost" onclick="App.go('tasks')">Review</button>
   </div>`:''}
 
+  ${myClockCard()}
+
   <div class="grid kpi-grid">
     <div class="card kpi" style="cursor:pointer" onclick="App.go('stock')"><div class="label">Vehicles in stock</div><div class="value">${val.count}</div><div class="sub">${Object.entries(byStatus).map(([k,v])=>`${v} ${statusLabel(k)}`).join(' · ')||'—'}</div></div>
     <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('reports')"`:''}><div class="label">Stock cost value</div><div class="value small">${fmtMoney(val.costValue)}</div><div class="sub">Total spent so far, unsold stock</div></div>
@@ -1485,6 +1503,10 @@ function vehicleOverviewTab(v,cost,margin){
       <div class="field"><label>Year</label><input value="${v.year||''}" onchange="updateVehicleField('${v.id}','year',this.value)"/></div>
     </div>
     <div class="field-row">
+      <div class="field"><label>VIN number</label><input value="${v.vin||''}" placeholder="17 characters" onchange="updateVehicleField('${v.id}','vin',this.value.toUpperCase().trim())"/></div>
+      <div class="field"><label>Date of first registration</label><input type="date" value="${v.firstReg||''}" onchange="updateVehicleField('${v.id}','firstReg',this.value)"/></div>
+    </div>
+    <div class="field-row">
       <div class="field"><label>Colour</label><input value="${v.color||''}" onchange="updateVehicleField('${v.id}','color',this.value)"/></div>
       <div class="field"><label>Mileage</label><input value="${v.mileage||''}" onchange="updateVehicleField('${v.id}','mileage',this.value)"/></div>
       <div class="field"><label>Asking price (£)</label><input type="number" value="${v.askingPrice||0}" onchange="updateVehicleField('${v.id}','askingPrice',Number(this.value))"/></div>
@@ -1528,7 +1550,6 @@ function vehicleOverviewTab(v,cost,margin){
         </div>
         <div class="small-muted" style="margin-top:4px;">No database returns this from a registration — look it up, then paste it here for ordering parts.</div>
       </div>
-      <div class="field"><label>VIN</label><input value="${v.vin||''}" onchange="updateVehicleField('${v.id}','vin',this.value)"/></div>
     </div>
     <div class="field"><label>Website description <span class="small-muted">— shown to customers on your website</span></label>
       <textarea rows="3" placeholder="e.g. Full service history, recently serviced with a fresh MOT. Cheap to insure and very economical." onchange="updateVehicleField('${v.id}','webDescription',this.value)">${v.webDescription||''}</textarea></div>
@@ -2256,8 +2277,11 @@ function vehicleSaleTab(v){
       <div class="field"><label>Admin charge (£)</label><input id="s_admin" type="number" value="0"/></div>
       <div class="field"><label>Delivery charge (£)</label><input id="s_delivery" type="number" value="0"/></div>
       <div class="field"><label>Warranty (£)</label><input id="s_warranty" type="number" value="0"/></div>
-      <div class="field"><label>Extra package (£)</label><input id="s_extra" type="number" value="0"/></div>
     </div>
+    <div class="section-title" style="margin-top:12px"><h2>Extra charges</h2></div>
+    <div class="small-muted" style="margin:-4px 0 8px">Anything else the customer is paying for. Each line prints on the invoice with its own note, so write what it is for.</div>
+    <div id="extraRows" data-vid="${v.id}">${saleExtrasSeed(v).map(x=>extraRowHTML(x.what,x.amt)).join('')}</div>
+    <button class="btn btn-ghost btn-sm" type="button" onclick="addExtraRow()">+ Add a charge</button>
     <div class="field"><label>Any extras (shown on the invoice)</label>
       <input id="s_extrasText" placeholder="e.g. 3 MONTHS WARRANTY (GEARBOX AND ENGINE)" value="${(v.sale&&v.sale.extrasText)||''}"/></div>
     <div class="section-title" style="margin-top:14px"><h2>Money received</h2></div>
@@ -2410,7 +2434,7 @@ function confirmSale(vId){
     adminCharge: Number(document.getElementById('s_admin').value)||0,
     deliveryCharge: Number(document.getElementById('s_delivery').value)||0,
     warranty: Number(document.getElementById('s_warranty').value)||0,
-    extraPackage: Number(document.getElementById('s_extra').value)||0,
+    extras: readExtras(), extraPackage: 0,
     extrasText: (document.getElementById('s_extrasText')||{value:''}).value.trim(),
     time: (document.getElementById('s_time')||{value:''}).value,
     deposit: Number((document.getElementById('s_deposit')||{value:0}).value)||0,
@@ -2505,11 +2529,43 @@ function depositFromLead(vId){
 }
 /* what the customer actually owes: the admin charge is on the invoice even though
    it never enters the investor split */
+
+/* ---------- extra charges on a sale ---------- */
+function extraRowHTML(what, amt){
+  const e = x => String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  return `<div class="xrow field-row" style="align-items:flex-end">
+    <div class="field" style="flex:2"><label>What it is for</label>
+      <input class="xWhat" value="${e(what)}" placeholder="e.g. 12 month warranty, towbar fitted, new tyres"/></div>
+    <div class="field" style="flex:1"><label>Amount (£)</label>
+      <input class="xAmt" type="number" step="0.01" value="${amt===''||amt==null?'':Number(amt)}" oninput="updatePayTotal()"/></div>
+    <button class="btn btn-ghost btn-sm" type="button" style="margin-bottom:10px" onclick="this.closest('.xrow').remove();updatePayTotal()">Remove</button>
+  </div>`;
+}
+function addExtraRow(what, amt){
+  const box = document.getElementById('extraRows'); if(!box) return;
+  box.insertAdjacentHTML('beforeend', extraRowHTML(what||'', amt==null?'':amt));
+}
+function readExtras(){
+  return [...document.querySelectorAll('#extraRows .xrow')].map(r=>({
+    what: (r.querySelector('.xWhat')||{value:''}).value.trim(),
+    amt: Number((r.querySelector('.xAmt')||{value:0}).value)||0
+  })).filter(x=>x.amt!==0 || x.what);
+}
+function extrasTotal(list){
+  return (list||[]).reduce((t,x)=>t+(Number(x.amt)||0),0);
+}
+function saleExtrasSeed(v){
+  const s = v.sale || {};
+  if(Array.isArray(s.extras) && s.extras.length) return s.extras;
+  if(Number(s.extraPackage)) return [{what:'Extra package', amt:Number(s.extraPackage)}];
+  return [{what:'', amt:''}];
+}
 function invoiceTotals(v, sale){
   const s = sale || v.sale || {};
   const price = Number(s.salePrice)||0, disc = Number(s.discount)||0, px = Number(s.partExValue)||0;
   const admin = Number(s.adminCharge)||0, del = Number(s.deliveryCharge)||0;
-  const warr = Number(s.warranty)||0, extra = Number(s.extraPackage)||0;
+  const warr = Number(s.warranty)||0;
+  const extra = (Number(s.extraPackage)||0) + extrasTotal(s.extras);
   const dep = Number(s.deposit)||0;
   const total = price - disc - px + admin + del + warr + extra;
   /* every penny taken, counted once: the deposit is a payment like any other */
@@ -2521,6 +2577,7 @@ function invoiceTotals(v, sale){
 /* keeps the running total under the payment boxes honest while you type */
 function updatePayTotal(vId){
   const el = document.getElementById('payTotalLine'); if(!el) return;
+  if(!vId){ const box = document.getElementById('extraRows'); vId = (box && box.dataset.vid) || ''; }
   const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
   const t = invoiceTotals(v, draftSaleFromForm(v));
   const left = t.due;
@@ -2543,7 +2600,7 @@ function draftSaleFromForm(v){
     partEx: px, partExDesc: pxLabel(px), partExValue: pxTicked() ? num('s_pxval') : 0,
     pxFaults: pxTicked() ? txt('s_pxFaults') : '',
     adminCharge: num('s_admin'), deliveryCharge: num('s_delivery'),
-    warranty: num('s_warranty'), extraPackage: num('s_extra'),
+    warranty: num('s_warranty'), extras: readExtras(), extraPackage: 0,
     deposit: num('s_deposit'),
     payBank: num('s_payBank'), payCard: num('s_payCard'), payCash: num('s_payCash'),
     advertisedPrice: Number(v.askingPrice)||0,
@@ -2593,6 +2650,11 @@ function printInvoice(vId, draftSale){
   .money th{width:58%} .money td{text-align:right;white-space:nowrap}
   tr.sub td,tr.sub th{border-top:1.5px solid #15181c;font-size:12.5px}
   tr.due td,tr.due th{font-size:15px;font-weight:800;border-bottom:none;padding-top:7px}
+  .ibar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#15181c;color:#fff;
+        margin:-22px -22px 14px;padding:9px 22px;font-size:12px}
+  .ibar button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:6px;padding:6px 12px;background:#fff;color:#15181c}
+  .ibar .hint{opacity:.75;font-size:11px}
+  @media print{ .ibar{display:none !important} }
   .terms{font-size:9.3px;line-height:1.4;color:#30363d}
   .terms li{margin-bottom:3px}
   .terms ol{margin:0;padding-left:15px}
@@ -2632,6 +2694,13 @@ function printInvoice(vId, draftSale){
   }
 </style></head><body>
 
+<div class="ibar">
+  <button onclick="window.print()">\u2B07\uFE0F Download PDF</button>
+  <button onclick="dlWord()">\u2B07\uFE0F Download Word</button>
+  <button onclick="window.close()">Close</button>
+  <span class="hint">For the PDF, pick <b>Save as PDF</b> as the destination in the print box.</span>
+</div>
+
 <div class="head">
   <div>${logo}
     <div class="biz" style="${logo?'font-size:15px;margin-top:6px':''}">${e(DB.invoiceLegalName||DB.bizName||'')}</div>
@@ -2662,7 +2731,8 @@ function printInvoice(vId, draftSale){
       ${pair('Make', v.make)}
       ${pair('Model', v.model)}
       ${pair('Reg', v.reg)}
-      ${pair('Year / first registered', v.year)}
+      ${pair('Year', v.year)}
+      ${pair('First registered', v.firstReg ? fmtDate(v.firstReg) : '')}
       ${pair('Mileage', v.mileage ? Number(v.mileage).toLocaleString('en-GB') : '')}
       ${pair('VIN number', v.vin)}
       ${pair('MOT', v.motExpiry ? fmtDate(v.motExpiry) : '')}
@@ -2691,7 +2761,8 @@ ${isDraft?`<div style="border:1.5px solid #15181c;border-radius:4px;padding:8px 
   ${t.del?row('Delivery cost (non-refundable)', m(t.del)):''}
   ${t.admin?row(s.tradeSale?'Admin charges (non-transferable and non-refundable)':'Admin charge', m(t.admin)):''}
   ${t.warr?row('Warranty', m(t.warr)):''}
-  ${t.extra?row('Extra package', m(t.extra)):''}
+  ${(s.extras||[]).filter(x=>Number(x.amt)).map(x=>row(x.what?x.what:'Extra charge', m(Number(x.amt)))).join('')}
+  ${Number(s.extraPackage)?row('Extra package', m(Number(s.extraPackage))):''}
   ${row('Total balance', m(t.total), 'sub')}
 </table>
 
@@ -2727,12 +2798,31 @@ ${isDraft?'':`<div class="sigs">
 
 ${DB.invoiceAdr?`<div class="foot" style="text-align:left;border:0;padding-top:8px">If we cannot settle a complaint between us, you may refer it to ${e(DB.invoiceAdr)}.</div>`:''}
 <div class="foot">${e(DB.invoiceLegalName||DB.bizName||'')}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo):''}${DB.invoiceVatNo?' · VAT No '+e(DB.invoiceVatNo):''}${DB.invoiceFooter?' · '+e(DB.invoiceFooter):''}</div>
-${isDraft?'':'<scr'+'ipt>window.print();<\\/scr'+'ipt>'}
 </body></html>`;
 
+  const invFile = ((isDraft?'Proforma-':'Invoice-') + (s.invoiceRef||v.reg||''))
+                    .replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^-|-$/g,'');
   const win = window.open('','_blank');
-  if(!win){ alert('Allow pop-ups to print the invoice.'); return; }
+  if(!win){ alert('Allow pop-ups to open the invoice.'); return; }
   win.document.write(html); win.document.close();
+  win.document.title = invFile;
+  win.dlWord = function(){ downloadAsWord(win, invFile); };
+}
+/* save whatever is in that window as a .doc Word opens */
+function downloadAsWord(win, fileName){
+  const doc = win.document;
+  const clone = doc.documentElement.cloneNode(true);
+  const bar = clone.querySelector('.ibar'); if(bar) bar.remove();
+  clone.querySelectorAll('script').forEach(x=>x.remove());
+  const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" '
+             + 'xmlns:w="urn:schemas-microsoft-com:office:word" '
+             + 'xmlns="http://www.w3.org/TR/REC-html40">' + clone.innerHTML + '</html>';
+  const blob = new Blob(['\ufeff', html], {type:'application/msword'});
+  const a = doc.createElement('a');
+  a.href = (win.URL||URL).createObjectURL(blob);
+  a.download = (fileName||'document') + '.doc';
+  doc.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>{ try{ (win.URL||URL).revokeObjectURL(a.href); }catch(e){} }, 4000);
 }
 
 /* =========================================================================
@@ -3018,6 +3108,192 @@ function saveShifts(){
    TASKS
    ========================================================================= */
 let taskView = 'board';
+
+/* ---------- a stable colour per person, so the board reads at a glance ---------- */
+const PERSON_COLOURS = [
+  ['#1F5FBE','#E8F0FC'], ['#A8431A','#FBEDE6'], ['#2E7D5B','#E7F4EE'],
+  ['#6F3BA8','#F1EAFA'], ['#A8185A','#FBE9F1'], ['#0E6F86','#E3F2F6'],
+  ['#86682C','#F6F0E1'], ['#A83A24','#FBEBE7'], ['#3F5B7A','#EBF0F6'],
+  ['#55701A','#F0F5E2']
+];
+function personColour(name){
+  const n = String(name||'').trim().toLowerCase();
+  if(!n || n==='unassigned') return ['#6B7076','#EEEFF1'];
+  let h = 0;
+  for(let i=0;i<n.length;i++) h = (h*31 + n.charCodeAt(i)) >>> 0;
+  return PERSON_COLOURS[h % PERSON_COLOURS.length];
+}
+function personInitials(name){
+  const parts = String(name||'').trim().split(/\s+/).filter(Boolean);
+  if(!parts.length) return '?';
+  return (parts[0][0] + (parts.length>1 ? parts[parts.length-1][0] : '')).toUpperCase();
+}
+function personChip(name){
+  const [fg,bg] = personColour(name);
+  const label = name || 'Unassigned';
+  return `<span class="pchip" style="background:${bg};color:${fg}">
+    <span class="av" style="background:${fg};color:#fff">${personInitials(label)}</span>${escapeHtml(label)}</span>`;
+}
+let taskWho = 'all';
+function taskWhoMatches(t){
+  if(taskWho==='all') return true;
+  if(taskWho==='__me') return (t.assignee||'').trim().toLowerCase() === (currentUserName||'').trim().toLowerCase();
+  return (t.assignee||'Unassigned') === taskWho;
+}
+function taskPeopleStrip(days){
+  const week = DB.tasks.filter(t=>days.includes(t.date));
+  const names = [];
+  (DB.team||[]).forEach(m=>{ if(m.name && names.indexOf(m.name)<0) names.push(m.name); });
+  week.forEach(t=>{ const a = t.assignee || 'Unassigned'; if(names.indexOf(a)<0) names.push(a); });
+  const count = who => {
+    const list = week.filter(t => who==='all' ? true : (t.assignee||'Unassigned')===who);
+    return list.length ? (list.filter(t=>t.done).length + '/' + list.length) : '0';
+  };
+  const chip = (key, label, fg, bg, ct) => `<div class="who-chip ${taskWho===key?'on':''}"
+      style="${taskWho===key?`color:${fg};background:${bg};`:''}" onclick="taskWho='${String(key).replace(/'/g,"\\'")}';render()">
+      <span class="av" style="background:${fg};color:#fff">${label.av}</span>${escapeHtml(label.txt)}
+      <span class="ct">${ct}</span></div>`;
+  let out = chip('all', {av:'∑', txt:'Everyone'}, '#2A2F36', '#ECEEF1', count('all'));
+  names.forEach(n=>{
+    const [fg,bg] = personColour(n);
+    out += chip(n, {av:personInitials(n), txt:n}, fg, bg, count(n));
+  });
+  return `<div class="who-strip">${out}</div>`;
+}
+
+/* ---------- how well the week went, from the share of tasks finished ---------- */
+function taskScore(done, total, late){
+  if(!total) return {pct:0, band:'Nothing assigned', col:'#6B7076', bg:'#F0F1F3',
+                     line:'No tasks were assigned in this period.'};
+  let pct = Math.round(done/total*100);
+  let band, col, bg, line;
+  if(pct>=90){ band='Excellent'; col='#246B4C'; bg='#E7F4EE'; line='Almost everything assigned was finished.'; }
+  else if(pct>=75){ band='Good'; col='#246B4C'; bg='#E7F4EE'; line='Most of the work landed. Clear the rest early next week.'; }
+  else if(pct>=50){ band='Needs attention'; col='#8A5B07'; bg='#FBF0DF'; line='A fair amount got done, but a tail is still open — worth asking what got in the way.'; }
+  else { band='Off track'; col='#A32F18'; bg='#FBE7E3'; line='Most of the list did not get done. Either too much was assigned, or something is blocking the team.'; }
+  if(late) line += ' ' + late + ' ' + (late===1?'task is':'tasks are') + ' past the day ' + (late===1?'it':'they') + ' was due.';
+  return {pct, band, col, bg, line};
+}
+/* ---------- printable task report ---------- */
+function taskReport(scope){
+  const base = new Date(); base.setDate(base.getDate()+taskDayOffset);
+  const monday = new Date(base); monday.setDate(base.getDate()-((base.getDay()+6)%7));
+  const days = [];
+  for(let i=0;i<7;i++){ const d=new Date(monday); d.setDate(monday.getDate()+i); days.push(d.toISOString().slice(0,10)); }
+  const inScope = scope==='day' ? [todayISO()] : days;
+  const rows = DB.tasks.filter(t=>inScope.includes(t.date) && taskWhoMatches(t));
+  const e = x => String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const dd = iso => new Date(iso).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+
+  const by = {};
+  rows.forEach(t=>{ const a=t.assignee||'Unassigned'; (by[a]=by[a]||[]).push(t); });
+  const names = Object.keys(by).sort((a,b)=>by[b].length-by[a].length);
+  const done = rows.filter(t=>t.done).length;
+  const open = rows.length - done;
+  const late = rows.filter(t=>!t.done && isOverdue(t.date)).length;
+  const sc = taskScore(done, rows.length, late);
+
+  const title = scope==='day' ? 'Daily task report — ' + dd(todayISO())
+                              : 'Weekly task report — ' + dd(days[0]) + ' to ' + dd(days[6]);
+  const who = taskWho==='all' ? 'Whole team' : (taskWho==='__me' ? (currentUserName||'Me') : taskWho);
+  const logo = (typeof BRAND_LOGO === 'string' && BRAND_LOGO) ? '<img src="'+BRAND_LOGO+'" alt="">' : '';
+  const fileName = ('Task-report-' + (scope==='day'?todayISO():days[0]+'-week')).replace(/[^A-Za-z0-9._-]+/g,'-');
+
+  const statusCell = t => t.done ? '<span class="pill ok">Done</span>'
+    : (isOverdue(t.date) ? '<span class="pill late">Not done — overdue</span>' : '<span class="pill open">Not done</span>');
+  const prio = pr => pr==='high' ? '<span class="pill hi">High</span>'
+    : (pr==='priority' ? '<span class="pill pr">Priority</span>' : '<span class="pill st">Standard</span>');
+
+  const section = n => {
+    const list = by[n].slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'') || priorityRank(a.priority)-priorityRank(b.priority));
+    const d = list.filter(t=>t.done).length;
+    const ps = taskScore(d, list.length, list.filter(t=>!t.done && isOverdue(t.date)).length);
+    const [fg] = personColour(n);
+    return `<div class="person" style="border-left-color:${fg}">
+      <div class="phead">
+        <span class="av" style="background:${fg}">${personInitials(n)}</span>
+        <span class="pname">${e(n)}</span>
+        <span class="bar"><span style="width:${ps.pct}%;background:${ps.col}"></span></span>
+        <span class="pcount" style="color:${ps.col}"><b>${ps.pct}%</b> · ${d} of ${list.length} done</span>
+      </div>
+      <table>
+        <thead><tr><th style="width:92px">Day</th><th>Task</th><th style="width:84px">Priority</th><th style="width:126px">Status</th></tr></thead>
+        <tbody>${list.map(t=>`<tr class="${t.done?'is-done':''}">
+          <td>${dd(t.date)}</td>
+          <td><b>${e(t.title)}</b>${t.notes?`<div class="note">${e(t.notes)}</div>`:''}</td>
+          <td>${prio(t.priority)}</td>
+          <td>${statusCell(t)}</td></tr>`).join('')}</tbody>
+      </table></div>`;
+  };
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${e(fileName)}</title><style>
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;color:#15181c;margin:0;padding:22px;font-size:12px;line-height:1.45}
+  .ibar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#15181c;color:#fff;margin:-22px -22px 16px;padding:9px 22px;font-size:12px}
+  .ibar button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:6px;padding:6px 12px;background:#fff;color:#15181c}
+  .ibar .hint{opacity:.75;font-size:11px}
+  @media print{.ibar{display:none!important}.person{break-inside:avoid}.score{break-inside:avoid}}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;border-bottom:2.5px solid #15181c;padding-bottom:10px;margin-bottom:14px}
+  .head img{max-height:54px;max-width:220px;display:block;margin-bottom:6px}
+  h1{font-size:19px;margin:0 0 2px}
+  .sub{font-size:11.5px;color:#5a6069}
+  .score{display:flex;align-items:center;gap:16px;border-radius:10px;padding:14px 18px;margin-bottom:14px}
+  .score .big{font-size:40px;font-weight:800;line-height:1}
+  .score .band{font-size:16px;font-weight:800}
+  .score .line{font-size:11.5px;margin-top:2px}
+  .kpis{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  .kpi{flex:1;min-width:98px;border:1px solid #e2e5e9;border-radius:8px;padding:9px 12px}
+  .kpi .l{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#6b7076}
+  .kpi .v{font-size:21px;font-weight:800;line-height:1.2}
+  .person{border:1px solid #e2e5e9;border-left-width:5px;border-radius:8px;padding:11px 13px;margin-bottom:12px}
+  .phead{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .av{width:25px;height:25px;border-radius:50%;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .pname{font-size:14.5px;font-weight:800}
+  .bar{margin-left:auto;width:90px;height:7px;background:#e7eaee;border-radius:4px;overflow:hidden;display:inline-block}
+  .bar span{display:block;height:100%}
+  .pcount{font-size:11.5px;white-space:nowrap}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:#6b7076;border-bottom:1.5px solid #15181c;padding:0 7px 4px}
+  td{padding:5px 7px;border-bottom:1px solid #edeff2;vertical-align:top;font-size:11.5px}
+  tr.is-done td{color:#7d8389}
+  .note{color:#6b7076;font-size:10.5px;margin-top:2px;white-space:pre-wrap}
+  .pill{display:inline-block;border-radius:999px;padding:1.5px 8px;font-size:10px;font-weight:700;white-space:nowrap}
+  .ok{background:#E7F4EE;color:#246B4C} .open{background:#F0F1F3;color:#5a6069}
+  .late{background:#FBE7E3;color:#A32F18} .hi{background:#FBE7E3;color:#A32F18}
+  .pr{background:#FBF0DF;color:#8A5B07} .st{background:#F0F1F3;color:#5a6069}
+  .foot{margin-top:16px;border-top:1px solid #e2e5e9;padding-top:7px;font-size:10px;color:#6b7076;text-align:center}
+  .empty{border:1px dashed #cfd4da;border-radius:8px;padding:20px;text-align:center;color:#6b7076}
+  </style></head><body>
+  <div class="ibar">
+    <button onclick="window.print()">⬇️ Download PDF</button>
+    <button onclick="dlWord()">⬇️ Download Word</button>
+    <button onclick="window.close()">Close</button>
+    <span class="hint">For the PDF, pick <b>Save as PDF</b> as the destination in the print box.</span>
+  </div>
+  <div class="head">
+    <div>${logo}<h1>${e(title)}</h1>
+      <div class="sub">${e(DB.bizName||'')} · ${e(who)} · produced ${new Date().toLocaleString('en-GB')}</div></div>
+  </div>
+  <div class="score" style="background:${sc.bg};color:${sc.col}">
+    <div class="big">${sc.pct}%</div>
+    <div><div class="band">${sc.band}</div><div class="line" style="color:#3b4149">${e(sc.line)}</div></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="l">Tasks</div><div class="v">${rows.length}</div></div>
+    <div class="kpi"><div class="l">Done</div><div class="v" style="color:#246B4C">${done}</div></div>
+    <div class="kpi"><div class="l">Not done</div><div class="v" style="color:${open?'#A32F18':'#246B4C'}">${open}</div></div>
+    <div class="kpi"><div class="l">Overdue</div><div class="v" style="color:${late?'#A32F18':'#246B4C'}">${late}</div></div>
+  </div>
+  ${rows.length ? names.map(section).join('') : '<div class="empty">No tasks in this period.</div>'}
+  <div class="foot">${e(DB.invoiceLegalName||DB.bizName||'')}</div>
+  </body></html>`;
+
+  const win = window.open('','_blank');
+  if(!win){ alert('Allow pop-ups to open the report.'); return; }
+  win.document.write(html); win.document.close();
+  win.document.title = fileName;
+  win.dlWord = function(){ downloadAsWord(win, fileName); };
+}
 function renderTasks(){
   const overdue = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
   const openIssues = allOpenIssues();
@@ -3045,20 +3321,24 @@ function renderDailyBoardView(days, overdue){
     <button class="btn btn-ghost btn-sm" onclick="taskDayOffset-=7;render()">← Previous week</button>
     <button class="btn btn-ghost btn-sm" onclick="taskDayOffset=0;render()">This week</button>
     <button class="btn btn-ghost btn-sm" onclick="taskDayOffset+=7;render()">Next week →</button>
+    <span style="flex:1"></span>
+    <button class="btn btn-ghost btn-sm" onclick="taskReport('day')">\u{1F4C4} Today's report</button>
+    <button class="btn btn-brand btn-sm" onclick="taskReport('week')">\u{1F4C4} Week report (PDF)</button>
   </div>
+  ${taskPeopleStrip(days)}
   <div class="board">
     ${days.map(d=>`
-      <div class="day-col">
+      <div class="day-col ${d===todayISO()?'is-today':''}">
         <div class="flex-between" style="margin-bottom:6px;">
           <strong>${new Date(d).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</strong>
           ${d===todayISO()?'<span class="tag tag-brand">Today</span>':''}
         </div>
-        ${DB.tasks.filter(t=>t.date===d).length===0?'<div class="small-muted">No tasks</div>':''}
-        ${DB.tasks.filter(t=>t.date===d).slice().sort((a,b)=>priorityRank(a.priority)-priorityRank(b.priority)).map(t=>`
-          <div class="task-card ${t.done?'done':''}">
+        ${DB.tasks.filter(t=>t.date===d && taskWhoMatches(t)).length===0?'<div class="small-muted">No tasks</div>':''}
+        ${DB.tasks.filter(t=>t.date===d && taskWhoMatches(t)).slice().sort((a,b)=>priorityRank(a.priority)-priorityRank(b.priority)).map(t=>`
+          <div class="task-card ${t.done?'done':''}" style="border-left-color:${personColour(t.assignee)[0]}">
+            <div style="margin-bottom:5px;">${personChip(t.assignee)}</div>
             <div class="tt">${t.title} ${!t.done && isOverdue(t.date)?'<span class="tag tag-red" style="margin-left:4px;">Overdue</span>':''}</div>
             <div style="margin:4px 0;">${priorityTag(t.priority)}</div>
-            <div class="assignee">${t.assignee||'Unassigned'}</div>
             ${t.notes?`<div class="notes">${t.notes}</div>`:''}
             <div style="margin-top:6px;display:flex;gap:6px;">
               <button class="btn btn-sm ${t.done?'btn-ghost':'btn-brand'}" onclick="toggleTaskDone('${t.id}')">${t.done?'Reopen':'Mark done'}</button>
@@ -3073,6 +3353,7 @@ function renderDailyBoardView(days, overdue){
 
   <div class="section-title"><h2>Weekly summary</h2></div>
   <div class="card">
+    ${weekScoreBanner(days)}
     ${renderWeeklyTaskSummary(days)}
   </div>
   `;
@@ -3114,13 +3395,42 @@ function renderOutstandingRepairsView(openIssues){
   </div>
   `;
 }
+function weekScoreBanner(days){
+  const week = DB.tasks.filter(t=>days.includes(t.date) && taskWhoMatches(t));
+  const d = week.filter(t=>t.done).length;
+  const late = week.filter(t=>!t.done && isOverdue(t.date)).length;
+  const sc = taskScore(d, week.length, late);
+  return `<div style="display:flex;align-items:center;gap:16px;background:${sc.bg};color:${sc.col};
+            border-radius:10px;padding:13px 16px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="font-size:34px;font-weight:800;line-height:1">${sc.pct}%</div>
+    <div style="min-width:160px">
+      <div style="font-size:15px;font-weight:800">${sc.band}</div>
+      <div style="font-size:12px;color:var(--ink-soft);margin-top:1px">${sc.line}</div>
+    </div>
+    <div style="margin-left:auto;font-size:12.5px;color:var(--ink-soft);text-align:right">
+      <strong style="color:${sc.col}">${d}</strong> done ·
+      <strong>${week.length-d}</strong> open${late?` · <strong style="color:var(--red)">${late} overdue</strong>`:''}
+    </div>
+  </div>`;
+}
 function renderWeeklyTaskSummary(days){
   const weekTasks = DB.tasks.filter(t=>days.includes(t.date));
   const byAssignee = {};
   weekTasks.forEach(t=>{ const a=t.assignee||'Unassigned'; byAssignee[a]=byAssignee[a]||{total:0,done:0}; byAssignee[a].total++; if(t.done) byAssignee[a].done++; });
   if(Object.keys(byAssignee).length===0) return '<div class="empty">No tasks assigned this week.</div>';
-  return `<table><thead><tr><th>Team member</th><th>Assigned</th><th>Completed</th><th>Completion rate</th></tr></thead><tbody>
-    ${Object.entries(byAssignee).map(([name,d])=>`<tr><td>${name}</td><td>${d.total}</td><td>${d.done}</td><td>${Math.round(d.done/d.total*100)}%</td></tr>`).join('')}
+  return `<table><thead><tr><th>Team member</th><th>Assigned</th><th>Completed</th><th>Still open</th><th>Completion rate</th></tr></thead><tbody>
+    ${Object.entries(byAssignee).sort((a,b)=>b[1].total-a[1].total).map(([name,d])=>{
+      const pct = Math.round(d.done/d.total*100);
+      const col = pct===100 ? 'var(--green)' : (pct>=50 ? '#C27A09' : 'var(--red)');
+      return `<tr>
+        <td><span class="swatch" style="background:${personColour(name)[0]}"></span><strong>${escapeHtml(name)}</strong></td>
+        <td>${d.total}</td><td>${d.done}</td>
+        <td>${d.total-d.done ? `<strong style="color:var(--red)">${d.total-d.done}</strong>` : '—'}</td>
+        <td><div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;max-width:120px;height:7px;background:var(--line);border-radius:4px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${col}"></div></div>
+          <span style="font-weight:700;color:${col}">${pct}%</span></div></td>
+      </tr>`;}).join('')}
   </tbody></table>`;
 }
 function openAddTask(){
@@ -3230,11 +3540,25 @@ function renderTeamOverview(){
   // has no business knowing what the others are paid.
   const visibleTeam = isManager() ? DB.team : DB.team.filter(m=>m.email===currentUserEmail);
   return `
+  ${(()=>{ const me = myMember();
+      return (me && (me.name||'').toLowerCase() === (me.email||'').split('@')[0].toLowerCase())
+        ? `<div class="overdue-banner"><span>Your account still shows <strong>${escapeHtml(me.name||'')}</strong>, taken from your email. Type your real name in the Name box below — it is what appears on tasks, invoices and the clock card.</span></div>`
+        : ''; })()}
   <div class="section-title"><h2>${isManager()?'Team':'Your record'}</h2></div>
   <div class="card" style="padding:0;">
     ${visibleTeam.length===0?'<div class="empty">No team members yet.</div>':`
     <table><thead><tr><th>Name</th><th>Job role</th><th>Access</th>${isSuperAdmin()?'<th>Day rate</th>':''}${isManager()?'<th></th>':''}</tr></thead><tbody>
-    ${visibleTeam.map(m=>`<tr><td>${m.name}${m.email===currentUserEmail?' <span class="tag tag-brand">You</span>':''}</td><td>${m.role||'—'}</td>
+    ${visibleTeam.map(m=>`<tr><td>
+        ${(isSuperAdmin() || m.email===currentUserEmail)
+          ? `<input value="${escapeAttr(m.name||'')}" placeholder="Full name" style="font-weight:600;max-width:190px"
+                    onchange="renameTeamMember('${m.id}', this.value)"/>`
+          : `<strong>${escapeHtml(m.name||'')}</strong>`}
+        ${m.email===currentUserEmail?' <span class="tag tag-brand">You</span>':''}
+        <div class="small-muted" style="margin-top:3px">${escapeHtml(m.email||'no login yet')}</div>
+      </td><td>${(isSuperAdmin() || m.email===currentUserEmail)
+          ? `<input value="${escapeAttr(m.role||'')}" placeholder="e.g. Valeter" style="max-width:150px"
+                    onchange="updateTeamRole('${m.id}', this.value)"/>`
+          : (m.role||'—')}</td>
       <td>${isSuperAdmin() ? `<select onchange="changeAccessLevel('${m.id}',this.value)" ${m.email===currentUserEmail?'disabled title="You can\'t change your own access level"':''}><option value="staff" ${normaliseRole(m.accessLevel)==='staff'?'selected':''}>Staff</option><option value="manager" ${normaliseRole(m.accessLevel)==='manager'?'selected':''}>Manager</option><option value="superadmin" ${normaliseRole(m.accessLevel)==='superadmin'?'selected':''}>Super Admin</option></select>` : `<span class="tag ${normaliseRole(m.accessLevel)==='superadmin'?'tag-red':(normaliseRole(m.accessLevel)==='manager'?'tag-brand':'tag-grey')}">${roleLabel(normaliseRole(m.accessLevel))}</span>`}</td>
       ${isSuperAdmin()?`<td>${fmtMoney(m.dayRate)}</td>`:''}
       ${isManager()?`<td>${isSuperAdmin()?`<button class="btn btn-sm btn-danger" onclick="deleteTeamMember('${m.id}')" ${m.email===currentUserEmail?'disabled':''}>Remove</button>`:''}</td>`:''}</tr>`).join('')}
@@ -3357,6 +3681,31 @@ function saveTeamMember(){
   const name = document.getElementById('m_name').value.trim(); if(!name) return;
   DB.team.push({id:nextId('mem'), name, email:document.getElementById('m_email').value.trim().toLowerCase(), role:document.getElementById('m_role').value, accessLevel:document.getElementById('m_access').value, dayRate:Number(document.getElementById('m_rate').value)||0});
   saveDB(); closeModal(); render();
+}
+function renameTeamMember(id, value){
+  const m = (DB.team||[]).find(x=>x.id===id); if(!m) return;
+  const name = String(value||'').trim();
+  if(!name){ alert('A name cannot be blank.'); render(); return; }
+  if(!isSuperAdmin() && m.email !== currentUserEmail){ alert('Only a Super Admin can rename someone else.'); render(); return; }
+  const before = m.name || '';
+  if(before === name) return;
+  m.name = name;
+  // anything already recorded against the old name keeps pointing at the right person
+  (DB.tasks||[]).forEach(t=>{ if((t.assignee||'')===before) t.assignee = name; });
+  if(m.email === currentUserEmail) currentUserName = name;
+  if(typeof logChange==='function'){
+    try{ logChange('team','Renamed a team member', {id:m.id,label:name}, 'name', before, name, ''); }catch(e){}
+  }
+  saveDB();
+  const lbl = document.getElementById('userEmailLabel');
+  if(lbl && m.email===currentUserEmail) lbl.textContent = currentUserName + ' (' + roleLabel(currentUserRole) + ')';
+  render();
+}
+function updateTeamRole(id, value){
+  const m = (DB.team||[]).find(x=>x.id===id); if(!m) return;
+  if(!isSuperAdmin() && m.email !== currentUserEmail){ render(); return; }
+  m.role = String(value||'').trim();
+  saveDB(); render();
 }
 function deleteTeamMember(id){
   if(!isSuperAdmin()){ alert('Only a Super Admin can remove team members.'); return; }
@@ -5513,7 +5862,9 @@ function renderMuzaribProfile(id){
       <td>${escapeHtml(t.note||'')}</td>
       <td>${escapeHtml(t.method||'&mdash;')}</td>
       <td style="font-weight:700;color:${t.type==='withdrawal'?'var(--red)':'inherit'}">${t.type==='withdrawal'?'&minus; ':''}${fmtMoney(Math.abs(t.amount))}</td>
-      <td>${isManager()?`<button class="btn btn-sm btn-danger" onclick="deleteMzTx('${t.id}')" title="Delete this entry — the Super Admin can undo it">✕</button>`:''}</td>
+      <td style="white-space:nowrap">
+        ${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="openEditMzTx('${t.id}')" title="Change the amount, date or type">Edit</button>`:''}
+        ${isManager()?`<button class="btn btn-sm btn-danger" onclick="deleteMzTx('${t.id}')" title="Delete this entry — the Super Admin can undo it">✕</button>`:''}</td>
     </tr>`).join('')}
     </tbody></table>` : `<div class="empty">No cash movements recorded yet.</div>`}
   </div>
@@ -5651,6 +6002,64 @@ function deleteMuzarib(id){
   activeMuzaribId = null; saveDB(); closeModal(); render();
 }
 
+/* Super Admin: correct a deposit or withdrawal after the fact. */
+function openEditMzTx(txId){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can change a cash entry.'); return; }
+  const t = (DB.muzaribTx||[]).find(x=>x.id===txId); if(!t) return;
+  const m = muzarib(t.muzaribId) || {name:'Investor'};
+  const label = (MZ_TX_TYPES[t.type]||{}).label || t.type;
+  const internal = t.type==='spend';
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Edit ${escapeHtml(label.toLowerCase())}</h3>
+    <div class="small-muted" style="margin-bottom:10px;">${escapeHtml(m.name)} · entered by ${escapeHtml(t.addedBy||'someone')}${t.date?' on '+fmtDate(t.date):''}</div>
+    ${internal?`<div class="small-muted" style="margin-bottom:10px;color:var(--amber)">This one came from a logged spend. Change it there instead, or it will go back out of step.</div>`:''}
+    <div class="field"><label>Type</label>
+      <select id="mte_type" ${internal?'disabled':''}>
+        <option value="capital"    ${t.type==='capital'?'selected':''}>Capital in — he handed cash over</option>
+        <option value="withdrawal" ${t.type==='withdrawal'?'selected':''}>Withdrawal — paid back to him</option>
+        <option value="adjustment" ${t.type==='adjustment'?'selected':''}>Adjustment</option>
+        ${internal?`<option value="spend" selected>Company use (internal)</option>`:''}
+      </select></div>
+    <div class="field-row">
+      <div class="field"><label>Amount (£)</label><input id="mte_amt" type="number" step="0.01" value="${Number(t.amount)||0}"/></div>
+      <div class="field"><label>Date</label><input id="mte_date" type="date" value="${t.date||todayISO()}"/></div>
+    </div>
+    <div class="field"><label>Paid by</label>
+      <select id="mte_method">
+        ${['Bank transfer','Cash','Card','Other','Spend log'].map(x=>`<option ${((t.method||'')===x)?'selected':''}>${x}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Note</label><input id="mte_note" value="${escapeAttr(t.note||'')}"/></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveEditMzTx('${t.id}')">Save changes</button></div>`);
+}
+function saveEditMzTx(txId){
+  if(!isSuperAdmin()) return;
+  const t = (DB.muzaribTx||[]).find(x=>x.id===txId); if(!t) return;
+  const val = x => (document.getElementById(x)||{value:''}).value;
+  const amt = Number(val('mte_amt'))||0;
+  if(amt<=0){ alert('Enter an amount greater than zero.'); return; }
+  const m = muzarib(t.muzaribId) || {name:'Investor'};
+  const was = {amount:Number(t.amount)||0, type:t.type, date:t.date};
+  const newType = t.type==='spend' ? 'spend' : (val('mte_type') || t.type);
+
+  captureUndo({t:'mzTxEdit', id:t.id, before:{amount:was.amount, type:was.type, date:was.date,
+               method:t.method, note:t.note}});
+  t.amount = amt;
+  t.type   = newType;
+  t.date   = val('mte_date') || t.date;
+  t.method = val('mte_method') || t.method;
+  t.note   = val('mte_note');
+  /* a spend row is the mirror of an expense — keep that expense in step */
+  if(t.type==='spend'){
+    const e = (DB.expenses||[]).find(x=>x.mzTxId===t.id);
+    if(e && Number(e.amount)!==amt){ e.amount = amt; }
+  }
+  logChange('money','Edited cash entry for', mzRef(m),
+    (MZ_TX_TYPES[newType]||{}).label || newType,
+    fmtMoney(was.amount) + (was.type!==newType ? ' ('+((MZ_TX_TYPES[was.type]||{}).label||was.type)+')' : ''),
+    fmtMoney(amt),
+    'Cash in hand now ' + fmtMoney(muzaribPosition(t.muzaribId).cashInHand));
+  saveDB(); closeModal(); render();
+}
 function openMzTx(id, type){
   const isW = type==='withdrawal';
   const p = muzaribPosition(id);
@@ -5771,6 +6180,7 @@ function undoLabel(e){
     case 'vehField': return 'Put ' + (e.field||'this') + ' back to ' + (e.from||'blank');
     case 'vehCost':  return 'Put ' + (e.field||'this cost') + ' back to ' + (e.from||'blank');
     case 'mzField':  return 'Put ' + (e.field||'this') + ' back to ' + (e.from||'blank');
+    case 'mzTxEdit': return 'Put this entry back to ' + (e.from||'what it was');
     case 'mzTxAdd':  return 'Remove this entry again';
     case 'mzTxDel':  return 'Put this entry back';
     default: return 'Undo';
@@ -5782,6 +6192,7 @@ function canUndo(e){
   if(u.t==='vehField' || u.t==='vehCost') return !!DB.vehicles.find(v=>v.id===u.id);
   if(u.t==='mzField')  return !!(DB.muzaribs||[]).find(m=>m.id===u.id);
   if(u.t==='mzTxAdd')  return !!(DB.muzaribTx||[]).find(t=>t.id===u.id);
+  if(u.t==='mzTxEdit') return !!(DB.muzaribTx||[]).find(t=>t.id===u.id);
   if(u.t==='mzTxDel')  return !!u.tx && !(DB.muzaribTx||[]).some(t=>t.id===u.tx.id);
   return false;
 }
@@ -5806,6 +6217,12 @@ function undoChange(logId){
     const m = (DB.muzaribs||[]).find(x=>x.id===u.id); if(!m) return;
     m[u.prop] = u.before;
     what = m.name || '';
+  } else if(u.t==='mzTxEdit'){
+    const t = (DB.muzaribTx||[]).find(x=>x.id===u.id); if(!t) return;
+    Object.assign(t, u.before);
+    const ex = (DB.expenses||[]).find(x=>x.mzTxId===t.id);
+    if(ex) ex.amount = u.before.amount;
+    what = 'cash entry put back';
   } else if(u.t==='mzTxAdd'){
     DB.muzaribTx = (DB.muzaribTx||[]).filter(t=>t.id!==u.id);
     what = 'cash entry removed';
