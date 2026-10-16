@@ -448,6 +448,7 @@
       <div class="nav-item" data-tab="reports" onclick="App.go('reports')">📈 Reports</div>
       <div class="nav-item" data-tab="boardroom" onclick="App.go('boardroom')">💡 Ideas &amp; Capital</div>
       <div class="nav-item" data-tab="muzaribat" onclick="App.go('muzaribat')">🤝 Muzaribat</div>
+      <div class="nav-item" data-tab="company" onclick="App.go('company')">🏛️ Company assets</div>
       <div class="nav-item" data-tab="website" onclick="App.go('website')">🌐 Website</div>
       <div class="nav-item" data-tab="audit" onclick="App.go('audit')">🔍 Change log</div>
       <div class="foot">
@@ -859,6 +860,45 @@ function vehicleNetSale(v){
 function customerAdminFee(v){ return v.sale ? (Number(v.sale.adminCharge)||0) : 0; }
 function vehicleProfit(v){ return vehicleNetSale(v) - vehicleCostTotal(v); }
 function openIssuesCount(v){ return (v.issues||[]).filter(i=>i.status!=='done').length; }
+/* Who owns what is on the forecourt right now. */
+function stockSplit(){
+  const live = DB.vehicles.filter(v=>!v.sale && v.status!=='sold' && v.status!=='scrap');
+  const mz = live.filter(v=>v.ownerType==='muzarib' && v.muzaribId);
+  const co = live.filter(v=>!(v.ownerType==='muzarib' && v.muzaribId));
+  const cost = list => list.reduce((t,v)=>t+vehicleCostTotal(v),0);
+  const ask  = list => list.reduce((t,v)=>t+(Number(v.askingPrice)||0),0);
+  return {
+    mz:{count:mz.length, cost:cost(mz), ask:ask(mz), cars:mz},
+    co:{count:co.length, cost:cost(co), ask:ask(co), cars:co},
+    all:{count:live.length, cost:cost(live), ask:ask(live), cars:live}
+  };
+}
+/* The old business, before this one. Plain notes plus the arithmetic. */
+function oldBiz(){
+  const o = DB.oldBusiness || {};
+  const n = k => Number(o[k])||0;
+  const invested = n('invested'), loss = n('loss');
+  const cash = n('carriedCash'), stock = n('carriedStock'), moved = n('movedToMz');
+  const remaining   = invested - loss;              // what should have been left
+  const carried     = cash + stock;                 // what actually came across
+  const retained    = stock - moved;                // stock this business kept
+  const opening     = cash + retained;              // what this business started on
+  const unaccounted = remaining - carried;          // the gap, if the two disagree
+  return {name:o.name||'', note:o.note||'', invested, loss, cash, stock, moved,
+          remaining, carried, retained, opening, unaccounted};
+}
+function saveOldBiz(){
+  const num = id => Number((document.getElementById(id)||{value:0}).value)||0;
+  const txt = id => (document.getElementById(id)||{value:''}).value.trim();
+  DB.oldBusiness = {
+    name: txt('ob_name'), invested: num('ob_invested'), loss: num('ob_loss'),
+    carriedCash: num('ob_cash'), carriedStock: num('ob_stock'), movedToMz: num('ob_moved'),
+    note: txt('ob_note')
+  };
+  saveDB(); render();
+  if(typeof wbToast === 'function') wbToast('Saved');
+}
+
 function stockValuation(){
   const inStock = DB.vehicles.filter(v=>v.status!=='sold' && v.status!=='scrap');
   const costValue = inStock.reduce((s,v)=>s+vehicleCostTotal(v),0);
@@ -936,6 +976,7 @@ function render(){
   else if(currentTab==='reports') html = renderReports();
   else if(currentTab==='boardroom') html = renderBoardroom();
   else if(currentTab==='muzaribat') html = renderMuzaribat();
+  else if(currentTab==='company') html = renderCompanyAssets();
   else if(currentTab==='website') html = renderSiteBuilder();
   else if(currentTab==='audit') html = renderAudit();
   main.innerHTML = html;
@@ -1012,6 +1053,26 @@ function renderDashboard(){
     <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('team')"`:''}><div class="label">Owed to staff</div><div class="value small">${fmtMoney(owedToStaff)}</div><div class="sub">Unreimbursed company spend</div></div>
   </div>
   <div class="small-muted" style="margin:-12px 0 18px;">Tap a card above to jump straight to that section.</div>
+
+  ${(()=>{ const sp = stockSplit(); if(!sp.all.count) return '';
+    const pct = sp.all.cost ? Math.round(sp.mz.cost/sp.all.cost*100) : 0;
+    return `
+    <div class="section-title"><h2>Who owns the stock</h2>${isManager()?`<span class="small-muted" style="cursor:pointer" onclick="App.go('company')">Company assets →</span>`:''}</div>
+    <div class="grid kpi-grid" style="margin-bottom:6px">
+      <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('company')"`:''}>
+        <div class="label">Company stock</div><div class="value small">${fmtMoney(sp.co.cost)}</div>
+        <div class="sub">${sp.co.count} car${sp.co.count===1?'':'s'} · asking ${fmtMoney(sp.co.ask)}</div></div>
+      <div class="card kpi" ${isManager()?`style="cursor:pointer" onclick="App.go('muzaribat')"`:''}>
+        <div class="label">Muzaribat stock</div><div class="value small">${fmtMoney(sp.mz.cost)}</div>
+        <div class="sub">${sp.mz.count} car${sp.mz.count===1?'':'s'} · asking ${fmtMoney(sp.mz.ask)}</div></div>
+      <div class="card kpi" style="cursor:pointer" onclick="App.go('stock')">
+        <div class="label">All stock</div><div class="value small">${fmtMoney(sp.all.cost)}</div>
+        <div class="sub">${sp.all.count} car${sp.all.count===1?'':'s'} · ${pct}% investor funded</div></div>
+    </div>
+    <div style="height:10px;border-radius:5px;overflow:hidden;display:flex;margin-bottom:18px;background:var(--line)">
+      <div style="width:${100-pct}%;background:var(--ink)" title="Company"></div>
+      <div style="width:${pct}%;background:var(--brand)" title="Muzaribat"></div>
+    </div>`; })()}
   ${(()=>{ const due = leadsDue(); if(!due.length) return '';
     return `<div class="section-title"><h2>Customers to follow up today</h2><span class="small-muted" style="cursor:pointer" onclick="leadFilter='due';App.go('leads')">All leads →</span></div>
     <div class="card" style="margin-bottom:20px;">
@@ -6236,6 +6297,182 @@ function allMuzaribTotals(){
 /* ---------- list page ---------- */
 let mzView = 'list', activeMuzaribId = null, mzMonth = null;
 
+
+/* =========================================================================
+   COMPANY ASSETS — what the company still owns, what has gone to investors,
+   and the note on the business that ran before this one.
+   ========================================================================= */
+function assetTransfers(){ return DB.assetTransfers || (DB.assetTransfers = []); }
+function transfersTotal(){ return assetTransfers().reduce((t,x)=>t+(Number(x.value)||0),0); }
+
+function renderCompanyAssets(){
+  if(!isManager()) return `<div class="topbar"><div><h1>Company assets</h1></div></div>
+    <div class="card"><div class="empty">Managers only.</div></div>`;
+  const sp = stockSplit();
+  const ob = oldBiz();
+  const tx = assetTransfers().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const pct = sp.all.cost ? Math.round(sp.co.cost/sp.all.cost*100) : 0;
+
+  return `
+  <div class="topbar">
+    <div><h1>Company assets</h1><div class="date">What the company owns, and what has been handed to investors</div></div>
+    <button class="btn btn-brand" onclick="openTransferToInvestor()">→ Move a car to an investor</button>
+  </div>
+
+  <div class="grid kpi-grid">
+    <div class="card kpi"><div class="label">Company stock</div><div class="value small">${fmtMoney(sp.co.cost)}</div>
+      <div class="sub">${sp.co.count} car${sp.co.count===1?'':'s'} · ${pct}% of the forecourt</div></div>
+    <div class="card kpi"><div class="label">Asking value</div><div class="value small">${fmtMoney(sp.co.ask)}</div>
+      <div class="sub">If every one sold at its price</div></div>
+    <div class="card kpi" style="cursor:pointer" onclick="App.go('muzaribat')"><div class="label">Muzaribat stock</div>
+      <div class="value small">${fmtMoney(sp.mz.cost)}</div><div class="sub">${sp.mz.count} car${sp.mz.count===1?'':'s'} funded by investors</div></div>
+    <div class="card kpi"><div class="label">Moved to investors</div><div class="value small">${fmtMoney(transfersTotal())}</div>
+      <div class="sub">${tx.length} car${tx.length===1?'':'s'} handed over for their cash</div></div>
+  </div>
+
+  <div class="section-title"><h2>Cars the company owns</h2></div>
+  <div class="card" style="padding:0">
+    ${sp.co.count===0 ? '<div class="empty">No company-owned cars in stock — every car is funded by an investor.</div>' : `
+    <table><thead><tr><th>Vehicle</th><th>Status</th><th class="num">Cost in</th><th class="num">Asking</th><th class="num">Margin</th><th></th></tr></thead><tbody>
+    ${sp.co.cars.slice().sort((a,b)=>vehicleCostTotal(b)-vehicleCostTotal(a)).map(v=>{
+      const cost = vehicleCostTotal(v), ask = Number(v.askingPrice)||0, m = ask - cost;
+      return `<tr>
+        <td style="cursor:pointer" onclick="openVehicle('${v.id}')"><b>${escapeHtml(v.reg||'')}</b>
+          <div class="small-muted">${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}</div></td>
+        <td><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span></td>
+        <td class="num">${fmtMoney(cost)}</td>
+        <td class="num">${ask?fmtMoney(ask):'—'}</td>
+        <td class="num" ${ask?`style="color:${m>=0?'var(--green)':'var(--red)'}"`:''}>${ask?fmtMoney(m):'—'}</td>
+        <td class="num"><button class="btn btn-sm btn-ghost" onclick="openTransferToInvestor('${v.id}')">Move →</button></td>
+      </tr>`; }).join('')}
+      <tr><td><b>Total</b></td><td></td><td class="num"><b>${fmtMoney(sp.co.cost)}</b></td>
+        <td class="num"><b>${fmtMoney(sp.co.ask)}</b></td>
+        <td class="num"><b>${fmtMoney(sp.co.ask - sp.co.cost)}</b></td><td></td></tr>
+    </tbody></table>`}
+  </div>
+
+  <div class="section-title"><h2>Cars handed to investors</h2></div>
+  <div class="card" style="padding:0">
+    ${tx.length===0 ? `<div class="empty">Nothing moved yet. Use <b>Move a car to an investor</b> when you settle their cash with stock.</div>` : `
+    <table><thead><tr><th>Date</th><th>Vehicle</th><th>Investor</th><th class="num">Value</th><th>Note</th>${isSuperAdmin()?'<th></th>':''}</tr></thead><tbody>
+    ${tx.map(t=>`<tr>
+      <td>${fmtDate(t.date)}</td>
+      <td><b>${escapeHtml(t.reg||'')}</b><div class="small-muted">${escapeHtml(t.label||'')}</div></td>
+      <td>${escapeHtml(muzaribName(t.muzaribId)||'')}</td>
+      <td class="num"><b>${fmtMoney(t.value)}</b></td>
+      <td class="small-muted">${escapeHtml(t.note||'')}</td>
+      ${isSuperAdmin()?`<td class="num"><button class="btn btn-sm btn-ghost" onclick="undoTransfer('${t.id}')">Move back</button></td>`:''}
+    </tr>`).join('')}
+    <tr><td colspan="3"><b>Total handed over</b></td><td class="num"><b>${fmtMoney(transfersTotal())}</b></td><td></td>${isSuperAdmin()?'<td></td>':''}</tr>
+    </tbody></table>`}
+  </div>
+  <div class="small-muted" style="margin:6px 0 0">Moving a car makes the investor its owner, so its cost comes out of his cash and sits in his stock instead. Nothing is taken off what he is owed.</div>
+
+  <div class="section-title"><h2>The business before this one</h2></div>
+  <div class="card">
+    <div class="small-muted" style="margin-bottom:10px">A record of what went in, what was lost, and what came across to this business. Notes only — nothing here touches the day-to-day figures.</div>
+    <div class="field"><label>What it traded as</label>
+      <input id="ob_name" value="${escapeAttr(ob.name)}" placeholder="the old name"/></div>
+    <div class="field-row">
+      <div class="field"><label>Money put in at the start (£)</label><input id="ob_invested" type="number" step="0.01" value="${ob.invested||''}"/></div>
+      <div class="field"><label>Total loss (£)</label><input id="ob_loss" type="number" step="0.01" value="${ob.loss||''}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Cash carried into this business (£)</label><input id="ob_cash" type="number" step="0.01" value="${ob.cash||''}"/></div>
+      <div class="field"><label>Stock carried over, at cost (£)</label><input id="ob_stock" type="number" step="0.01" value="${ob.stock||''}"/></div>
+      <div class="field"><label>Of that, moved to Muzaribat (£)</label><input id="ob_moved" type="number" step="0.01" value="${ob.moved||''}"/></div>
+    </div>
+    <div class="field"><label>Note</label>
+      <textarea id="ob_note" rows="2" placeholder="anything worth remembering about how it ended">${escapeHtml(ob.note)}</textarea></div>
+    <button class="btn btn-brand" onclick="saveOldBiz()">Save</button>
+
+    <div class="grid kpi-grid" style="margin-top:16px">
+      <div class="card kpi"><div class="label">Should have been left</div>
+        <div class="value small" style="color:${ob.remaining<0?'var(--red)':'var(--ink)'}">${fmtMoney(ob.remaining)}</div>
+        <div class="sub">${fmtMoney(ob.invested)} in, ${fmtMoney(ob.loss)} lost</div></div>
+      <div class="card kpi"><div class="label">Actually came across</div><div class="value small">${fmtMoney(ob.carried)}</div>
+        <div class="sub">${fmtMoney(ob.cash)} cash + ${fmtMoney(ob.stock)} stock</div></div>
+      <div class="card kpi"><div class="label">Stock kept by this business</div><div class="value small">${fmtMoney(ob.retained)}</div>
+        <div class="sub">${fmtMoney(ob.moved)} of it went to investors</div></div>
+      <div class="card kpi"><div class="label">Opening capital here</div>
+        <div class="value small" style="color:var(--green)">${fmtMoney(ob.opening)}</div>
+        <div class="sub">cash + the stock we kept</div></div>
+    </div>
+    ${Math.abs(ob.unaccounted) > 0.5 ? `<div class="overdue-banner" style="margin-top:10px"><span>
+      <b>${fmtMoney(Math.abs(ob.unaccounted))}</b> ${ob.unaccounted>0?'less came across than the figures say was left':'more came across than the figures say was left'} — worth checking before anyone relies on these numbers.
+    </span></div>` : ''}
+  </div>
+  `;
+}
+
+/* ---------- moving a company car to an investor ---------- */
+function openTransferToInvestor(vId){
+  if(!isManager()) return;
+  const sp = stockSplit();
+  const cars = sp.co.cars;
+  if(!cars.length){ alert('There are no company-owned cars in stock to move.'); return; }
+  const list = muzaribs();
+  if(!list.length){ alert('Add an investor on the Muzaribat page first.'); return; }
+  const pre = vId && cars.find(v=>v.id===vId) ? vId : cars[0].id;
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Move a company car to an investor</h3>
+    <div class="small-muted" style="margin-bottom:10px">
+      Use this when you have taken an investor's cash and are settling it with one of our own cars.
+      The car becomes his, so its cost moves out of his cash and into his stock. What he is owed does not change.
+    </div>
+    <div class="field"><label>Car</label>
+      <select id="tr_car" onchange="transferPrefill()">
+        ${cars.map(v=>`<option value="${v.id}" ${v.id===pre?'selected':''}>${escapeHtml(v.reg||'')} — ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))} · ${fmtMoney(vehicleCostTotal(v))}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Goes to</label>
+      <select id="tr_mz">${list.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}</select></div>
+    <div class="field-row">
+      <div class="field"><label>Value handed over (£)</label>
+        <input id="tr_val" type="number" step="0.01" value="${vehicleCostTotal(DB.vehicles.find(v=>v.id===pre)||{})}"/>
+        <div class="small-muted" style="margin-top:4px">Defaults to what the car cost us. Change it if you agreed another figure.</div></div>
+      <div class="field"><label>Date</label><input id="tr_date" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div class="field"><label>Note</label><input id="tr_note" placeholder="e.g. against the £5,000 cash he brought in"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="doTransferToInvestor()">Move the car</button>
+    </div>`);
+}
+function transferPrefill(){
+  const v = DB.vehicles.find(x=>x.id===document.getElementById('tr_car').value);
+  const el = document.getElementById('tr_val');
+  if(v && el) el.value = vehicleCostTotal(v);
+}
+function doTransferToInvestor(){
+  if(!isManager()) return;
+  const vId = document.getElementById('tr_car').value;
+  const mId = document.getElementById('tr_mz').value;
+  const v = DB.vehicles.find(x=>x.id===vId);
+  const m = muzarib(mId);
+  if(!v || !m) return;
+  const value = Number(document.getElementById('tr_val').value)||0;
+  const date  = document.getElementById('tr_date').value || todayISO();
+  const note  = (document.getElementById('tr_note')||{value:''}).value.trim();
+  if(!confirm(`${v.reg} goes to ${m.name} at ${fmtMoney(value)}.\n\nIt will show as his stock from now on. Continue?`)) return;
+  v.ownerType = 'muzarib'; v.muzaribId = mId;
+  assetTransfers().push({id:nextId('astx'), date, vehicleId:v.id, reg:v.reg,
+    label:[v.make,v.model].filter(Boolean).join(' '), muzaribId:mId, value, note,
+    by: (typeof currentUserName!=='undefined' ? currentUserName : '')});
+  logChange('stock','Moved to an investor', vehRef(v), 'owner', 'Company', m.name,
+    fmtMoney(value) + (note ? ' · ' + note : ''));
+  saveDB(); closeModal(); render();
+}
+function undoTransfer(id){
+  if(!isSuperAdmin()) return;
+  const t = assetTransfers().find(x=>x.id===id); if(!t) return;
+  const v = DB.vehicles.find(x=>x.id===t.vehicleId);
+  if(!confirm((t.reg||'This car') + ' goes back to being company stock.\n\nContinue?')) return;
+  if(v){ v.ownerType = 'company'; v.muzaribId = null;
+    logChange('stock','Moved back to the company', vehRef(v), 'owner', muzaribName(t.muzaribId), 'Company', ''); }
+  DB.assetTransfers = assetTransfers().filter(x=>x.id!==id);
+  saveDB(); render();
+}
 function renderMuzaribat(){
   if(activeMuzaribId) return renderMuzaribProfile(activeMuzaribId);
   const list = muzaribs();
