@@ -407,6 +407,7 @@
 .cl-yn button + button{ border-left:1px solid var(--line); }
 .cl-yn .y.on{ background:#1f7a52; color:#fff; } .cl-yn .n.on{ background:#e10600; color:#fff; } .cl-yn button:not(.on):hover{ background:#f0f2f6; }
 .cl-note{ min-width:0; width:100%; } .cl-iss{ min-width:0; }
+.cl-shot{ width:38px; height:38px; object-fit:cover; border-radius:6px; border:1px solid var(--line); cursor:pointer; }
 @media (max-width:760px){ .cl-row{ grid-template-columns:1fr auto; } .cl-name{ grid-column:1/-1; } .cl-note{ grid-column:1/-1; } .cl-iss{ grid-column:1/-1; } .cl-top{ position:static; } }
 </style>
 
@@ -424,7 +425,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-10 · build 38</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-18 · build 51</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -899,6 +900,115 @@ function saveOldBiz(){
   if(typeof wbToast === 'function') wbToast('Saved');
 }
 
+/* ---------- the garage: a separate business, kept here only as a record ---------- */
+const GARAGE_IN_CATS  = ['Job paid','Parts sold','MOT / service','Capital in','Refund','Other'];
+const GARAGE_OUT_CATS = ['Parts','Tools & equipment','Rent','Wages','Utilities','Insurance','Fuel / transport','Waste & consumables','Drawings','Other'];
+const GARAGE_CATS = ['Tools & equipment','Ramp / lift','Diagnostics','Machinery','Vehicle','Parts stock','Fixtures & fit-out','Other'];
+function garage(){
+  const g = DB.garage || {};
+  const capital = (g.capital||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const assets  = (g.assets||[]).slice().sort((a,b)=>(Number(b.value)||0)-(Number(a.value)||0));
+  const capTotal = capital.reduce((t,c)=>t+(Number(c.amount)||0),0);
+  const asTotal  = assets.reduce((t,a)=>t+(Number(a.value)||0),0);
+  const byWho = {};
+  capital.forEach(c=>{ const k=(c.who||'Unnamed').trim()||'Unnamed'; byWho[k]=(byWho[k]||0)+(Number(c.amount)||0); });
+
+  /* cash book: oldest first to build the running balance, then shown newest first */
+  const asc = (g.cash||[]).slice().sort((a,b)=>
+    (a.date||'').localeCompare(b.date||'') || String(a.id).localeCompare(String(b.id)));
+  let run = 0; const bal = {};
+  asc.forEach(c=>{ run += (c.dir==='out' ? -(Number(c.amount)||0) : (Number(c.amount)||0)); bal[c.id]=run; });
+  const cash = asc.slice().reverse();
+  const cashIn  = asc.filter(c=>c.dir!=='out').reduce((t,c)=>t+(Number(c.amount)||0),0);
+  const cashOut = asc.filter(c=>c.dir==='out').reduce((t,c)=>t+(Number(c.amount)||0),0);
+  const mk = (new Date()).toISOString().slice(0,7);
+  const mIn  = asc.filter(c=>c.dir!=='out' && (c.date||'').slice(0,7)===mk).reduce((t,c)=>t+(Number(c.amount)||0),0);
+  const mOut = asc.filter(c=>c.dir==='out' && (c.date||'').slice(0,7)===mk).reduce((t,c)=>t+(Number(c.amount)||0),0);
+  const outBy = {}, mOutBy = {};
+  asc.filter(c=>c.dir==='out').forEach(c=>{ const k=c.cat||'Other'; outBy[k]=(outBy[k]||0)+(Number(c.amount)||0);
+    if((c.date||'').slice(0,7)===mk) mOutBy[k]=(mOutBy[k]||0)+(Number(c.amount)||0); });
+
+  return {name:g.name||'', note:g.note||'', capital, assets, capTotal, asTotal,
+          left: capTotal - asTotal, byWho,
+          cash, bal, cashIn, cashOut, balance: run, mIn, mOut, mNet: mIn-mOut, outBy, mOutBy,
+          worth: run + asTotal};
+}
+
+function addGarageCash(){
+  if(!isManager()) return;
+  const g = DB.garage || (DB.garage = {});
+  const v = id => ((document.getElementById(id)||{}).value||'').trim();
+  const amt = Number(v('gm_amt'))||0;
+  if(!amt){ alert('Enter an amount.'); return; }
+  const dir = v('gm_dir')==='out' ? 'out' : 'in';
+  (g.cash = g.cash||[]).push({id:nextId('gcash'), date:v('gm_date')||todayISO(), dir,
+    amount:Math.abs(amt), cat:v('gm_cat')||'Other', who:v('gm_who'), note:v('gm_note')});
+  saveDB(); render();
+  if(typeof wbToast === 'function') wbToast(dir==='out'?'Money out recorded':'Money in recorded');
+}
+function delGarageCash(id){
+  if(!isManager()) return;
+  if(!confirm('Remove this cash entry?')) return;
+  const g = DB.garage||{}; g.cash = (g.cash||[]).filter(c=>c.id!==id);
+  saveDB(); render();
+}
+function garageCatsFor(dir){ return dir==='out' ? GARAGE_OUT_CATS : GARAGE_IN_CATS; }
+function garageDirChanged(){
+  const d = (document.getElementById('gm_dir')||{}).value;
+  const sel = document.getElementById('gm_cat');
+  if(!sel) return;
+  sel.innerHTML = garageCatsFor(d).map(c=>'<option>'+c+'</option>').join('');
+}
+
+function saveGarageInfo(){
+  const g = DB.garage || (DB.garage = {});
+  g.name = ((document.getElementById('gr_name')||{}).value||'').trim();
+  g.note = ((document.getElementById('gr_note')||{}).value||'').trim();
+  saveDB(); render();
+  if(typeof wbToast === 'function') wbToast('Saved');
+}
+function addGarageCapital(){
+  if(!isManager()) return;
+  const g = DB.garage || (DB.garage = {});
+  const v = id => ((document.getElementById(id)||{}).value||'').trim();
+  const amt = Number(v('gc_amt'))||0;
+  const who = v('gc_who');
+  if(!who){ alert('Who put the money in?'); return; }
+  if(!amt){ alert('Enter an amount.'); return; }
+  const cdate = v('gc_date')||todayISO();
+  (g.capital = g.capital||[]).push({id:nextId('gcap'), date:cdate, who, amount:amt, note:v('gc_note')});
+  const box = document.getElementById('gc_tocash');
+  if(box && box.checked){
+    (g.cash = g.cash||[]).push({id:nextId('gcash'), date:cdate, dir:'in', amount:amt,
+      cat:'Capital in', who, note:('capital from '+who+(v('gc_note')?' — '+v('gc_note'):''))});
+  }
+  saveDB(); render();
+  if(typeof wbToast === 'function') wbToast('Capital added');
+}
+function delGarageCapital(id){
+  if(!isManager()) return;
+  if(!confirm('Remove this capital entry?')) return;
+  const g = DB.garage||{}; g.capital = (g.capital||[]).filter(c=>c.id!==id);
+  saveDB(); render();
+}
+function addGarageAsset(){
+  if(!isManager()) return;
+  const g = DB.garage || (DB.garage = {});
+  const v = id => ((document.getElementById(id)||{}).value||'').trim();
+  const what = v('ga_what');
+  if(!what){ alert('What is the asset?'); return; }
+  (g.assets = g.assets||[]).push({id:nextId('gast'), date:v('ga_date')||todayISO(), what,
+    cat:v('ga_cat')||'Other', value:Number(v('ga_value'))||0, note:v('ga_note')});
+  saveDB(); render();
+  if(typeof wbToast === 'function') wbToast('Asset added');
+}
+function delGarageAsset(id){
+  if(!isManager()) return;
+  if(!confirm('Remove this asset?')) return;
+  const g = DB.garage||{}; g.assets = (g.assets||[]).filter(a=>a.id!==id);
+  saveDB(); render();
+}
+
 function stockValuation(){
   const inStock = DB.vehicles.filter(v=>v.status!=='sold' && v.status!=='scrap');
   const costValue = inStock.reduce((s,v)=>s+vehicleCostTotal(v),0);
@@ -1088,6 +1198,8 @@ function renderDashboard(){
     ${allOpenIssues().length===0 ? `<div class="empty">No outstanding bodywork, parts or mechanical issues. 🎉</div>` :
       allOpenIssues().slice(0,8).map(i=>`
       <div class="issue-row">
+        ${i.photoId?`<img src="${getPhotoUrl(i.photoId)}" class="cl-shot" style="width:56px;height:56px;margin-right:10px"
+             onclick="window.open('${getPhotoUrl(i.photoId)}','_blank')" title="Open the photo"/>`:''}
         <div class="issue-main">
           <div class="t">${i.reg} — ${i.desc}</div>
           <div class="m">${i.type} ${i.reminderDate? '· reminder '+fmtDate(i.reminderDate) : ''} ${isOverdue(i.reminderDate)?'<span style=\"color:var(--red);font-weight:700\">OVERDUE</span>':''}</div>
@@ -2547,7 +2659,7 @@ function vehicleChecklistTab(v){
             <button class="n ${c.ans==='no'?'on':''}" aria-pressed="${c.ans==='no'}" onclick="setCheck('${v.id}',${idx},'no')">No</button>
           </div>
           <input class="cl-note" type="text" placeholder="Note (optional)" value="${escapeAttr(c.note||'')}" onchange="updateChecklistNote('${v.id}',${idx},this.value)"/>
-          <div class="cl-iss" id="cli_${idx}">${c.ans==='no' ? (c.issueId ? '<span class="tag tag-amber">Logged as issue</span>' : `<button class="btn btn-sm btn-amber" onclick="checkToIssue('${v.id}',${idx})">+ Log issue</button>`) : ''}</div>
+          <div class="cl-iss" id="cli_${idx}">${clIssueCell(v, c, idx)}</div>
         </div>`).join('')}
       </div>`; }).join('') || '<div class="cl-card"><div class="empty">Nothing to show here.</div></div>'}
   </div>`;
@@ -2563,6 +2675,47 @@ function ensureChecklist(v){
   v.checklist = out; return out;
 }
 function clGroupOf(name){ const g = CHECKLIST_GROUPS.find(g=>g.items.includes(name)); return g ? g.name : null; }
+/* what sits at the end of a check row: log it, and the picture of the fault */
+function clIssueCell(v, c, idx){
+  if(c.ans !== 'no' && !c.photoId) return '';
+  const thumb = c.photoId
+    ? `<img src="${getPhotoUrl(c.photoId)}" class="cl-shot" title="Open"
+         onclick="openCheckPhoto('${v.id}',${idx})"/>`
+    : '';
+  const btn = c.issueId
+    ? '<span class="tag tag-amber">Logged as issue</span>'
+    : `<button class="btn btn-sm btn-amber" onclick="checkToIssue('${v.id}',${idx})">+ Log issue</button>`;
+  const cam = `<label class="btn btn-sm btn-ghost" style="cursor:pointer;white-space:nowrap">
+      ${c.photoId ? 'Replace' : '\u{1F4F7} Photo'}
+      <input type="file" accept="image/*" capture="environment" hidden
+             onchange="clPhoto('${v.id}',${idx},this)"/></label>`;
+  return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${thumb}${btn}${cam}</div>`;
+}
+/* A picture of the fault. It goes on the check, on the issue, and so on to the
+   outstanding list — one photo, visible everywhere that fault appears. */
+async function clPhoto(vId, idx, input){
+  const file = input.files && input.files[0]; if(!file) return;
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const c = v.checklist && v.checklist[idx]; if(!c) return;
+  if(c.ans !== 'no'){ c.ans = 'no'; c.ok = false; }   // a photo means there is a fault
+  if(!c.issueId) checkToIssue(vId, idx);              // make sure it reaches the outstanding list
+  if(typeof wbToast==='function') wbToast('Saving the photo…');
+  try{
+    const blob = await compressImage(file);
+    const res  = await storePhoto(blob);
+    if(!res.ref){ alert("The photo couldn't be saved. Error: " + (res.error||'unknown')); return; }
+    c.photoId = res.ref;
+    const iss = (v.issues||[]).find(x=>x.id===c.issueId);
+    if(iss) iss.photoId = res.ref;
+    saveDB(); clRefresh(v); notePhotoFallback(res);
+    if(typeof wbToast==='function') wbToast('Photo added to the issue');
+  }catch(e){ alert('Could not save that photo: ' + (e.message||e)); }
+}
+function openCheckPhoto(vId, idx){
+  const v = DB.vehicles.find(x=>x.id===vId); const c = v && v.checklist[idx];
+  if(!c || !c.photoId) return;
+  window.open(getPhotoUrl(c.photoId), '_blank');
+}
 function clCounts(list){
   const yes = list.filter(c=>c.ans==='yes').length, no = list.filter(c=>c.ans==='no').length;
   const q = list.filter(c=>QUICK_CHECK.has(c.name));
@@ -2581,7 +2734,7 @@ function clRefresh(v){
     y.classList.toggle('on', c.ans==='yes'); y.setAttribute('aria-pressed', c.ans==='yes');
     n.classList.toggle('on', c.ans==='no');  n.setAttribute('aria-pressed', c.ans==='no');
     const iss = document.getElementById('cli_'+idx);
-    if(iss) iss.innerHTML = c.ans==='no' ? (c.issueId ? '<span class="tag tag-amber">Logged as issue</span>' : `<button class="btn btn-sm btn-amber" onclick="checkToIssue('${v.id}',${idx})">+ Log issue</button>`) : '';
+    if(iss) iss.innerHTML = clIssueCell(v, c, idx);
   });
   const set = (id,t)=>{ const e = document.getElementById(id); if(e) e.textContent = t; };
   set('clDone',k.done); set('clYes',k.yes+' yes'); set('clNo',k.no+' no'); set('clLeft',k.left+' left');
@@ -2643,6 +2796,7 @@ function checkToIssue(vId, idx){
   const type = /Exterior|Wheels/.test(g) ? 'bodywork' : /Interior/.test(g) ? 'interior' : 'mechanical';
   const issue = {id:nextId('iss'), type, desc: c.name + (c.note ? ' — ' + c.note : ''), reportedBy: currentUserName || '', createdAt: todayISO(), reminderDate: todayISO(), status:'open', photoId:null, link1:'', link2:''};
   if(!v.issues) v.issues = [];
+  if(c.photoId) issue.photoId = c.photoId;
   v.issues.push(issue); c.issueId = issue.id;
   saveDB(); clRefresh(v); if(typeof wbToast==='function') wbToast('Added to Issues');
 }
@@ -3933,6 +4087,8 @@ function renderOutstandingRepairsView(openIssues){
     ${sorted.length===0 ? `<div class="empty">Nothing outstanding — every vehicle is clear. 🎉</div>` :
       sorted.map(i=>`
       <div class="issue-row">
+        ${i.photoId?`<img src="${getPhotoUrl(i.photoId)}" class="cl-shot" style="width:56px;height:56px;margin-right:10px"
+             onclick="window.open('${getPhotoUrl(i.photoId)}','_blank')" title="Open the photo"/>`:''}
         <div class="issue-main">
           <div class="t">${i.reg} — ${i.desc}</div>
           <div class="m"><span class="tag ${isOverdue(i.reminderDate)?'tag-red':'tag-amber'}">${labelForIssueType(i.type)}</span>
@@ -6310,6 +6466,11 @@ function renderCompanyAssets(){
     <div class="card"><div class="empty">Managers only.</div></div>`;
   const sp = stockSplit();
   const ob = oldBiz();
+  const gr = garage();
+  const topOutM = Object.keys(gr.mOutBy).sort((a,b)=>gr.mOutBy[b]-gr.mOutBy[a])[0] || '';
+  const topOut = topOutM ? ('most on '+topOutM) : '';
+  const whoLine = Object.keys(gr.byWho).sort((x,y)=>gr.byWho[y]-gr.byWho[x])
+    .map(k=>k+' '+fmtMoney(gr.byWho[k])).join(' · ');
   const tx = assetTransfers().slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const pct = sp.all.cost ? Math.round(sp.co.cost/sp.all.cost*100) : 0;
 
@@ -6367,6 +6528,140 @@ function renderCompanyAssets(){
     </tbody></table>`}
   </div>
   <div class="small-muted" style="margin:6px 0 0">Moving a car makes the investor its owner, so its cost comes out of his cash and sits in his stock instead. Nothing is taken off what he is owed.</div>
+
+
+  <div class="section-title"><h2>The garage</h2></div>
+  <div class="card">
+    <div class="small-muted" style="margin-bottom:10px"><b>The garage is its own business.</b> Nothing here is counted in the forecourt figures, the stock valuation or any investor's position — it is kept in one place so the capital put in and the kit owned are on record.</div>
+    <div class="field-row">
+      <div class="field"><label>What it trades as</label>
+        <input id="gr_name" value="${escapeAttr(gr.name)}" placeholder="garage name"/></div>
+      <div class="field"><label>Note</label>
+        <input id="gr_note" value="${escapeAttr(gr.note)}" placeholder="where it is, who runs it, anything worth remembering"/></div>
+    </div>
+    <button class="btn btn-brand" onclick="saveGarageInfo()">Save</button>
+
+    <div class="grid kpi-grid" style="margin-top:16px">
+      <div class="card kpi"><div class="label">Cash balance</div>
+        <div class="value small" style="color:${gr.balance<0?'var(--red)':'var(--green)'}">${fmtMoney(gr.balance)}</div>
+        <div class="sub">${fmtMoney(gr.cashIn)} in · ${fmtMoney(gr.cashOut)} out</div></div>
+      <div class="card kpi"><div class="label">Capital put in</div><div class="value small">${fmtMoney(gr.capTotal)}</div>
+        <div class="sub">${gr.capital.length} entr${gr.capital.length===1?'y':'ies'}${whoLine?' · '+escapeHtml(whoLine):''}</div></div>
+      <div class="card kpi"><div class="label">Assets at value</div><div class="value small">${fmtMoney(gr.asTotal)}</div>
+        <div class="sub">${gr.assets.length} item${gr.assets.length===1?'':'s'} on the register</div></div>
+      <div class="card kpi"><div class="label">What the garage is worth</div>
+        <div class="value small">${fmtMoney(gr.worth)}</div>
+        <div class="sub">cash ${fmtMoney(gr.balance)} + assets ${fmtMoney(gr.asTotal)}${gr.capTotal?' · against '+fmtMoney(gr.capTotal)+' put in':''}</div></div>
+    </div>
+
+    <div class="grid kpi-grid" style="margin-top:10px">
+      <div class="card kpi"><div class="label">In this month</div><div class="value small">${fmtMoney(gr.mIn)}</div>
+        <div class="sub">money taken since the 1st</div></div>
+      <div class="card kpi"><div class="label">Out this month</div><div class="value small">${fmtMoney(gr.mOut)}</div>
+        <div class="sub">${topOut?escapeHtml(topOut):'nothing spent yet'}</div></div>
+      <div class="card kpi"><div class="label">Left this month</div>
+        <div class="value small" style="color:${gr.mNet<0?'var(--red)':'var(--green)'}">${fmtMoney(gr.mNet)}</div>
+        <div class="sub">${gr.mNet<0?'spending more than it takes':'in front for the month'}</div></div>
+      <div class="card kpi"><div class="label">Capital not in assets</div>
+        <div class="value small" style="color:${gr.left<0?'var(--red)':'var(--ink)'}">${fmtMoney(gr.left)}</div>
+        <div class="sub">${gr.left<0?'spent beyond what was put in':'cash and running costs'}</div></div>
+    </div>
+
+    <div class="section-title" style="margin-top:18px"><h2 style="font-size:15px">Capital put in</h2></div>
+    <div class="card" style="padding:0;box-shadow:none;border:1px solid var(--line)">
+      ${gr.capital.length===0 ? '<div class="empty">Nothing recorded yet.</div>' : `
+      <table><thead><tr><th>Date</th><th>Who put it in</th><th class="num">Amount</th><th>Note</th>${isManager()?'<th></th>':''}</tr></thead><tbody>
+      ${gr.capital.map(c=>`<tr>
+        <td>${fmtDate(c.date)}</td>
+        <td><b>${escapeHtml(c.who||'')}</b></td>
+        <td class="num">${fmtMoney(c.amount)}</td>
+        <td class="small-muted">${escapeHtml(c.note||'')}</td>
+        ${isManager()?`<td class="num"><button class="btn btn-sm btn-ghost" onclick="delGarageCapital('${c.id}')">Remove</button></td>`:''}
+      </tr>`).join('')}
+      <tr><td colspan="2"><b>Total capital</b></td><td class="num"><b>${fmtMoney(gr.capTotal)}</b></td><td></td>${isManager()?'<td></td>':''}</tr>
+      </tbody></table>`}
+    </div>
+    ${isManager()?`<div class="field-row" style="margin-top:10px;align-items:flex-end">
+      <div class="field" style="flex:0 0 140px"><label>Date</label><input id="gc_date" type="date" value="${todayISO()}"/></div>
+      <div class="field"><label>Who put it in</label><input id="gc_who" placeholder="name"/></div>
+      <div class="field" style="flex:0 0 130px"><label>Amount (£)</label><input id="gc_amt" type="number" step="0.01"/></div>
+      <div class="field"><label>Note</label><input id="gc_note" placeholder="optional"/></div>
+      <div class="field" style="flex:0 0 auto"><button class="btn btn-brand" onclick="addGarageCapital()">Add</button></div>
+    </div>
+    <label class="small-muted" style="display:flex;align-items:center;gap:7px;margin-top:4px;cursor:pointer">
+      <input type="checkbox" id="gc_tocash" checked style="width:15px;height:15px"/>
+      Also record it as money in, so the cash balance follows
+    </label>`:''}
+
+
+    <div class="section-title" style="margin-top:18px"><h2 style="font-size:15px">Money in and out</h2></div>
+    <div class="card" style="padding:0;box-shadow:none;border:1px solid var(--line)">
+      ${gr.cash.length===0 ? '<div class="empty">No cash movements recorded yet. Put every job taken and every bill paid in here and the balance looks after itself.</div>' : `
+      <table><thead><tr><th>Date</th><th>What it was</th><th>Type</th><th class="num">In</th><th class="num">Out</th><th class="num">Balance</th>${isManager()?'<th></th>':''}</tr></thead><tbody>
+      ${gr.cash.map(c=>{
+        const out = c.dir==='out', amt = Number(c.amount)||0, b = gr.bal[c.id]||0;
+        return `<tr>
+          <td>${fmtDate(c.date)}</td>
+          <td><b>${escapeHtml(c.note||c.cat||'')}</b>${c.who?`<div class="small-muted">${escapeHtml(c.who)}</div>`:''}</td>
+          <td><span class="tag ${out?'tag-amber':'tag-green'}">${escapeHtml(c.cat||'Other')}</span></td>
+          <td class="num">${out?'—':fmtMoney(amt)}</td>
+          <td class="num">${out?fmtMoney(amt):'—'}</td>
+          <td class="num" style="color:${b<0?'var(--red)':'var(--ink)'}"><b>${fmtMoney(b)}</b></td>
+          ${isManager()?`<td class="num"><button class="btn btn-sm btn-ghost" onclick="delGarageCash('${c.id}')">Remove</button></td>`:''}
+        </tr>`; }).join('')}
+      <tr><td colspan="3"><b>Totals</b></td><td class="num"><b>${fmtMoney(gr.cashIn)}</b></td>
+        <td class="num"><b>${fmtMoney(gr.cashOut)}</b></td>
+        <td class="num"><b style="color:${gr.balance<0?'var(--red)':'var(--green)'}">${fmtMoney(gr.balance)}</b></td>${isManager()?'<td></td>':''}</tr>
+      </tbody></table>`}
+    </div>
+    ${isManager()?`<div class="field-row" style="margin-top:10px;align-items:flex-end">
+      <div class="field" style="flex:0 0 140px"><label>Date</label><input id="gm_date" type="date" value="${todayISO()}"/></div>
+      <div class="field" style="flex:0 0 120px"><label>In or out</label>
+        <select id="gm_dir" onchange="garageDirChanged()"><option value="in">Money in</option><option value="out">Money out</option></select></div>
+      <div class="field" style="flex:0 0 190px"><label>Type</label>
+        <select id="gm_cat">${GARAGE_IN_CATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
+      <div class="field" style="flex:0 0 130px"><label>Amount (£)</label><input id="gm_amt" type="number" step="0.01"/></div>
+      <div class="field" style="flex:0 0 150px"><label>Who / customer</label><input id="gm_who" placeholder="optional"/></div>
+      <div class="field"><label>What it was</label><input id="gm_note" placeholder="clutch job on BV12 KLM, parts from GSF…"/></div>
+      <div class="field" style="flex:0 0 auto"><button class="btn btn-brand" onclick="addGarageCash()">Add</button></div>
+    </div>
+    <div class="small-muted" style="margin-top:6px">The balance is simply everything in less everything out — it is the garage's own money, kept apart from the forecourt.</div>`:''}
+
+    ${Object.keys(gr.outBy).length ? `<div class="section-title" style="margin-top:18px"><h2 style="font-size:15px">Where the money goes</h2></div>
+    <div class="card" style="padding:0;box-shadow:none;border:1px solid var(--line)">
+      <table><thead><tr><th>Type</th><th class="num">Spent</th><th class="num">Share</th></tr></thead><tbody>
+      ${Object.keys(gr.outBy).sort((a,b)=>gr.outBy[b]-gr.outBy[a]).map(k=>`<tr>
+        <td><span class="tag tag-amber">${escapeHtml(k)}</span></td>
+        <td class="num">${fmtMoney(gr.outBy[k])}</td>
+        <td class="num">${gr.cashOut?Math.round(gr.outBy[k]/gr.cashOut*100):0}%</td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div>` : ''}
+
+    <div class="section-title" style="margin-top:18px"><h2 style="font-size:15px">Assets owned by the garage</h2></div>
+    <div class="card" style="padding:0;box-shadow:none;border:1px solid var(--line)">
+      ${gr.assets.length===0 ? '<div class="empty">No assets on the register yet.</div>' : `
+      <table><thead><tr><th>Item</th><th>Type</th><th>Bought</th><th class="num">Value</th><th>Note</th>${isManager()?'<th></th>':''}</tr></thead><tbody>
+      ${gr.assets.map(a=>`<tr>
+        <td><b>${escapeHtml(a.what||'')}</b></td>
+        <td><span class="tag tag-grey">${escapeHtml(a.cat||'Other')}</span></td>
+        <td>${a.date?fmtDate(a.date):'—'}</td>
+        <td class="num">${fmtMoney(a.value)}</td>
+        <td class="small-muted">${escapeHtml(a.note||'')}</td>
+        ${isManager()?`<td class="num"><button class="btn btn-sm btn-ghost" onclick="delGarageAsset('${a.id}')">Remove</button></td>`:''}
+      </tr>`).join('')}
+      <tr><td colspan="3"><b>Total assets</b></td><td class="num"><b>${fmtMoney(gr.asTotal)}</b></td><td></td>${isManager()?'<td></td>':''}</tr>
+      </tbody></table>`}
+    </div>
+    ${isManager()?`<div class="field-row" style="margin-top:10px;align-items:flex-end">
+      <div class="field"><label>Item</label><input id="ga_what" placeholder="two-post ramp, diagnostic laptop…"/></div>
+      <div class="field" style="flex:0 0 180px"><label>Type</label><select id="ga_cat">${GARAGE_CATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
+      <div class="field" style="flex:0 0 140px"><label>Bought</label><input id="ga_date" type="date" value="${todayISO()}"/></div>
+      <div class="field" style="flex:0 0 130px"><label>Value (£)</label><input id="ga_value" type="number" step="0.01"/></div>
+      <div class="field"><label>Note</label><input id="ga_note" placeholder="optional"/></div>
+      <div class="field" style="flex:0 0 auto"><button class="btn btn-brand" onclick="addGarageAsset()">Add</button></div>
+    </div>`:''}
+  </div>
 
   <div class="section-title"><h2>The business before this one</h2></div>
   <div class="card">
