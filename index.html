@@ -184,6 +184,9 @@
   .board{ display:flex; gap:14px; overflow-x:auto; padding-bottom:8px;}
   .task-card{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:8px; font-size:12.5px; }
   .task-card.done{ opacity:.55; }
+  .task-card.part{ background:#FFFCF5; }
+  .tres{ margin-top:6px; border-radius:5px; padding:5px 8px; font-size:11px; line-height:1.35; }
+  .tres div{ font-weight:400; margin-top:2px; opacity:.9; }
   .task-card .tt{ font-weight:600; margin-bottom:3px;}
   .task-card .assignee{ color:var(--brand); font-size:11.5px; font-weight:600;}
   .task-card .notes{ color:var(--grey); font-size:11.5px; margin-top:4px; white-space:pre-wrap;}
@@ -425,7 +428,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-18 · build 51</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-19 · build 52</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -450,6 +453,7 @@
       <div class="nav-item" data-tab="boardroom" onclick="App.go('boardroom')">💡 Ideas &amp; Capital</div>
       <div class="nav-item" data-tab="muzaribat" onclick="App.go('muzaribat')">🤝 Muzaribat</div>
       <div class="nav-item" data-tab="company" onclick="App.go('company')">🏛️ Company assets</div>
+      <div class="nav-item" data-tab="forms" onclick="App.go('forms')">🖨️ Forms</div>
       <div class="nav-item" data-tab="website" onclick="App.go('website')">🌐 Website</div>
       <div class="nav-item" data-tab="audit" onclick="App.go('audit')">🔍 Change log</div>
       <div class="foot">
@@ -900,6 +904,589 @@ function saveOldBiz(){
   if(typeof wbToast === 'function') wbToast('Saved');
 }
 
+/* ---------- editing a task that is already on the board ---------- */
+function openEditTask(id){
+  const t = (DB.tasks||[]).find(function(x){ return x.id===id; });
+  if(!t){ return; }
+  if(!isManager() && t.assignee && t.assignee !== currentUserName){
+    alert('Only a manager can change a task assigned to someone else.'); return;
+  }
+  const e = function(s){ return escapeHtml(String(s==null?'':s)); };
+  const people = (isManager() ? DB.team : DB.team.filter(function(m){ return m.email===currentUserEmail; }));
+  const opt = function(name){
+    return '<option value="' + e(name) + '"' + ((t.assignee||'')===name ? ' selected' : '') + '>' + e(name) + '</option>';
+  };
+  const extra = (t.assignee && !people.some(function(m){ return m.name===t.assignee; }))
+    ? opt(t.assignee) : '';
+  openModal(
+    '<button class="close-x" onclick="closeModal()">✕</button><h3>Edit task</h3>' +
+    '<div class="field"><label>What needs doing</label>' +
+      '<input id="et_title" value="' + e(t.title) + '"/></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Who it is for</label><select id="et_assignee">' +
+        '<option value=""' + (t.assignee?'':' selected') + '>Unassigned</option>' +
+        people.map(function(m){ return opt(m.name); }).join('') + extra +
+      '</select></div>' +
+      '<div class="field"><label>Day</label><input id="et_date" type="date" value="' + e(t.date||todayISO()) + '"/></div>' +
+    '</div>' +
+    '<div class="field"><label>Priority</label><select id="et_priority">' +
+      ['standard','priority','high'].map(function(p){
+        const lab = p==='standard'?'Standard':(p==='priority'?'Priority':'High');
+        return '<option value="'+p+'"'+(((t.priority||'standard')===p)?' selected':'')+'>'+lab+'</option>';
+      }).join('') + '</select></div>' +
+    '<div class="field"><label>Notes</label>' +
+      '<textarea id="et_notes" rows="2">' + e(t.notes||'') + '</textarea></div>' +
+    (taskState(t)!=='open'
+      ? '<div class="small-muted" style="margin-bottom:10px">Marked <b>' + taskStateLabel(taskState(t)) + '</b>' +
+        (t.resultNote ? ' — “' + e(t.resultNote) + '”' : '') +
+        '. Use the buttons on the card to change that.</div>' : '') +
+    '<div class="modal-actions">' +
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>' +
+    '<button class="btn btn-brand" onclick="saveEditTask(\'' + id + '\')">Save changes</button></div>'
+  );
+}
+function saveEditTask(id){
+  const t = (DB.tasks||[]).find(function(x){ return x.id===id; });
+  if(!t) return;
+  const val = function(i){ const el=document.getElementById(i); return el ? el.value.trim() : ''; };
+  const title = val('et_title');
+  if(!title){ alert('A task needs a title.'); return; }
+  const was = t.assignee || 'Unassigned';
+  t.title = title;
+  t.assignee = val('et_assignee');
+  t.date = val('et_date') || t.date;
+  t.priority = val('et_priority') || 'standard';
+  t.notes = val('et_notes');
+  const now = t.assignee || 'Unassigned';
+  if(was !== now && typeof logChange === 'function'){
+    logChange('tasks','Task reassigned', title, 'Assignee', was, now, '');
+  }
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast('Task updated');
+}
+
+/* ---------- log a spend straight from the car ---------- */
+function logSpendForCar(vId){
+  openAddExpense();
+  setTimeout(function(){
+    const forSel = document.getElementById('e_for');
+    if(forSel){ forSel.value = 'car'; if(typeof toggleExpenseCar==='function') toggleExpenseCar(); }
+    const vSel = document.getElementById('e_vehicle');
+    if(vSel) vSel.value = vId;
+    const amt = document.getElementById('e_amount');
+    if(amt) amt.focus();
+  }, 60);
+}
+/* ---------- a task can be done, part done, or not done ---------- */
+function taskState(t){
+  if(!t) return 'open';
+  if(t.state==='part' || t.state==='done' || t.state==='open') return t.state;
+  return t.done ? 'done' : 'open';          /* older tasks saved before part-done existed */
+}
+function taskCredit(t){ const s = taskState(t); return s==='done' ? 1 : (s==='part' ? 0.5 : 0); }
+function taskCreditOf(list){ return (list||[]).reduce(function(n,t){ return n + taskCredit(t); }, 0); }
+function taskCounts(list){
+  const l = list||[];
+  return { total:l.length,
+           done: l.filter(function(t){ return taskState(t)==='done'; }).length,
+           part: l.filter(function(t){ return taskState(t)==='part'; }).length,
+           open: l.filter(function(t){ return taskState(t)==='open'; }).length,
+           credit: taskCreditOf(l) };
+}
+function taskStateLabel(s){ return s==='done' ? 'Done' : (s==='part' ? 'Part done' : 'Not done'); }
+function taskStateColour(s){ return s==='done' ? '#246B4C' : (s==='part' ? '#8A5B07' : '#A32F18'); }
+function taskStateBg(s){ return s==='done' ? '#E7F4EE' : (s==='part' ? '#FBF0DF' : '#FBE7E3'); }
+function doneCountText(c){
+  if(!c.total) return 'nothing assigned';
+  let s = c.done + ' of ' + c.total + ' done';
+  if(c.part) s += ', ' + c.part + ' part done';
+  return s;
+}
+
+/* mark done / part done, with a note about what actually happened */
+function openTaskResult(id, state){
+  const t = (DB.tasks||[]).find(function(x){ return x.id===id; });
+  if(!t) return;
+  const esc = function(s){ return escapeHtml(String(s==null?'':s)); };
+  openModal(
+    '<h3 style="margin:0 0 4px">' + (state==='part' ? 'Part done' : 'Mark as done') + '</h3>' +
+    '<div class="small-muted" style="margin-bottom:12px">' + esc(t.title) +
+      (t.assignee ? ' · ' + esc(t.assignee) : '') + '</div>' +
+    (state==='part'
+      ? '<div class="field-row"><div class="field"><label>How much was done</label>' +
+        '<input id="tr_did" type="number" step="1" min="0" placeholder="6" value="' + (t.resultDid==null?'':t.resultDid) + '"/></div>' +
+        '<div class="field"><label>Out of how many</label>' +
+        '<input id="tr_of" type="number" step="1" min="0" placeholder="10" value="' + (t.resultOf==null?'':t.resultOf) + '"/></div></div>'
+      : '') +
+    '<div class="field"><label>Note' + (state==='part' ? '' : ' (optional)') + '</label>' +
+    '<textarea id="tr_note" rows="3" placeholder="' +
+      (state==='part' ? 'cleaned 6 of the 10 — ran out of time, rest tomorrow morning'
+                      : 'anything worth knowing about how it went') + '">' + esc(t.resultNote||'') + '</textarea></div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>' +
+    '<button class="btn btn-brand" onclick="saveTaskResult(\'' + id + '\',\'' + state + '\')">Save</button></div>'
+  );
+}
+function saveTaskResult(id, state){
+  const t = (DB.tasks||[]).find(function(x){ return x.id===id; });
+  if(!t) return;
+  const val = function(i){ const el = document.getElementById(i); return el ? el.value.trim() : ''; };
+  t.state = state;
+  t.done = (state==='done');                 /* keep the old flag true only for a full done */
+  t.doneAt = todayISO();
+  t.resultNote = val('tr_note');
+  if(state==='part'){
+    const did = val('tr_did'), of = val('tr_of');
+    t.resultDid = did===''? null : Number(did);
+    t.resultOf  = of===''?  null : Number(of);
+  } else { t.resultDid = null; t.resultOf = null; }
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast(state==='part' ? 'Marked part done' : 'Marked done');
+}
+function reopenTask(id){
+  const t = (DB.tasks||[]).find(function(x){ return x.id===id; });
+  if(!t) return;
+  t.state = 'open'; t.done = false; t.doneAt = null;
+  saveDB(); render();
+}
+function taskProgressText(t){
+  if(t.resultDid!=null && t.resultOf) return t.resultDid + ' of ' + t.resultOf;
+  if(t.resultDid!=null) return String(t.resultDid);
+  return '';
+}
+
+/* ================= Printable office forms ================= */
+function fmBrand(){
+  const t = (document.title||'').replace(/Forecourt|Dealer|App/gi,'').trim();
+  return t || 'Car Express';
+}
+function fmEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmDate(){ return new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}); }
+
+/* --- small building blocks --- */
+function fmBox(label, span, h){
+  const st = 'grid-column:span '+(span||1)+';'+(h?('min-height:'+h+'px;'):'');
+  return '<div class="fb" style="'+st+'"><span>'+label+'</span></div>';
+}
+function fmGrid(cols, inner){ return '<div class="fg" style="grid-template-columns:repeat('+cols+',1fr)">'+inner+'</div>'; }
+function fmTick(label){ return '<div class="ft"><i></i>'+label+'</div>'; }
+function fmTicks(list, cols){
+  return '<div class="fts" style="grid-template-columns:repeat('+(cols||2)+',1fr)">'+list.map(fmTick).join('')+'</div>';
+}
+function fmTable(heads, rows, widths){
+  const th = heads.map(function(h,i){ return '<th'+(widths&&widths[i]?' style="width:'+widths[i]+'"':'')+'>'+h+'</th>'; }).join('');
+  let tb = '';
+  for(let i=0;i<rows;i++) tb += '<tr>'+heads.map(function(){ return '<td></td>'; }).join('')+'</tr>';
+  return '<table class="ftb"><thead><tr>'+th+'</tr></thead><tbody>'+tb+'</tbody></table>';
+}
+function fmH(t, note){ return '<h2>'+t+(note?'<em>'+note+'</em>':'')+'</h2>'; }
+function fmSign(labels){
+  return '<div class="fsg" style="grid-template-columns:repeat('+labels.length+',1fr)">'+
+    labels.map(function(l){ return '<div class="fb" style="min-height:54px"><span>'+l+'</span></div>'; }).join('')+'</div>';
+}
+function fmClause(n, title, body){
+  return '<div class="fcl"><b>'+n+'. '+title+'</b><div>'+body+'</div></div>';
+}
+function fmNote(text){ return '<div class="fnote">'+text+'</div>'; }
+function fmDraftWarning(kind){
+  return '<div class="fwarn"><b>Template only.</b> This '+kind+' is a starting point written for '+fmEsc(fmBrand())+
+    '. Have it checked by a solicitor before anyone signs it — it has not been drafted or reviewed by one, '+
+    'and the law it sits under changes.</div>';
+}
+
+/* --- the page wrapper --- */
+function fmShell(title, sub, body, landscape){
+  const logo = (typeof BRAND_LOGO === 'string' && BRAND_LOGO) ? '<img src="'+BRAND_LOGO+'" alt="">' : '';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+fmEsc(title)+'</title><style>'+
+  '@page{size:A4 '+(landscape?'landscape':'portrait')+';margin:11mm}'+
+  '*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+  'body{font-family:"Helvetica Neue",Arial,sans-serif;color:#17191C;margin:0;font-size:11.6px;line-height:1.45}'+
+  '.hd{display:flex;align-items:center;gap:14px;border-bottom:2.6px solid #17191C;padding-bottom:9px;margin-bottom:12px}'+'@media screen{.hd{padding-right:196px}}'+
+  '.hd img{height:42px}'+
+  '.hd .tt{flex:1}.hd h1{font-size:18px;margin:0 0 2px}'+
+  '.hd .sb{font-size:10.4px;color:#6B7076}'+
+  '.hd .co{text-align:right;font-size:10px;color:#6B7076;line-height:1.5}'+
+  'h2{font-size:10.6px;text-transform:uppercase;letter-spacing:.1em;margin:14px 0 6px;color:#fff;background:#17191C;padding:4px 8px;border-radius:3px}'+
+  'h2 em{float:right;font-style:normal;font-weight:400;letter-spacing:0;text-transform:none;font-size:9.4px;opacity:.75}'+
+  '.fg{display:grid;gap:5px;margin-bottom:5px}'+
+  '.fb{border:1.4px solid #BFC4CA;border-radius:3px;min-height:38px;padding:4px 7px 0}'+
+  '.fb span{display:block;font-size:8.6px;letter-spacing:.06em;text-transform:uppercase;color:#6B7076}'+
+  '.fts{display:grid;gap:5px 12px;margin-bottom:5px}'+
+  '.ft{display:flex;align-items:center;gap:7px;font-size:10.8px}'+
+  '.ft i{width:14px;height:14px;border:1.6px solid #17191C;border-radius:2px;flex:0 0 14px}'+
+  '.ftb{width:100%;border-collapse:collapse;margin-bottom:5px}'+
+  '.ftb th{font-size:8.6px;text-transform:uppercase;letter-spacing:.07em;color:#fff;background:#17191C;text-align:left;padding:3px 6px;border:1.3px solid #17191C}'+
+  '.ftb td{border:1.4px solid #BFC4CA;height:25px;padding:0 6px}'+
+  '.fsg{display:grid;gap:6px;margin-top:10px}'+
+  '.fcl{margin-bottom:9px;font-size:10.8px}.fcl b{display:block;margin-bottom:2px}'+
+  '.fnote{border:1.3px solid #BFC4CA;border-left:4px solid #D4080A;border-radius:3px;padding:7px 10px;font-size:10px;margin:8px 0}'+
+  '.fwarn{border:1.6px solid #D4080A;background:#FFF7F7;border-radius:4px;padding:8px 11px;font-size:10px;margin:8px 0}'+
+  '.ft2{margin-top:12px;display:flex;justify-content:space-between;font-size:8.6px;color:#6B7076;border-top:1px solid #BFC4CA;padding-top:6px}'+
+  '.pbtn{position:fixed;top:10px;right:10px;background:#D4080A;color:#fff;border:0;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer;font-weight:700}'+
+  '@media print{.pbtn{display:none}}'+
+  '</style></head><body>'+
+  '<button class="pbtn" onclick="window.print()">Print / save as PDF</button>'+
+  '<div class="hd">'+logo+'<div class="tt"><h1>'+fmEsc(title)+'</h1><div class="sb">'+sub+'</div></div>'+
+  '<div class="co"><b>'+fmEsc(fmBrand())+'</b><br>Printed '+fmDate()+'</div></div>'+
+  body+
+  '<div class="ft2"><span>'+fmEsc(fmBrand())+' · '+fmEsc(title)+'</span><span>Page 1</span></div>'+
+  '</body></html>';
+}
+function fmOpen(html){
+  const w = window.open('', '_blank');
+  if(!w){ alert('Allow pop-ups so the form can open in a new tab.'); return; }
+  w.document.write(html); w.document.close();
+}
+
+/* ================= the forms ================= */
+
+function fmVehicleRecord(){
+  const years = [];
+  for(let y=2010;y<=2027;y++) years.push('<div class="ft" style="font-weight:600"><i></i>'+y+'</div>');
+  const docs = ['V5C logbook','MOT certificate','Service book','Service invoices','Spare key','Locking wheel nut','Handbook / wallet'];
+  const prep = ['HPI checked','Deep valet','Photographed','Advertised','36-point inspection','MOT booked','Service booked','Number plates','Parcel shelf','Jack & tools','Mats','Ready to sell'];
+  const body =
+    fmGrid(4, fmBox('Registration')+fmBox('Make &amp; model')+fmBox('Stock no.')+fmBox('Date in'))+
+    '<div class="fg" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px">'+
+      '<div class="fb" style="border:2.2px solid #D4080A;background:#FFF7F7;min-height:44px"><span style="color:#D4080A;font-weight:800">MOT expires</span></div>'+
+      '<div class="fb" style="border:2.2px solid #D4080A;background:#FFF7F7;min-height:44px"><span style="color:#D4080A;font-weight:800">Keys handed in (1 / 2 / 3)</span></div>'+
+      '<div class="fb" style="border:2.2px solid #D4080A;background:#FFF7F7;min-height:44px"><span style="color:#D4080A;font-weight:800">Previous owners</span></div>'+
+      '<div class="fb" style="border:2.2px solid #D4080A;background:#FFF7F7;min-height:44px"><span style="color:#D4080A;font-weight:800">Mileage on arrival</span></div>'+
+    '</div>'+
+    fmH('The vehicle')+
+    fmGrid(3, fmBox('Variant / trim')+fmBox('Colour')+fmBox('First registered')+
+              fmBox('Engine size')+fmBox('Fuel')+fmBox('Transmission')+
+              fmBox('VIN',2)+fmBox('MOT advisories (Y/N)'))+
+    fmH('Service history','tick every year that is stamped or invoiced')+
+    '<div class="fts" style="grid-template-columns:repeat(9,1fr)">'+years.join('')+'</div>'+
+    fmGrid(2, fmBox('Last service — date')+fmBox('At mileage'))+
+    fmTable(['Date','Mileage','Garage','Invoice'],3,['18%','16%','','16%'])+
+    '<div style="border:2.2px solid #D4080A;border-radius:5px;padding:7px 10px;margin:8px 0">'+
+      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#D4080A;margin-bottom:6px">Timing belt &amp; water pump</div>'+
+      '<div class="fg" style="grid-template-columns:150px 1fr 1fr 1fr;margin:0">'+
+        '<div class="ft" style="font-weight:700"><i style="width:16px;height:16px"></i>Done &nbsp;<i style="width:16px;height:16px"></i>Not done</div>'+
+        fmBox('Year')+fmBox('Mileage')+fmBox('By whom')+'</div></div>'+
+    '<div style="display:flex;gap:10px;align-items:flex-start">'+
+      '<div style="flex:1">'+fmH('In this wallet','tick what is here')+fmTicks(docs,2)+
+        fmH('Money spent on this car')+fmTable(['Date','What it was for','Cost'],7,['20%','','22%'])+'</div>'+
+      '<div style="flex:1">'+fmH('Preparation','tick as it is done')+fmTicks(prep,2)+
+        fmH('Bought and sold')+
+        fmGrid(2, fmBox('Bought from')+fmBox('Purchase price (£)')+fmBox('Total spent (£)')+fmBox('Date sold')+
+                  fmBox('Sale price (£)')+fmBox('Invoice no.')+fmBox('Profit (£)')+fmBox('Sold by'))+'</div>'+
+    '</div>'+
+    fmNote('<b>Before the car leaves:</b> V5C in the customer’s name or sent to DVLA · every key handed over · service book and invoices in the car · MOT certificate with the paperwork · owner count on the invoice matches the V5C · <b>this sheet is kept and filed, never given to the customer.</b>')+
+    fmSign(['Checked in by / date','Prep signed off by / date','Handover checked by / date']);
+  fmOpen(fmShell('Vehicle Record','Front of the document wallet — filled in the day the car arrives', body, true));
+}
+
+function fmInspectionSheet(){
+  const groups = [
+    ['Outside', ['Paint and panels','Bumpers','Lights and lenses','Glass and mirrors','Wipers and washers','Tyres and tread','Alloys / wheel trims','Number plates','Door handles and locks','Boot and bonnet']],
+    ['Inside', ['Seats and trim','Carpets and mats','Dashboard warning lights','Heater and air con','Radio / screen','Electric windows','Central locking','Horn','Seat belts','Parcel shelf and tools']],
+    ['Under the bonnet', ['Oil level and condition','Coolant level','Brake fluid','Screen wash','Battery and terminals','Belts and hoses','Leaks','Service indicator reset']],
+    ['On the road', ['Cold start','Idle','Clutch and gears','Brakes and handbrake','Steering and tracking','Suspension noise','Warning lights on the move','Overall drive']]
+  ];
+  let body = fmGrid(4, fmBox('Registration')+fmBox('Make &amp; model')+fmBox('Mileage')+fmBox('Date'));
+  groups.forEach(function(g){
+    body += fmH(g[0], 'tick pass, cross fail, note anything found');
+    body += '<table class="ftb"><thead><tr><th style="width:34px">P</th><th style="width:34px">F</th><th>Item</th><th style="width:42%">Note</th></tr></thead><tbody>'+
+      g[1].map(function(n){ return '<tr><td></td><td></td><td>'+n+'</td><td></td></tr>'; }).join('')+'</tbody></table>';
+  });
+  body += fmH('What needs doing before sale')+fmTable(['Job','Who','Cost (£)','Done'],6,['','20%','16%','12%'])+
+    fmSign(['Inspected by / date','Checked by / date','Signed off by / date']);
+  fmOpen(fmShell('Vehicle Inspection Sheet','Every car is inspected before it goes on the forecourt', body));
+}
+
+function fmTestDrive(){
+  const body =
+    fmH('The driver')+
+    fmGrid(2, fmBox('Full name')+fmBox('Telephone')+fmBox('Address',2)+
+              fmBox('Driving licence number')+fmBox('Licence expiry')+
+              fmBox('Licence checked by')+fmBox('Photo of licence taken (Y/N)'))+
+    fmH('The vehicle')+
+    fmGrid(4, fmBox('Registration')+fmBox('Make &amp; model')+fmBox('Mileage out')+fmBox('Mileage back'))+
+    fmGrid(4, fmBox('Time out')+fmBox('Time back')+fmBox('Fuel out')+fmBox('Fuel back'))+
+    fmH('Before they drive','tick each one')+
+    fmTicks(['Licence seen and photographed','Insurance confirmed','Accompanied by a member of staff','Route agreed','Damage walk-round done','Trade plates fitted if needed'],2)+
+    fmH('Condition on return')+fmBox('Any new damage, warning lights or faults noticed',1,60)+
+    fmNote('The driver is responsible for any fine, charge or damage during the drive. We keep the licence photo only while the enquiry is live, then delete it.')+
+    fmSign(['Driver signature / date','Member of staff / date']);
+  fmOpen(fmShell('Test Drive Record','Completed before every test drive and kept on file', body));
+}
+
+function fmDeposit(){
+  const body =
+    fmGrid(3, fmBox('Receipt no.')+fmBox('Date')+fmBox('Taken by'))+
+    fmH('Customer')+fmGrid(2, fmBox('Name')+fmBox('Telephone')+fmBox('Address',2)+fmBox('Email')+fmBox('Postcode'))+
+    fmH('Vehicle')+fmGrid(4, fmBox('Registration')+fmBox('Make &amp; model')+fmBox('Mileage')+fmBox('Agreed price (£)'))+
+    fmH('The deposit')+
+    fmGrid(3, fmBox('Amount received (£)')+fmBox('Paid by (cash/card/transfer)')+fmBox('Balance to pay (£)'))+
+    fmGrid(2, fmBox('Collection date agreed')+fmBox('Anything we agreed to do first'))+
+    fmH('What the deposit means')+
+    '<div class="fcl"><div>This deposit holds the vehicle above and takes it off sale until the collection date agreed. '+
+    'The balance is due on or before collection. If the vehicle turns out not to be as described, or we cannot supply it, '+
+    'the deposit is returned in full. Where the customer is a consumer, nothing in this receipt affects their rights under the Consumer Rights Act 2015.</div></div>'+
+    fmBox('Anything else agreed',1,54)+
+    fmNote('A deposit may be non-refundable if the customer simply changes their mind — but only if that is made clear in writing <b>before</b> the money is taken. Write it in the box above and have the customer initial it, or the deposit must be returned.')+
+    fmSign(['Customer signature / date','For '+fmEsc(fmBrand())+' / date']);
+  fmOpen(fmShell('Deposit Receipt','Given to the customer, copy kept on file', body));
+}
+
+function fmPartEx(){
+  const body =
+    fmGrid(3, fmBox('Date')+fmBox('Appraised by')+fmBox('Against which car'))+
+    fmH('The customer’s vehicle')+
+    fmGrid(3, fmBox('Registration')+fmBox('Make &amp; model')+fmBox('Variant / trim')+
+              fmBox('First registered')+fmBox('Mileage')+fmBox('Colour')+
+              fmBox('MOT expires')+fmBox('Previous owners')+fmBox('Keys (1/2/3)')+
+              fmBox('V5C present (Y/N)')+fmBox('Service history')+fmBox('Outstanding finance (Y/N)'))+
+    fmH('Condition','note everything — what is missed here comes out of the margin')+
+    fmTable(['Area','What is wrong','Cost to put right (£)'],8,['24%','','22%'])+
+    fmH('Tyres')+fmGrid(4, fmBox('Front near (mm)')+fmBox('Front off (mm)')+fmBox('Rear near (mm)')+fmBox('Rear off (mm)'))+
+    fmH('The numbers')+
+    fmGrid(4, fmBox('Trade value (£)')+fmBox('Cost to prepare (£)')+fmBox('Finance to settle (£)')+fmBox('Offer to customer (£)'))+
+    fmNote('Check outstanding finance before any figure is offered. If there is finance on the car we cannot take it in until the settlement figure is in writing and the settlement is paid.')+
+    fmSign(['Appraised by / date','Approved by / date','Customer accepts / date']);
+  fmOpen(fmShell('Part-Exchange Appraisal','Filled in while the customer’s car is in front of you', body));
+}
+
+function fmHandover(){
+  const body =
+    fmGrid(4, fmBox('Registration')+fmBox('Make &amp; model')+fmBox('Invoice no.')+fmBox('Handover date'))+
+    fmGrid(2, fmBox('Customer name')+fmBox('Telephone'))+
+    fmH('Paperwork handed over','tick each one')+
+    fmTicks(['Sales invoice','V5C sent to DVLA / new keeper slip given','MOT certificate','Service book and invoices','Warranty paperwork explained','Handbook and wallet','HPI / provenance check shown'],2)+
+    fmH('With the car')+
+    fmTicks(['Both keys (or all keys we hold)','Locking wheel nut key','Spare wheel or repair kit','Jack and tools','Parcel shelf','Mats','Number plates secure','Fuel as agreed'],2)+
+    fmH('Shown to the customer')+
+    fmTicks(['How the warranty works and who to call','What to do if a fault appears','Service due and when','Tyre condition pointed out','Any advisories on the MOT explained','Our contact number for problems'],2)+
+    fmH('Condition at handover')+fmBox('Walk-round done with the customer — note anything either side points out',1,58)+
+    fmNote('The customer signs to say the car was handed over complete and as described. This does not take away any right they have under the Consumer Rights Act 2015 — a fault found later is still ours to put right where the law says so.')+
+    fmSign(['Customer signature / date','Handed over by / date']);
+  fmOpen(fmShell('Vehicle Handover Checklist','Worked through with the customer when they collect', body));
+}
+
+function fmReturn(){
+  const body =
+    fmGrid(3, fmBox('Reference')+fmBox('Date raised')+fmBox('Raised by'))+
+    fmH('Customer and vehicle')+
+    fmGrid(2, fmBox('Customer name')+fmBox('Telephone')+fmBox('Registration')+fmBox('Make &amp; model')+
+              fmBox('Date of sale')+fmBox('Invoice no.')+fmBox('Sale price (£)')+fmBox('Mileage at sale')+
+              fmBox('Mileage now')+fmBox('Days since sale'))+
+    fmH('What the customer says is wrong')+fmBox('In their words',1,70)+
+    fmH('What we found')+fmBox('Inspected by, and what the inspection showed',1,70)+
+    fmH('Where it stands','tick one')+
+    fmTicks(['Repair at our cost','Replacement offered','Refund in full','Partial refund agreed','Rejected — reason given below','Referred on'],2)+
+    fmGrid(3, fmBox('Amount refunded (£)')+fmBox('Refunded by')+fmBox('Date settled'))+
+    fmBox('Reason / what was agreed',1,54)+
+    fmNote('<b>Know the clock.</b> Within <b>30 days</b> of delivery a consumer can reject a faulty car and ask for a full refund. From 30 days to <b>six months</b> we get one chance to repair or replace; a fault appearing in that window is assumed to have been there at sale unless we can show otherwise. After six months the burden is on the customer. Trade sales and sales to businesses are different — check before refusing anything.')+
+    fmSign(['Customer signature / date','Authorised by / date']);
+  fmOpen(fmShell('Return, Complaint and Refund Form','Opened the moment a customer comes back with a problem', body));
+}
+
+function fmKeySheet(){
+  const body =
+    fmGrid(2, fmBox('Week beginning')+fmBox('Kept by'))+
+    fmNote('Every key that leaves the board is written down. No key leaves the premises without a manager saying so.')+
+    '<table class="ftb"><thead><tr><th style="width:12%">Date</th><th style="width:14%">Reg</th><th style="width:18%">Taken by</th>'+
+    '<th style="width:12%">Time out</th><th style="width:12%">Time back</th><th>Why</th><th style="width:14%">Back on board</th></tr></thead><tbody>'+
+    new Array(22).fill('<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')+
+    '</tbody></table>'+
+    fmSign(['Checked at close by / date']);
+  fmOpen(fmShell('Key Sign-Out Sheet','Lives by the key board', body));
+}
+
+function fmPettyCash(){
+  const one =
+    '<div style="border:1.6px solid #17191C;border-radius:5px;padding:10px 12px;margin-bottom:12px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+    '<b style="font-size:13px">Petty Cash Voucher</b><span style="font-size:10px;color:#6B7076">'+fmEsc(fmBrand())+'</span></div>'+
+    fmGrid(3, fmBox('Voucher no.')+fmBox('Date')+fmBox('Amount (£)'))+
+    fmGrid(2, fmBox('Paid to')+fmBox('What it was for'))+
+    fmGrid(3, fmBox('Which car / job')+fmBox('Receipt attached (Y/N)')+fmBox('Authorised by'))+
+    '<div style="font-size:9.4px;color:#6B7076;margin-top:6px">No receipt, no reimbursement. Photograph the receipt into the system the same day.</div>'+
+    '</div>';
+  fmOpen(fmShell('Petty Cash Vouchers','Two to a page — cut along the middle', one+one));
+}
+
+function fmHoliday(){
+  const body =
+    fmH('Request')+
+    fmGrid(2, fmBox('Name')+fmBox('Role')+fmBox('First day off')+fmBox('Last day off')+
+              fmBox('Number of working days')+fmBox('Date of this request'))+
+    fmBox('Who is covering, and what they need to know',1,58)+
+    fmH('Office use')+
+    fmGrid(4, fmBox('Days used so far')+fmBox('Days left this year')+fmBox('Days after this request')+fmBox('Clash with anyone?'))+
+    fmTicks(['Approved','Not approved — reason below','Approved with changes'],3)+
+    fmBox('Decision and reason',1,52)+
+    fmNote('Put requests in as early as you can — at least two weeks before for a single day, a month before for a week or more. We cannot have two people off the same days unless it is quiet.')+
+    fmSign(['Requested by / date','Approved by / date']);
+  fmOpen(fmShell('Holiday Request','Hand to a manager, keep the copy', body));
+}
+
+function fmWarning(){
+  const body =
+    fmGrid(3, fmBox('Name')+fmBox('Role')+fmBox('Date of meeting'))+
+    fmGrid(3, fmBox('Meeting held by')+fmBox('Also present')+fmBox('Stage (informal / first / final)'))+
+    fmH('What was raised')+fmBox('The issue, with dates and what happened',1,78)+
+    fmH('What was said in the meeting')+fmBox('Including the employee’s own account',1,78)+
+    fmH('What happens now')+fmBox('What must change, by when, and how it will be checked',1,66)+
+    fmGrid(2, fmBox('This stays on file until')+fmBox('Review date'))+
+    fmNote('The employee has the right to be accompanied by a colleague or a trade union representative at any formal meeting, and the right to appeal in writing within five working days. A copy of this form is given to them.')+
+    fmSign(['Employee signature / date','Manager signature / date']);
+  fmOpen(fmShell('Record of a Formal Meeting','Conduct or performance — one form per meeting', body));
+}
+
+function fmEmployment(){
+  const b = fmEsc(fmBrand());
+  const body = fmDraftWarning('contract')+
+    fmH('The parties')+
+    fmGrid(2, fmBox('Employer')+fmBox('Employee name')+fmBox('Employer address',2)+fmBox('Employee address',2)+
+              fmBox('Job title')+fmBox('Reports to')+fmBox('Start date')+fmBox('Continuous service began'))+
+    fmClause(1,'Job and duties','You are employed as set out above. You will carry out the duties of that role and any other reasonable duties asked of you. '+b+' may change your duties where the business reasonably needs it.')+
+    fmClause(2,'Place of work','Your normal place of work is the address above. You may be asked to work at any other site the business operates, within reasonable travelling distance.')+
+    fmClause(3,'Hours and days','<div class="fg" style="grid-template-columns:repeat(3,1fr);margin-top:5px">'+
+      fmBox('Hours per week')+fmBox('Normal days')+fmBox('Start and finish times')+'</div>'+
+      'Weekend and bank holiday cover is part of the job in this trade. Overtime is by agreement and is '+
+      '<span style="border-bottom:1px solid #999">&nbsp;paid / unpaid&nbsp;</span> (delete one).')+
+    fmClause(4,'Pay','<div class="fg" style="grid-template-columns:repeat(3,1fr);margin-top:5px">'+
+      fmBox('Basic pay (£)')+fmBox('Paid (weekly / monthly)')+fmBox('Pay date')+'</div>'+
+      'Pay is by bank transfer. Any commission or bonus is set out in a separate schedule and is discretionary unless that schedule says otherwise.')+
+    fmClause(5,'Holiday','<div class="fg" style="grid-template-columns:repeat(3,1fr);margin-top:5px">'+
+      fmBox('Days per year')+fmBox('Holiday year runs')+fmBox('Bank holidays included?')+'</div>'+
+      'Holiday must be booked in advance on the holiday request form and approved before anything is arranged.')+
+    fmClause(6,'Sickness','Tell your manager before your shift starts on the first day of absence. Self-certify up to seven days; after that we need a fit note. Statutory Sick Pay applies; company sick pay is at our discretion.')+
+    fmClause(7,'Pension','You will be enrolled in the workplace pension scheme in line with automatic enrolment, unless you opt out.')+
+    fmClause(8,'Probation and notice','<div class="fg" style="grid-template-columns:repeat(3,1fr);margin-top:5px">'+
+      fmBox('Probation period')+fmBox('Notice in probation')+fmBox('Notice after probation')+'</div>'+
+      'Statutory minimum notice applies where it is longer.')+
+    fmClause(9,'Money, keys and stock','Cash, cards, keys and vehicles are handled only as the business instructs. Every payment taken or made must be receipted and entered into the system the same day. Nothing is taken off site without a manager’s agreement.')+
+    fmClause(10,'Confidential information','Customer details, supplier prices, margins, investor arrangements and anything else about how the business runs are confidential, during employment and after it ends.')+
+    fmClause(11,'Driving','You will only drive company or customer vehicles if you hold a valid licence and are insured to do so. Fines and penalties you incur are yours. Tell us at once of any endorsement, ban or medical condition affecting your licence.')+
+    fmClause(12,'Discipline and grievance','The disciplinary and grievance procedures are non-contractual and follow the ACAS Code of Practice. Raise a grievance with your manager in writing; if it concerns your manager, raise it with a director.')+
+    fmClause(13,'Ending the employment','On leaving, return all keys, paperwork, equipment and anything else belonging to the business before your final pay is released.')+
+    fmClause(14,'Whole agreement','This document, with any schedule signed alongside it, is the written statement of your employment particulars under section 1 of the Employment Rights Act 1996.')+
+    fmSign(['Employee signature / date','For '+b+' / date']);
+  fmOpen(fmShell('Contract of Employment','Written statement of employment particulars', body));
+}
+
+function fmMuzaribatContract(){
+  const b = fmEsc(fmBrand());
+  const body = fmDraftWarning('agreement')+
+    fmNote('This sets out the arrangement the way it is actually run: the investor provides the money, '+b+' does the work, and what the car makes is shared. It is written to follow a <i>muḍārabah</i>, where the investor carries the money risk and the manager carries the work.')+
+    fmH('The parties')+
+    fmGrid(2, fmBox('Investor (rabb al-māl)')+fmBox('Manager ('+b+')')+fmBox('Investor address',2)+
+              fmBox('Date of this agreement')+fmBox('Agreement reference'))+
+    fmClause(1,'What is being put in','<div class="fg" style="grid-template-columns:repeat(3,1fr);margin-top:5px">'+
+      fmBox('Amount put in (£)')+fmBox('Paid on')+fmBox('Paid by')+'</div>'+
+      'The investor provides the capital. '+b+' provides the premises, the buying, the preparation, the advertising and the selling. The investor puts in no work and '+b+' puts in no capital.')+
+    fmClause(2,'What the money is used for','The money buys vehicles for resale, and pays what each of those vehicles needs — purchase price, transport, repairs, MOT, parts, valeting and advertising. Every cost is recorded against the car it belongs to.')+
+    fmClause(3,'How each car settles','When a car is sold, from the sale price we take first the cost of that car as recorded, then an <b>administration charge of £500</b> to '+b+' for the work of buying, preparing and selling it. What is left is the profit on that car, and it is <b>shared half to the investor and half to '+b+'</b>.')+
+    fmClause(4,'The £500','The £500 is charged on every car whatever it makes — it pays for work already done, so it does not depend on the car making a profit.')+
+    fmClause(5,'If a car loses money','A loss on a car falls on the capital, which is the investor’s, because that is how a muḍārabah works: the investor loses money, the manager loses the work. '+b+' is not liable for a loss unless it was caused by its own negligence, dishonesty or breach of this agreement.')+
+    fmClause(6,'Using the investor’s cash for other things','If any of the investor’s money is used for the running of the business rather than for his cars, it stays owed to him in full and does not reduce anything he is entitled to. It is recorded as such and returned.')+
+    fmClause(7,'Records','Every car, every cost and every sale is entered in the system. The investor may see his own cars, their costs and their settlements at any time, and is sent a statement after each sale.')+
+    fmClause(8,'Taking money out','Capital and profit are paid out as the parties agree in writing. Until then, profit may be left in and used to buy the next car.')+
+    fmClause(9,'Ending it','<div class="fg" style="grid-template-columns:repeat(2,1fr);margin-top:5px">'+
+      fmBox('Notice to end (days)')+fmBox('Minimum term, if any')+'</div>'+
+      'On notice, no new cars are bought with that investor’s money. Cars already in stock are sold in the normal way and settled under clause 3, and the capital and his share are returned.')+
+    fmClause(10,'Honesty','Neither side gives the other a guaranteed return. Nothing here is a loan with interest, and no fixed profit is promised — the return depends on what the cars actually make.')+
+    fmClause(11,'If there is a disagreement','The parties will try to settle it between themselves first, and if they cannot, by someone both accept. This agreement is governed by the law of England and Wales.')+
+    fmH('Schedule — cars under this agreement')+
+    fmTable(['Reg','Bought','Cost in (£)','Sold','Sale (£)','Admin (£)','Investor share (£)'],6,['12%','12%','14%','12%','14%','12%','']) +
+    fmSign(['Investor signature / date','For '+b+' / date','Witness / date']);
+  fmOpen(fmShell('Muzaribat Investment Agreement','Investor capital, '+b+' management, profit shared', body));
+}
+
+function fmCustomerDetails(){
+  const body =
+    fmGrid(3, fmBox('Date')+fmBox('Taken by')+fmBox('How they found us'))+
+    fmH('Customer')+
+    fmGrid(2, fmBox('Full name')+fmBox('Telephone')+fmBox('Address',2)+fmBox('Postcode')+fmBox('Email')+
+              fmBox('Driving licence number')+fmBox('Date of birth'))+
+    fmH('What they are after')+
+    fmGrid(3, fmBox('Vehicle of interest')+fmBox('Budget (£)')+fmBox('Part-exchange? (Y/N)')+
+              fmBox('Finance needed? (Y/N)')+fmBox('When do they need it')+fmBox('Best time to call'))+
+    fmBox('Notes',1,64)+
+    fmH('Keeping in touch')+
+    fmTicks(['Happy to be contacted by phone','Happy to be contacted by text or WhatsApp','Happy to be contacted by email','Does not want marketing'],2)+
+    fmNote('We keep these details to deal with the enquiry and, where the car is sold, to meet our legal obligations. We do not sell or pass on customer details. Licence photographs are deleted once the sale is complete or the enquiry is closed.')+
+    fmSign(['Customer signature / date','Member of staff / date']);
+  fmOpen(fmShell('Customer Enquiry and Details','Taken at the first conversation', body));
+}
+
+function fmTradeSale(){
+  const body =
+    fmGrid(3, fmBox('Invoice / reference')+fmBox('Date')+fmBox('Sold by'))+
+    fmH('Buyer — trade only')+
+    fmGrid(2, fmBox('Business name')+fmBox('Contact name')+fmBox('Address',2)+fmBox('Telephone')+fmBox('VAT no. (if any)'))+
+    fmH('Vehicle')+
+    fmGrid(3, fmBox('Registration')+fmBox('Make &amp; model')+fmBox('VIN')+
+              fmBox('Mileage')+fmBox('MOT expires')+fmBox('Price (£)'))+
+    fmH('Sold as seen')+
+    '<div class="fcl"><div>This vehicle is sold to a motor trader buying in the course of their business. It is sold as seen, tried and approved, '+
+    'with no warranty as to condition, and the buyer has inspected it or chosen not to. Satisfactory quality and fitness for purpose are excluded '+
+    'so far as the law allows between businesses. The mileage is stated as shown on the odometer and is not guaranteed.</div></div>'+
+    fmNote('This wording only works where the buyer really is in the trade. Used on a private customer it is worth nothing — their rights under the Consumer Rights Act 2015 cannot be signed away.')+
+    fmGrid(3, fmBox('Paid by')+fmBox('Amount received (£)')+fmBox('Balance (£)'))+
+    fmSign(['Buyer signature / date','For '+fmEsc(fmBrand())+' / date']);
+  fmOpen(fmShell('Trade Sale Invoice — Sold as Seen','Trade buyers only', body));
+}
+
+/* ---------- the library ---------- */
+const OFFICE_FORMS = [
+  {id:'vrec',  cat:'Vehicle', name:'Vehicle Record', blurb:'The front of the document wallet. Filled in the day a car arrives — MOT, keys, owners, service years, timing belt, money spent.', fn:fmVehicleRecord, land:true},
+  {id:'insp',  cat:'Vehicle', name:'Vehicle Inspection Sheet', blurb:'Outside, inside, under the bonnet and on the road, with a list of what needs doing before sale.', fn:fmInspectionSheet},
+  {id:'partex',cat:'Vehicle', name:'Part-Exchange Appraisal', blurb:'Filled in with the customer’s car in front of you, down to tyre depths and the finance settlement.', fn:fmPartEx},
+  {id:'keys',  cat:'Vehicle', name:'Key Sign-Out Sheet', blurb:'Lives by the key board. Every key that leaves is written down.', fn:fmKeySheet},
+  {id:'v62',   cat:'Vehicle', name:'V62 — apply for a V5C', blurb:'The official DVLA form for a replacement logbook. It has to be the real one — DVLA will not accept a copy we have made.', url:'https://www.gov.uk/government/publications/application-for-a-vehicle-registration-certificate'},
+  {id:'v5online',cat:'Vehicle', name:'Tell DVLA a car is sold', blurb:'Do it online the same day. Faster than the slip and you get the confirmation in writing.', url:'https://www.gov.uk/sold-bought-vehicle'},
+
+  {id:'cust',  cat:'Sales', name:'Customer Enquiry and Details', blurb:'Taken at the first conversation — what they want, their budget, and how they are happy to be contacted.', fn:fmCustomerDetails},
+  {id:'drive', cat:'Sales', name:'Test Drive Record', blurb:'Licence checked, mileage out and back, and who went with them.', fn:fmTestDrive},
+  {id:'dep',   cat:'Sales', name:'Deposit Receipt', blurb:'What was paid, what is left, and exactly what the deposit holds.', fn:fmDeposit},
+  {id:'hand',  cat:'Sales', name:'Vehicle Handover Checklist', blurb:'Worked through with the customer on collection — paperwork, keys, and what was explained.', fn:fmHandover},
+  {id:'trade', cat:'Sales', name:'Trade Sale Invoice — Sold as Seen', blurb:'For selling to another trader. Not for private customers.', fn:fmTradeSale},
+  {id:'ret',   cat:'Sales', name:'Return, Complaint and Refund Form', blurb:'Opened the moment a customer comes back, with the 30-day and six-month rules on the page.', fn:fmReturn},
+
+  {id:'emp',   cat:'Staff', name:'Contract of Employment', blurb:'Written statement of particulars — hours, pay, holiday, notice, and the rules on money and keys.', fn:fmEmployment},
+  {id:'mz',    cat:'Staff', name:'Muzaribat Investment Agreement', blurb:'Investor capital, our management, £500 admin a car and the profit split — written the way it is run.', fn:fmMuzaribatContract},
+  {id:'hol',   cat:'Staff', name:'Holiday Request', blurb:'Request, cover, days left and the decision.', fn:fmHoliday},
+  {id:'warn',  cat:'Staff', name:'Record of a Formal Meeting', blurb:'Conduct or performance. Follows the ACAS code, including the right to be accompanied.', fn:fmWarning},
+  {id:'petty', cat:'Office', name:'Petty Cash Voucher', blurb:'Two to a page. No receipt, no reimbursement.', fn:fmPettyCash}
+];
+
+function openForm(id){
+  const f = OFFICE_FORMS.find(function(x){ return x.id===id; });
+  if(!f) return;
+  if(f.url){ window.open(f.url, '_blank'); return; }
+  f.fn();
+}
+
+function renderForms(){
+  const cats = ['Vehicle','Sales','Staff','Office'];
+  const labels = {Vehicle:'Cars and the forecourt', Sales:'Selling', Staff:'Staff and investors', Office:'Office'};
+  const card = function(f){
+    return '<div class="card" style="display:flex;flex-direction:column;gap:7px">'+
+      '<div><b style="font-size:14px">'+fmEsc(f.name)+'</b>'+
+      (f.url?' <span class="tag tag-blue">GOV.UK</span>':(f.land?' <span class="tag tag-grey">Landscape</span>':''))+'</div>'+
+      '<div class="small-muted" style="flex:1">'+f.blurb+'</div>'+
+      '<div><button class="btn btn-sm '+(f.url?'btn-ghost':'btn-brand')+'" onclick="openForm(\''+f.id+'\')">'+
+      (f.url?'Open on GOV.UK →':'Open and print')+'</button></div></div>';
+  };
+  return '<div class="topbar"><div><h1>Forms</h1>'+
+    '<div class="date">Everything we print, in one place. Each one opens in a new tab ready to print or save as a PDF.</div></div></div>'+
+    cats.map(function(c){
+      const list = OFFICE_FORMS.filter(function(f){ return f.cat===c; });
+      if(!list.length) return '';
+      return '<div class="section-title"><h2>'+labels[c]+'</h2></div>'+
+        '<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px">'+
+        list.map(card).join('')+'</div>';
+    }).join('')+
+    '<div class="small-muted" style="margin-top:14px">The employment contract and the Muzaribat agreement are templates written for this business. '+
+    'Have a solicitor read them before anyone signs. The V62 and the sold-notification both go to DVLA, so they open on GOV.UK rather than printing from here.</div>';
+}
+
 /* ---------- the garage: a separate business, kept here only as a record ---------- */
 const GARAGE_IN_CATS  = ['Job paid','Parts sold','MOT / service','Capital in','Refund','Other'];
 const GARAGE_OUT_CATS = ['Parts','Tools & equipment','Rent','Wages','Utilities','Insurance','Fuel / transport','Waste & consumables','Drawings','Other'];
@@ -1087,6 +1674,7 @@ function render(){
   else if(currentTab==='boardroom') html = renderBoardroom();
   else if(currentTab==='muzaribat') html = renderMuzaribat();
   else if(currentTab==='company') html = renderCompanyAssets();
+  else if(currentTab==='forms') html = renderForms();
   else if(currentTab==='website') html = renderSiteBuilder();
   else if(currentTab==='audit') html = renderAudit();
   main.innerHTML = html;
@@ -2260,7 +2848,10 @@ async function vehicleIssuesTab(v){
   return `
   <div class="card">
     <div class="flex-between"><h3 style="margin:0">Outstanding issues — bodywork, interior, missing parts, mechanical</h3>
-      <button class="btn btn-sm btn-amber" onclick="openAddIssue('${v.id}')">+ Report issue</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-ghost" onclick="logSpendForCar('${v.id}')">£ Log a spend on this car</button>
+        <button class="btn btn-sm btn-amber" onclick="openAddIssue('${v.id}')">+ Report issue</button>
+      </div>
     </div>
     ${(v.issues||[]).length===0? `<div class="empty">No issues logged for this vehicle.</div>` :
       await renderIssuesList(v)}
@@ -3899,10 +4490,11 @@ function taskReport(scope){
   const by = {};
   rows.forEach(t=>{ const a=t.assignee||'Unassigned'; (by[a]=by[a]||[]).push(t); });
   const names = Object.keys(by).sort((a,b)=>by[b].length-by[a].length);
-  const done = rows.filter(t=>t.done).length;
+  const cnt = taskCounts(rows);
+  const done = cnt.done;
   const open = rows.length - done;
-  const late = rows.filter(t=>!t.done && isOverdue(t.date)).length;
-  const sc = taskScore(done, rows.length, late);
+  const late = rows.filter(t=>taskState(t)!=='done' && isOverdue(t.date)).length;
+  const sc = taskScore(cnt.credit, rows.length, late);
 
   const title = scope==='day' ? 'Daily task report — ' + dd(todayISO())
                               : 'Weekly task report — ' + dd(days[0]) + ' to ' + dd(days[6]);
@@ -3910,22 +4502,30 @@ function taskReport(scope){
   const logo = (typeof BRAND_LOGO === 'string' && BRAND_LOGO) ? '<img src="'+BRAND_LOGO+'" alt="">' : '';
   const fileName = ('Task-report-' + (scope==='day'?todayISO():days[0]+'-week')).replace(/[^A-Za-z0-9._-]+/g,'-');
 
-  const statusCell = t => t.done ? '<span class="pill ok">Done</span>'
-    : (isOverdue(t.date) ? '<span class="pill late">Not done — overdue</span>' : '<span class="pill open">Not done</span>');
+  const statusCell = t => {
+    const st = taskState(t);
+    const prog = taskProgressText(t);
+    const note = t.resultNote ? '<div class="rn">' + e(t.resultNote) + '</div>' : '';
+    if(st==='done') return '<span class="pill ok">Done</span>' + note;
+    if(st==='part') return '<span class="pill part">Part done' + (prog?' · '+e(prog):'') + '</span>' + note;
+    return (isOverdue(t.date) ? '<span class="pill late">Not done — overdue</span>'
+                              : '<span class="pill open">Not done</span>') + note;
+  };
   const prio = pr => pr==='high' ? '<span class="pill hi">High</span>'
     : (pr==='priority' ? '<span class="pill pr">Priority</span>' : '<span class="pill st">Standard</span>');
 
   const section = n => {
     const list = by[n].slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'') || priorityRank(a.priority)-priorityRank(b.priority));
-    const d = list.filter(t=>t.done).length;
-    const ps = taskScore(d, list.length, list.filter(t=>!t.done && isOverdue(t.date)).length);
+    const pc = taskCounts(list);
+    const d = pc.done;
+    const ps = taskScore(pc.credit, list.length, list.filter(t=>taskState(t)!=='done' && isOverdue(t.date)).length);
     const [fg] = personColour(n);
     return `<div class="person" style="border-left-color:${fg}">
       <div class="phead">
         <span class="av" style="background:${fg}">${personInitials(n)}</span>
         <span class="pname">${e(n)}</span>
         <span class="bar"><span style="width:${ps.pct}%;background:${ps.col}"></span></span>
-        <span class="pcount" style="color:${ps.col}"><b>${ps.pct}%</b> · ${d} of ${list.length} done</span>
+        <span class="pcount" style="color:${ps.col}"><b>${ps.pct}%</b> · ${doneCountText(pc)}</span>
       </div>
       <table>
         <thead><tr><th style="width:92px">Day</th><th>Task</th><th style="width:84px">Priority</th><th style="width:126px">Status</th></tr></thead>
@@ -3972,6 +4572,8 @@ function taskReport(scope){
   .ok{background:#E7F4EE;color:#246B4C} .open{background:#F0F1F3;color:#5a6069}
   .late{background:#FBE7E3;color:#A32F18} .hi{background:#FBE7E3;color:#A32F18}
   .pr{background:#FBF0DF;color:#8A5B07} .st{background:#F0F1F3;color:#5a6069}
+  .part{background:#FBF0DF;color:#8A5B07}
+  .rn{font-size:10.5px;color:#5a6069;margin-top:3px;font-style:italic;white-space:normal}
   .foot{margin-top:16px;border-top:1px solid #e2e5e9;padding-top:7px;font-size:10px;color:#6b7076;text-align:center}
   .empty{border:1px dashed #cfd4da;border-radius:8px;padding:20px;text-align:center;color:#6b7076}
   </style></head><body>
@@ -4046,13 +4648,22 @@ function renderDailyBoardView(days, overdue){
         </div>
         ${DB.tasks.filter(t=>t.date===d && taskWhoMatches(t)).length===0?'<div class="small-muted">No tasks</div>':''}
         ${DB.tasks.filter(t=>t.date===d && taskWhoMatches(t)).slice().sort((a,b)=>priorityRank(a.priority)-priorityRank(b.priority)).map(t=>`
-          <div class="task-card ${t.done?'done':''}" style="border-left-color:${personColour(t.assignee)[0]}">
+          <div class="task-card ${taskState(t)==='done'?'done':''} ${taskState(t)==='part'?'part':''}" style="border-left-color:${personColour(t.assignee)[0]}">
             <div style="margin-bottom:5px;">${personChip(t.assignee)}</div>
             <div class="tt">${t.title} ${!t.done && isOverdue(t.date)?'<span class="tag tag-red" style="margin-left:4px;">Overdue</span>':''}</div>
             <div style="margin:4px 0;">${priorityTag(t.priority)}</div>
             ${t.notes?`<div class="notes">${t.notes}</div>`:''}
-            <div style="margin-top:6px;display:flex;gap:6px;">
-              <button class="btn btn-sm ${t.done?'btn-ghost':'btn-brand'}" onclick="toggleTaskDone('${t.id}')">${t.done?'Reopen':'Mark done'}</button>
+            ${taskState(t)!=='open' ? `<div class="tres" style="background:${taskStateBg(taskState(t))};color:${taskStateColour(taskState(t))}">
+              <b>${taskStateLabel(taskState(t))}${taskProgressText(t)?' · '+taskProgressText(t):''}</b>${t.resultNote?`<div>${escapeHtml(t.resultNote)}</div>`:''}
+            </div>` : ''}
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+              ${taskState(t)==='done'
+                ? `<button class="btn btn-sm btn-ghost" onclick="reopenTask('${t.id}')">Reopen</button>`
+                : `<button class="btn btn-sm btn-brand" onclick="openTaskResult('${t.id}','done')">Mark done</button>`}
+              ${taskState(t)==='part'
+                ? `<button class="btn btn-sm btn-ghost" onclick="openTaskResult('${t.id}','part')">Edit note</button>`
+                : `<button class="btn btn-sm btn-ghost" onclick="openTaskResult('${t.id}','part')">Part done</button>`}
+              <button class="btn btn-sm btn-ghost" onclick="openEditTask('${t.id}')">Edit</button>
               <button class="btn btn-sm btn-danger" onclick="deleteTask('${t.id}')">✕</button>
             </div>
           </div>
@@ -4110,9 +4721,10 @@ function renderOutstandingRepairsView(openIssues){
 }
 function weekScoreBanner(days){
   const week = DB.tasks.filter(t=>days.includes(t.date) && taskWhoMatches(t));
-  const d = week.filter(t=>t.done).length;
-  const late = week.filter(t=>!t.done && isOverdue(t.date)).length;
-  const sc = taskScore(d, week.length, late);
+  const wc = taskCounts(week);
+  const d = wc.done;
+  const late = week.filter(t=>taskState(t)!=='done' && isOverdue(t.date)).length;
+  const sc = taskScore(wc.credit, week.length, late);
   return `<div style="display:flex;align-items:center;gap:16px;background:${sc.bg};color:${sc.col};
             border-radius:10px;padding:13px 16px;margin-bottom:14px;flex-wrap:wrap;">
     <div style="font-size:34px;font-weight:800;line-height:1">${sc.pct}%</div>
@@ -4129,16 +4741,23 @@ function weekScoreBanner(days){
 function renderWeeklyTaskSummary(days){
   const weekTasks = DB.tasks.filter(t=>days.includes(t.date));
   const byAssignee = {};
-  weekTasks.forEach(t=>{ const a=t.assignee||'Unassigned'; byAssignee[a]=byAssignee[a]||{total:0,done:0}; byAssignee[a].total++; if(t.done) byAssignee[a].done++; });
+  weekTasks.forEach(t=>{ const a=t.assignee||'Unassigned';
+    byAssignee[a]=byAssignee[a]||{total:0,done:0,part:0,credit:0};
+    byAssignee[a].total++;
+    const st = taskState(t);
+    if(st==='done') byAssignee[a].done++;
+    if(st==='part') byAssignee[a].part++;
+    byAssignee[a].credit += taskCredit(t); });
   if(Object.keys(byAssignee).length===0) return '<div class="empty">No tasks assigned this week.</div>';
-  return `<table><thead><tr><th>Team member</th><th>Assigned</th><th>Completed</th><th>Still open</th><th>Completion rate</th></tr></thead><tbody>
+  return `<table><thead><tr><th>Team member</th><th>Assigned</th><th>Completed</th><th>Part done</th><th>Still open</th><th>Completion rate</th></tr></thead><tbody>
     ${Object.entries(byAssignee).sort((a,b)=>b[1].total-a[1].total).map(([name,d])=>{
-      const pct = Math.round(d.done/d.total*100);
+      const pct = Math.round(d.credit/d.total*100);
       const col = pct===100 ? 'var(--green)' : (pct>=50 ? '#C27A09' : 'var(--red)');
       return `<tr>
         <td><span class="swatch" style="background:${personColour(name)[0]}"></span><strong>${escapeHtml(name)}</strong></td>
         <td>${d.total}</td><td>${d.done}</td>
-        <td>${d.total-d.done ? `<strong style="color:var(--red)">${d.total-d.done}</strong>` : '—'}</td>
+        <td>${d.part ? `<strong style="color:#8A5B07">${d.part}</strong>` : '—'}</td>
+        <td>${d.total-d.done-d.part ? `<strong style="color:var(--red)">${d.total-d.done-d.part}</strong>` : '—'}</td>
         <td><div style="display:flex;align-items:center;gap:8px;">
           <div style="flex:1;max-width:120px;height:7px;background:var(--line);border-radius:4px;overflow:hidden;">
             <div style="width:${pct}%;height:100%;background:${col}"></div></div>
