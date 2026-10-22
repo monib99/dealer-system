@@ -428,7 +428,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-19 · build 52</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-22 · build 59</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -904,6 +904,685 @@ function saveOldBiz(){
   if(typeof wbToast === 'function') wbToast('Saved');
 }
 
+/* ================= push: reminders that arrive with the app shut ================= */
+const VAPID_PUBLIC_KEY = 'BLa64npw7LA3-0tapN4Kp9T413Eg7SCCrzmnxm2V2Hf3IzWAEFDKsT7glftxSwVwzhSZPtZusEkZ8u00F8rnB34';
+
+function pushConfigured(){ return VAPID_PUBLIC_KEY && VAPID_PUBLIC_KEY.indexOf('PASTE_') !== 0; }
+function pushSupported(){
+  return !!(window.isSecureContext && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+}
+function isStandalone(){
+  return !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || !!window.navigator.standalone;
+}
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function urlB64ToU8(b64){
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const s = (b64 + pad).replace(/-/g,'+').replace(/_/g,'/');
+  const raw = atob(s);
+  const out = new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+function u8ToB64(buf){
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+}
+async function pushRegister(){
+  if(!('serviceWorker' in navigator)) return null;
+  try{ return await navigator.serviceWorker.register('./sw.js', {scope:'./'}); }
+  catch(e){ console.error('service worker failed', e); return null; }
+}
+async function pushCurrent(){
+  if(!pushSupported()) return null;
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(!reg) return null;
+    return await reg.pushManager.getSubscription();
+  }catch(e){ return null; }
+}
+async function pushTurnOn(){
+  if(!pushSupported()){
+    alert('This browser cannot deliver reminders while the app is closed. Use Chrome on Android, or Safari on iPhone with the app added to your Home Screen.');
+    return;
+  }
+  if(!pushConfigured()){
+    alert('Push is not set up on this copy of the app yet — the VAPID public key still needs pasting in.');
+    return;
+  }
+  if(isIOS() && !isStandalone()){
+    alert('On iPhone this only works once the app is on your Home Screen.\n\n' +
+          'In Safari: tap Share, then "Add to Home Screen". Open it from there and turn reminders on again.');
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if(perm !== 'granted'){
+    alert('Without permission the phone cannot show a reminder. Allow notifications for this site, then try again.');
+    return;
+  }
+  const reg = await pushRegister();
+  if(!reg){ alert('The background worker could not start, so reminders cannot arrive while the app is shut.'); return; }
+  await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub){
+    try{
+      sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: urlB64ToU8(VAPID_PUBLIC_KEY) });
+    }catch(e){ alert('Could not sign this device up: ' + e.message); return; }
+  }
+  const ok = await pushSaveSub(sub);
+  const el = document.getElementById('nf_push');
+  if(el) el.innerHTML = await pushStateLine();
+  if(ok && typeof wbToast === 'function') wbToast('This phone will now be reminded');
+}
+async function pushSaveSub(sub){
+  try{
+    const j = sub.toJSON();
+    const { error } = await sb.from('push_subs').upsert({
+      endpoint: sub.endpoint,
+      p256dh: j.keys.p256dh,
+      auth: j.keys.auth,
+      user_email: currentUserEmail || null,
+      user_name: currentUserName || null,
+      device: (navigator.userAgent||'').slice(0,160),
+      last_seen: new Date().toISOString()
+    }, { onConflict: 'endpoint' });
+    if(error) throw error;
+    return true;
+  }catch(e){
+    alert('This device agreed, but the sign-up could not be saved: ' + (e.message||e) +
+          '\n\nCheck that the push_subs table exists in Supabase.');
+    return false;
+  }
+}
+async function pushTurnOff(){
+  const sub = await pushCurrent();
+  if(!sub){ return; }
+  try{ await sb.from('push_subs').delete().eq('endpoint', sub.endpoint); }catch(e){}
+  try{ await sub.unsubscribe(); }catch(e){}
+  const el = document.getElementById('nf_push');
+  if(el) el.innerHTML = await pushStateLine();
+  if(typeof wbToast === 'function') wbToast('This phone will no longer be reminded');
+}
+async function pushStateLine(){
+  if(!pushSupported()){
+    return '<span style="color:var(--red)">Not possible in this browser.</span>' +
+      (isIOS() ? ' On iPhone, add the app to your Home Screen first (Share → Add to Home Screen), then open it from there.' : '');
+  }
+  if(isIOS() && !isStandalone()){
+    return '<span style="color:#8A5B07">Add the app to your Home Screen first</span> — Share → Add to Home Screen, then open it from there. iPhone allows this nowhere else.';
+  }
+  const sub = await pushCurrent();
+  if(sub) return '<span style="color:var(--green)">On — this phone is signed up and will be reminded with the app shut.</span>';
+  return 'Off on this device.';
+}
+/* keep the sign-up fresh, and renew it if the browser rotates it */
+async function pushBoot(){
+  if(!pushSupported() || !pushConfigured()) return;
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(!reg) return;                       /* never turned on here — leave it alone */
+    navigator.serviceWorker.addEventListener('message', function(ev){
+      if(ev.data && ev.data.type === 'resubscribe') pushTurnOn();
+    });
+    const sub = await reg.pushManager.getSubscription();
+    if(sub) pushSaveSub(sub);              /* refresh last_seen and the name on it */
+  }catch(e){}
+}
+/* ================= reminders ================= */
+function notifySettings(){
+  const d = DB.notify || {};
+  return {
+    on:        d.on !== false,
+    apptLead:  Number(d.apptLead)||60,        /* minutes before a viewing */
+    digest:    (d.digest && d.digest.length) ? d.digest : ['08:30','13:00'],
+    mineOnly:  d.mineOnly !== false,
+    sound:     d.sound !== false
+  };
+}
+function saveNotifySettings(){
+  const v = function(i){ const el=document.getElementById(i); return el ? el.value.trim() : ''; };
+  const c = function(i){ const el=document.getElementById(i); return el ? !!el.checked : false; };
+  DB.notify = {
+    on: c('nf_on'),
+    apptLead: Number(v('nf_lead'))||60,
+    digest: [v('nf_d1'), v('nf_d2')].filter(Boolean),
+    mineOnly: c('nf_mine'),
+    sound: c('nf_sound')
+  };
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast('Reminders saved');
+}
+function notifyPermission(){ return (typeof Notification==='undefined') ? 'unsupported' : Notification.permission; }
+function askNotifyPermission(){
+  if(typeof Notification==='undefined'){ alert('This browser cannot show notifications.'); return; }
+  Notification.requestPermission().then(function(p){
+    const el = document.getElementById('nf_state');
+    if(el) el.innerHTML = notifyStateLine();
+    if(p==='granted'){ notifyShow('Reminders are on', 'This is what a reminder will look like.', 'test'); }
+    else if(p==='denied'){ alert('Notifications are blocked for this site. Turn them back on in your browser settings for this page, then try again.'); }
+  });
+}
+function notifyStateLine(){
+  const p = notifyPermission();
+  if(p==='unsupported') return '<span style="color:var(--red)">This browser cannot show notifications.</span>';
+  if(p==='granted') return '<span style="color:var(--green)">Allowed on this device.</span>';
+  if(p==='denied') return '<span style="color:var(--red)">Blocked for this site \u2014 turn it back on in your browser settings.</span>';
+  return 'Not asked yet on this device.';
+}
+/* fire once per thing per day */
+function notifyFired(key){
+  try{ return localStorage.getItem('nf:'+key)==='1'; }catch(e){ return false; }
+}
+function notifyMark(key){
+  try{ localStorage.setItem('nf:'+key,'1'); }catch(e){}
+}
+function notifyShow(title, body, key){
+  if(key && notifyFired(key)) return false;
+  if(key) notifyMark(key);
+  try{
+    if(typeof Notification!=='undefined' && Notification.permission==='granted'){
+      const n = new Notification(title, { body: body, tag: key||title, icon: (typeof BRAND_LOGO==='string'?BRAND_LOGO:undefined) });
+      n.onclick = function(){ try{ window.focus(); }catch(e){} n.close(); };
+      return true;
+    }
+  }catch(e){}
+  /* no permission, or the browser refused \u2014 fall back to the in-app banner */
+  if(typeof wbToast === 'function') wbToast(title + ' \u2014 ' + body);
+  return false;
+}
+function hhmmNow(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function apptStart(a){
+  if(!a || !a.date) return null;
+  const d = new Date(a.date + 'T' + ((a.time && /^\d{2}:\d{2}/.test(a.time)) ? a.time : '09:00') + ':00');
+  return isNaN(d) ? null : d;
+}
+function notifyTick(){
+  const s = notifySettings();
+  if(!s.on) return;
+  if(typeof notificationsEnabledLocally === 'function' && !notificationsEnabledLocally()) return;
+  const now = new Date();
+  const today = todayISO();
+
+  /* 1. viewings and test drives coming up */
+  (DB.leads||[]).forEach(function(l){
+    const a = l.appointment;
+    if(!a || a.date !== today) return;
+    if(s.mineOnly && l.assignedTo && currentUserName && l.assignedTo !== currentUserName) return;
+    const st = apptStart(a);
+    if(!st) return;
+    const mins = Math.round((st - now)/60000);
+    if(mins > s.apptLead || mins < -5) return;
+    const veh = (function(){
+      const v=(DB.vehicles||[]).find(function(x){ return x.id===l.vehicleId; });
+      return v ? (v.reg + ' ' + [v.make,v.model].filter(Boolean).join(' ')) : (l.vehicleText||'');
+    })();
+    const when = a.time ? ('at ' + a.time) : 'today';
+    notifyShow(
+      apptLabel(a) + ' ' + (mins>0 ? 'in ' + mins + ' min' : 'now') + ' \u2014 ' + l.name,
+      (veh ? veh + ' \u00b7 ' : '') + when + '. Car clean, keys to hand, paperwork ready.',
+      'appt:' + l.id + ':' + today
+    );
+  });
+
+  /* 2. the daily run-through of what is assigned */
+  const t = hhmmNow();
+  /* if the app is opened late, several slots are past at once — only the last one
+     is worth sending; the earlier ones are marked so they do not pile up */
+  let latest = -1;
+  s.digest.forEach(function(slot, i){ if(t >= slot) latest = i; });
+  s.digest.forEach(function(slot, i){
+    if(t >= slot && i < latest) notifyMark('digest:' + today + ':' + i);
+  });
+  s.digest.forEach(function(slot, i){
+    if(t < slot || i !== latest) return;
+    const key = 'digest:' + today + ':' + i;
+    if(notifyFired(key)) return;
+    let mine = (DB.tasks||[]).filter(function(x){ return x.date===today; });
+    if(s.mineOnly && currentUserName) mine = mine.filter(function(x){ return (x.assignee||'')===currentUserName; });
+    if(!mine.length){ notifyMark(key); return; }
+    const c = taskCounts(mine);
+    if(!c.open && !c.part){ notifyMark(key); return; }
+    const left = c.open + c.part;
+    const first = mine.filter(function(x){ return taskState(x)!=='done'; })
+                      .slice(0,3).map(function(x){ return '\u2022 ' + x.title; }).join('\n');
+    notifyShow(
+      left + ' task' + (left===1?'':'s') + ' still open today',
+      first + (left>3 ? '\n\u2026and ' + (left-3) + ' more' : ''),
+      key
+    );
+  });
+}
+/* ---------- putting it in the phone's own calendar ---------- */
+function icsStamp(d){ return d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,''); }
+function icsEsc(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/;/g,'\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
+function icsFile(name, events){
+  const out = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//' + icsEsc(fmBrand()) + '//Forecourt//EN','CALSCALE:GREGORIAN'];
+  events.forEach(function(ev){ out.push.apply(out, ev); });
+  out.push('END:VCALENDAR');
+  /* RFC 5545: no line over 75 octets — fold the rest onto continuation lines,
+     or a fussy calendar app (iPhone especially) refuses the whole file */
+  const folded = [];
+  out.forEach(function(ln){
+    let l = String(ln);
+    if(l.length <= 73){ folded.push(l); return; }
+    folded.push(l.slice(0,73));
+    l = l.slice(73);
+    while(l.length > 72){ folded.push(' ' + l.slice(0,72)); l = l.slice(72); }
+    if(l.length) folded.push(' ' + l);
+  });
+  const blob = new Blob([folded.join('\r\n') + '\r\n'], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name.replace(/[^A-Za-z0-9._-]+/g,'-') + '.ics';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+}
+function icsEvent(uid, start, mins, title, desc, alarmMins){
+  const end = new Date(start.getTime() + (mins||60)*60000);
+  const ev = ['BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+icsStamp(new Date()),
+    'DTSTART:'+icsStamp(start),'DTEND:'+icsStamp(end),
+    'SUMMARY:'+icsEsc(title)];
+  if(desc) ev.push('DESCRIPTION:'+icsEsc(desc));
+  if(alarmMins!=null){
+    ev.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(title),
+            'TRIGGER:-PT'+Math.max(0,alarmMins)+'M','END:VALARM');
+  }
+  ev.push('END:VEVENT');
+  return ev;
+}
+function apptToCalendar(leadId){
+  const l = (DB.leads||[]).find(function(x){ return x.id===leadId; });
+  if(!l || !l.appointment || !l.appointment.date){ alert('That lead has no appointment booked.'); return; }
+  const st = apptStart(l.appointment);
+  if(!st){ alert('The appointment date could not be read.'); return; }
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===l.vehicleId; });
+  const veh = v ? (v.reg + ' ' + [v.make,v.model].filter(Boolean).join(' ')) : (l.vehicleText||'');
+  const s = notifySettings();
+  const title = apptLabel(l.appointment) + ' \u2014 ' + l.name + (veh?' \u00b7 '+veh:'');
+  const desc = [l.phone?'Phone: '+l.phone:'', veh?'Vehicle: '+veh:'', l.appointment.note||'',
+                'Car clean, keys to hand, paperwork ready.'].filter(Boolean).join('\n');
+  icsFile(title, [icsEvent('appt-'+l.id+'@'+fmBrand().replace(/\s+/g,''), st, 60, title, desc, s.apptLead)]);
+  if(typeof wbToast === 'function') wbToast('Opening in your calendar\u2026');
+}
+function tasksToCalendar(){
+  const s = notifySettings();
+  const today = todayISO();
+  let mine = (DB.tasks||[]).filter(function(x){ return x.date===today && taskState(x)!=='done'; });
+  if(s.mineOnly && currentUserName) mine = mine.filter(function(x){ return (x.assignee||'')===currentUserName; });
+  if(!mine.length){ alert('Nothing open on today\u2019s board to put in the calendar.'); return; }
+  const first = s.digest[0] || '08:30';
+  const st = new Date(today + 'T' + first + ':00');
+  const body = mine.map(function(x){ return '\u2022 ' + x.title + (x.assignee?' ('+x.assignee+')':''); }).join('\n');
+  icsFile('Tasks-'+today, [icsEvent('tasks-'+today+'@'+fmBrand().replace(/\s+/g,''), st, 30,
+    mine.length + ' task' + (mine.length===1?'':'s') + ' today \u2014 ' + fmBrand(), body, 0)]);
+}
+
+/* ---------- the settings screen ---------- */
+function openNotifySettings(){
+  const s = notifySettings();
+  const ck = function(id, on, label){
+    return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer">' +
+      '<input type="checkbox" id="'+id+'"'+(on?' checked':'')+' style="width:16px;height:16px"/> ' + label + '</label>';
+  };
+  openModal(
+    '<button class="close-x" onclick="closeModal()">\u2715</button><h3 style="margin:0 0 4px">Reminders</h3>' +
+    '<div class="small-muted" style="margin-bottom:12px">Set once per device. ' +
+    'Each phone or computer you sign in on has its own permission.</div>' +
+
+    '<div class="card" style="box-shadow:none;border:1px solid var(--line);padding:11px;margin-bottom:12px">' +
+      '<div style="margin-bottom:8px"><b>On this device</b> \u2014 <span id="nf_state">' + notifyStateLine() + '</span></div>' +
+      '<button class="btn btn-sm btn-brand" onclick="askNotifyPermission()">Allow notifications</button> ' +
+      '<button class="btn btn-sm btn-ghost" onclick="notifyShow(\'Test reminder\',\'If you can see this, reminders work on this device.\')">Send a test</button>' +
+    '</div>' +
+
+    '<div class="card" style="box-shadow:none;border:1.6px solid var(--brand);padding:11px;margin-bottom:12px">' +
+      '<div style="margin-bottom:6px"><b>With the app closed and the phone locked</b></div>' +
+      '<div class="small-muted" style="margin-bottom:8px" id="nf_push">checking\u2026</div>' +
+      '<button class="btn btn-sm btn-brand" onclick="pushTurnOn()">Remind this phone anyway</button> ' +
+      '<button class="btn btn-sm btn-ghost" onclick="pushTurnOff()">Stop</button>' +
+    '</div>' +
+
+    ck('nf_on', s.on, 'Remind me at all') +
+    '<div class="field-row">' +
+      '<div class="field"><label>Remind me before a viewing</label>' +
+        '<select id="nf_lead">' + [15,30,45,60,90,120].map(function(m){
+          return '<option value="'+m+'"'+(s.apptLead===m?' selected':'')+'>'+(m>=60?(m/60)+' hour'+(m>60?'s':''):m+' minutes')+' before</option>';
+        }).join('') + '</select></div>' +
+      '<div class="field"><label>Task reminder</label><input id="nf_d1" type="time" value="'+(s.digest[0]||'08:30')+'"/></div>' +
+      '<div class="field"><label>And again at</label><input id="nf_d2" type="time" value="'+(s.digest[1]||'13:00')+'"/></div>' +
+    '</div>' +
+    ck('nf_mine', s.mineOnly, 'Only what is assigned to me') +
+    ck('nf_sound', s.sound, 'Let the phone make a sound') +
+
+    '<div class="overdue-banner" style="margin:12px 0"><span>' +
+    '<b>These two settings fire only while the app is open.</b> To be reminded with the app shut and the phone locked, ' +
+    'turn on the red box above. Belt and braces for a viewing you cannot miss: <b>Add to phone calendar</b> on the booking, ' +
+    'which rings your own alarm even with no signal.' +
+    '</span></div>' +
+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+    '<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>' +
+    '<button class="btn btn-brand" onclick="saveNotifySettings()">Save</button></div>'
+  );
+  pushStateLine().catch(function(){ return 'Off on this device.'; })
+    .then(function(h){ const el=document.getElementById('nf_push'); if(el) el.innerHTML=h; });
+}
+/* ================= assigning tasks by speaking ================= */
+let VT = { rec:null, listening:false, text:'', rows:[] };
+
+function voiceEngine(){ return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
+
+/* --- turning what was said into tasks --- */
+function vtNorm(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim(); }
+function vtLev(a,b){
+  const m=a.length, n=b.length;
+  if(!m) return n; if(!n) return m;
+  let prev=[], cur=[];
+  for(let j=0;j<=n;j++) prev[j]=j;
+  for(let i=1;i<=m;i++){
+    cur[0]=i;
+    for(let j=1;j<=n;j++){
+      cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1] + (a[i-1]===b[j-1]?0:1));
+    }
+    prev=cur.slice();
+  }
+  return prev[n];
+}
+/* match a spoken word against the team — speech often mangles names */
+function vtMatchName(word){
+  const w = vtNorm(word);
+  if(!w) return null;
+  const names = (DB.team||[]).map(function(m){ return m.name; }).filter(Boolean);
+  let best=null, bestD=99;
+  names.forEach(function(n){
+    const parts = vtNorm(n).split(' ');
+    parts.concat([vtNorm(n)]).forEach(function(p){
+      if(!p) return;
+      if(p===w){ best=n; bestD=0; return; }
+      if(bestD===0) return;
+      if(p.length>=4 && w.length>=4 && (p.slice(0,4)===w.slice(0,4))){ if(1<bestD){best=n;bestD=1;} return; }
+      const d = vtLev(p,w);
+      const lim = p.length<=4 ? 1 : (p.length<=6 ? 2 : 3);
+      if(d<=lim && d<bestD){ best=n; bestD=d; }
+    });
+  });
+  return best;
+}
+function vtFindAssignee(seg){
+  const words = vtNorm(seg).split(' ');
+  for(let i=0;i<words.length;i++){
+    const hit = vtMatchName(words[i]);
+    if(hit) return {name:hit, at:i, word:words[i]};
+  }
+  return null;
+}
+function vtDateFrom(seg){
+  const s = vtNorm(seg);
+  const base = new Date();
+  const iso = function(d){ return d.toISOString().slice(0,10); };
+  if(/\btomorrow\b/.test(s)){ const d=new Date(base); d.setDate(d.getDate()+1); return iso(d); }
+  if(/\btoday\b|\bthis morning\b|\bthis afternoon\b|\btonight\b/.test(s)) return todayISO();
+  const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  for(let i=0;i<7;i++){
+    if(new RegExp('\\b'+days[i]+'\\b').test(s)){
+      const d=new Date(base); const diff=(i - d.getDay() + 7) % 7;
+      d.setDate(d.getDate() + (diff===0?7:diff)); return iso(d);
+    }
+  }
+  return todayISO();
+}
+function vtPriorityFrom(seg){
+  const s = vtNorm(seg);
+  if(/\burgent\b|\basap\b|\bhigh priority\b|\bstraight away\b|\bfirst thing\b/.test(s)) return 'high';
+  if(/\bpriority\b|\bimportant\b/.test(s)) return 'priority';
+  return 'standard';
+}
+function vtStripLeadName(t, name){
+  if(!name) return t;
+  const parts = vtNorm(name).split(' ').filter(Boolean);
+  let go = true;
+  while(go){
+    go = false;
+    const m = t.match(/^\s*([A-Za-z][A-Za-z\-']*)[\s,]*/);
+    if(!m) break;
+    const w = vtNorm(m[1]);
+    const full = vtNorm(name);
+    const hit = (w===full) || (full.length>3 && vtLev(w,full)<=2) || parts.some(function(p){
+      if(!p || !w) return false;
+      if(p===w) return true;
+      if(p.length>=4 && w.length>=4 && p.slice(0,4)===w.slice(0,4)) return true;
+      return vtLev(p,w) <= (p.length<=4 ? 1 : 2);
+    });
+    if(hit){ t = t.slice(m[0].length); go = true; }
+  }
+  return t;
+}
+/* a segment like "and assign this as a priority" changes the task before it,
+   it is not a task of its own */
+function vtIsModifier(seg){
+  const s = vtNorm(seg);
+  if(!s) return true;
+  if(/^(and\s+)?(assign|make|mark|set)\s+(this|it|that|them)\b/.test(s)) return true;
+  if(/^(and\s+)?(this|it|that)\s+(is|as)\b/.test(s)) return true;
+  if(/^(high\s+)?priority$|^urgent$|^asap$/.test(s)) return true;
+  return false;
+}
+function vtCleanTitle(seg, name){
+  let t = String(seg||'').trim();
+  t = t.replace(/^[\s,.;:-]+/,'');
+  t = t.replace(/^(ok(ay)?|right|so|and|then|also|after that|next|please)\b[\s,]*/i,'');
+  t = t.replace(/^(can you|could you|i want you to|i need you to|make sure)\b[\s,]*/i,'');
+  /* "ask Zahid to ...", "tell X ...", "get X ...", "for X ..." */
+  const lead = t.match(/^(ask|tell|get|give|for)\s+/i);
+  if(lead){
+    t = t.slice(lead[0].length);
+    t = vtStripLeadName(t, name);
+    t = t.replace(/^(to|should|needs? to|has to|must)\s+/i,'');
+  } else {
+    const before = t;
+    t = vtStripLeadName(t, name);
+    if(t !== before) t = t.replace(/^(to|should|needs? to|has to|must|will)\s+/i,'');
+  }
+  /* "assign him to clean ..." */
+  t = t.replace(/^(assign|get|ask|tell)\s+(him|her|them)\s+(to\s+)?/i,'');
+  t = t.replace(/^(he|she|they)\s+(should|needs? to|has to|must)\s+/i,'');
+  /* scheduling and priority words, once captured */
+  t = t.replace(/\b(and\s+)?(assign|mark|make|set)\s+(this|it|that)\s+as\s+(a\s+)?(high\s+)?priority\b/ig,'');
+  t = t.replace(/\b(as\s+)?(a\s+)?(high\s+)?priority\b/ig,'');
+  t = t.replace(/\b(today|tomorrow|urgent|asap|first thing|straight away)\b/ig,'');
+  t = t.replace(/\bon\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/ig,'');
+  t = t.replace(/\s{2,}/g,' ').replace(/[\s,.;:-]+$/,'').trim();
+  if(t) t = t.charAt(0).toUpperCase() + t.slice(1);
+  return t;
+}
+function vtParse(text){
+  const raw = String(text||'').trim();
+  if(!raw) return [];
+  let parts = raw.split(/(?:\.|;|\n)+|\b(?:and then|after that|and also|also,|and for|then for|next,|then,)\b/ig)
+                 .map(function(x){ return (x||'').trim(); })
+                 .filter(function(x){ return x.length>2; });
+  if(!parts.length) parts = [raw];
+  const out = [];
+  let lastName = '';
+  parts.forEach(function(seg){
+    /* a modifier tunes the task before it */
+    if(vtIsModifier(seg)){
+      if(out.length){
+        const pr = vtPriorityFrom(seg);
+        if(pr !== 'standard') out[out.length-1].priority = pr;
+        const d = vtDateFrom(seg);
+        if(/\btomorrow\b|\btoday\b|\bmonday\b|\btuesday\b|\bwednesday\b|\bthursday\b|\bfriday\b|\bsaturday\b|\bsunday\b/i.test(seg)){
+          out[out.length-1].date = d;
+        }
+        out[out.length-1].heard += ' — ' + seg.trim();
+      }
+      return;
+    }
+    const f = vtFindAssignee(seg);
+    /* if the sentence clearly names someone we could not match, leave it unassigned
+       rather than quietly giving it to whoever was mentioned last */
+    const named = /\b(ask|tell|get|give|for)\s+([A-Za-z][A-Za-z\-']*)/i.exec(seg);
+    const namedUnknown = !f && named && !vtMatchName(named[2]) &&
+                         !/^(him|her|them|the|a|an|me|us|it)$/i.test(named[2]);
+    const who = f ? f.name : (namedUnknown ? '' : lastName);
+    if(f) lastName = f.name;
+    const title = vtCleanTitle(seg, f ? f.name : (namedUnknown ? named[2] : ''));
+    if(!title) return;
+    out.push({ title: title, assignee: who || '', date: vtDateFrom(seg),
+               priority: vtPriorityFrom(seg), heard: seg.trim() });
+  });
+  return out;
+}
+
+/* --- the screen --- */
+function openVoiceTasks(){
+  if(!isManager()){ alert('Only a manager can assign tasks.'); return; }
+  VT = { rec:null, listening:false, text:'', rows:[] };
+  openModal(vtBody());
+}
+function vtBody(){
+  const eng = voiceEngine();
+  const e = escapeHtml;
+  return '<button class="close-x" onclick="vtStop();closeModal()">✕</button>' +
+  '<h3 style="margin:0 0 4px">Assign tasks by talking</h3>' +
+  '<div class="small-muted" style="margin-bottom:12px">Say it the way you would say it out loud — ' +
+  '“ask Zahid to prepare the Toyota Aygo and the Ford Fiesta, make that priority, and get Mirwais to clean the forecourt and the office”. ' +
+  'Nothing is saved until you have checked it.</div>' +
+
+  (eng ? '<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">' +
+      '<button id="vt_mic" class="btn ' + (VT.listening?'btn-danger':'btn-brand') + '" style="min-width:148px" onclick="vtToggle()">' +
+      (VT.listening ? '⏹ Stop' : '🎤 Start talking') + '</button>' +
+      '<span id="vt_state" class="small-muted">' + (VT.listening ? 'Listening…' : 'Tap, then speak') + '</span>' +
+    '</div>'
+   : '<div class="overdue-banner" style="margin-bottom:10px"><span>This browser cannot listen. ' +
+     'Use your phone keyboard’s own microphone button and dictate into the box below instead — everything else works the same.</span></div>') +
+
+  '<div class="field"><label>What was said</label>' +
+  '<textarea id="vt_text" rows="4" placeholder="speak, or type it here" oninput="VT.text=this.value">' + e(VT.text) + '</textarea></div>' +
+
+  '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+  '<button class="btn btn-brand" onclick="vtBuild()">Turn it into tasks</button>' +
+  '<button class="btn btn-ghost" onclick="VT.text=\'\';VT.rows=[];vtRefresh()">Clear</button></div>' +
+
+  '<div id="vt_rows">' + vtRowsHtml() + '</div>';
+}
+function vtRowsHtml(){
+  if(!VT.rows.length) return '';
+  const e = escapeHtml;
+  const people = (DB.team||[]).map(function(m){ return m.name; }).filter(Boolean);
+  return '<div class="section-title" style="margin-top:4px"><h2 style="font-size:15px">Check these before they go on the board</h2></div>' +
+  VT.rows.map(function(r,i){
+    const unknown = !r.assignee;
+    return '<div class="card" style="padding:10px;margin-bottom:8px;' +
+      (unknown?'border-left:4px solid var(--red)':'border-left:4px solid '+personColour(r.assignee)[0]) + '">' +
+      '<div class="field" style="margin-bottom:6px"><label>Task</label>' +
+      '<input style="width:100%" value="' + e(r.title) + '" oninput="VT.rows[' + i + '].title=this.value"/></div>' +
+      '<div class="field-row" style="margin-bottom:4px">' +
+        '<div class="field"><label>Who' + (unknown?' — not caught, pick someone':'') + '</label><select onchange="VT.rows[' + i + '].assignee=this.value;vtRefresh()">' +
+          '<option value=""' + (unknown?' selected':'') + '>Unassigned</option>' +
+          people.map(function(n){ return '<option' + (n===r.assignee?' selected':'') + '>' + e(n) + '</option>'; }).join('') +
+        '</select></div>' +
+        '<div class="field"><label>Day</label><input type="date" value="' + e(r.date) + '" onchange="VT.rows[' + i + '].date=this.value"/></div>' +
+        '<div class="field"><label>Priority</label><select style="width:100%" onchange="VT.rows[' + i + '].priority=this.value">' +
+          ['standard','priority','high'].map(function(p){
+            const lab = p==='standard'?'Standard':(p==='priority'?'Priority':'High');
+            return '<option value="'+p+'"'+(r.priority===p?' selected':'')+'>'+lab+'</option>';
+          }).join('') + '</select></div>' +
+      '</div>' +
+      '<div class="small-muted" style="font-style:italic">heard: “' + e(r.heard) + '” ' +
+        '<a class="link" style="cursor:pointer;font-style:normal" onclick="VT.rows.splice(' + i + ',1);vtRefresh()">remove</a></div>' +
+    '</div>';
+  }).join('') +
+  '<button class="btn btn-brand" style="width:100%;margin-top:4px" onclick="vtSave()">Put ' +
+    VT.rows.length + ' task' + (VT.rows.length===1?'':'s') + ' on the board</button>';
+}
+function vtRefresh(){
+  const box = document.getElementById('vt_rows');
+  if(box) box.innerHTML = vtRowsHtml();
+  const t = document.getElementById('vt_text');
+  if(t && t.value !== VT.text) t.value = VT.text;
+}
+function vtBuild(){
+  const t = document.getElementById('vt_text');
+  VT.text = t ? t.value : VT.text;
+  VT.rows = vtParse(VT.text);
+  if(!VT.rows.length){ alert('Nothing to turn into a task yet — say or type what needs doing.'); return; }
+  vtRefresh();
+}
+function vtToggle(){ VT.listening ? vtStop() : vtStart(); }
+function vtStart(){
+  const Eng = voiceEngine();
+  if(!Eng) return;
+  try{
+    const rec = new Eng();
+    rec.lang = 'en-GB'; rec.continuous = true; rec.interimResults = true;
+    let settled = VT.text ? (VT.text.trim() + ' ') : '';
+    rec.onresult = function(ev){
+      let interim = '';
+      for(let i=ev.resultIndex; i<ev.results.length; i++){
+        const txt = ev.results[i][0].transcript;
+        if(ev.results[i].isFinal) settled += txt + ' '; else interim += txt;
+      }
+      VT.text = (settled + interim).replace(/\s{2,}/g,' ');
+      const box = document.getElementById('vt_text');
+      if(box) box.value = VT.text;
+    };
+    rec.onerror = function(ev){
+      VT.listening = false;
+      const s = document.getElementById('vt_state');
+      const msg = ev.error==='not-allowed'
+        ? 'The microphone is blocked — allow it for this site in your browser settings, then try again.'
+        : (ev.error==='no-speech' ? 'Did not hear anything. Tap and try again.'
+        : 'Could not listen (' + ev.error + '). You can type it instead.');
+      if(s){ s.textContent = msg; s.style.color = 'var(--red)'; }
+      vtButton();
+    };
+    rec.onend = function(){ VT.listening = false; vtButton(); };
+    rec.start();
+    VT.rec = rec; VT.listening = true;
+    const s = document.getElementById('vt_state');
+    if(s){ s.textContent = 'Listening… tap stop when you are done'; s.style.color = ''; }
+    vtButton();
+  }catch(err){
+    alert('Could not start the microphone: ' + err.message);
+  }
+}
+function vtStop(){
+  VT.listening = false;
+  try{ if(VT.rec) VT.rec.stop(); }catch(e){}
+  VT.rec = null;
+  vtButton();
+  const s = document.getElementById('vt_state');
+  if(s && !s.style.color) s.textContent = 'Stopped. Check it, then turn it into tasks.';
+}
+function vtButton(){
+  const b = document.getElementById('vt_mic');
+  if(!b) return;
+  b.className = 'btn ' + (VT.listening ? 'btn-danger' : 'btn-brand');
+  b.innerHTML = VT.listening ? '⏹ Stop' : '🎤 Start talking';
+}
+function vtSave(){
+  const good = VT.rows.filter(function(r){ return (r.title||'').trim(); });
+  if(!good.length){ alert('Nothing to save.'); return; }
+  const blank = good.filter(function(r){ return !r.assignee; }).length;
+  if(blank && !confirm(blank + ' task' + (blank===1?' has':'s have') + ' nobody assigned. Put them on the board anyway?')) return;
+  good.forEach(function(r){
+    DB.tasks.push({ id:nextId('task'), title:r.title.trim(), assignee:r.assignee||'',
+      date:r.date||todayISO(), priority:r.priority||'standard',
+      notes:'Assigned by voice: “' + (r.heard||'').trim() + '”',
+      state:'open', done:false, createdAt:todayISO(), lastNotifiedAt:null });
+  });
+  if(typeof logChange === 'function'){
+    logChange('tasks','Tasks assigned by voice', good.length + ' task(s)', '', '', String(good.length), VT.text.slice(0,200));
+  }
+  VT = { rec:null, listening:false, text:'', rows:[] };
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast(good.length + ' task' + (good.length===1?'':'s') + ' added');
+}
 /* ---------- editing a task that is already on the board ---------- */
 function openEditTask(id){
   const t = (DB.tasks||[]).find(function(x){ return x.id===id; });
@@ -1433,6 +2112,135 @@ function fmTradeSale(){
   fmOpen(fmShell('Trade Sale Invoice — Sold as Seen','Trade buyers only', body));
 }
 
+const RES_FALLBACK_ADR = 'Fletcher Way, Hemel Hempstead HP2 5SE';
+const RES_FALLBACK_TEL = '07508 848893';
+const RES_FALLBACK_HOURS = 'Mon–Sat 9:00–18:00, Sun 9:00–16:00';
+/* ---------- reservation receipt ---------- */
+function resContact(){
+  return { adr: (DB.invoiceAdr || DB.invoiceAddress || RES_FALLBACK_ADR || ''),
+           tel: (DB.invoicePhone || RES_FALLBACK_TEL || ''),
+           hours: (DB.openingHours || RES_FALLBACK_HOURS || '') };
+}
+function resPrefix(){
+  if(DB.resPrefix) return DB.resPrefix;
+  const n = String(DB.bizName || fmBrand() || 'CE');
+  return n.split(/\s+/).map(function(w){ return w[0]||''; }).join('').toUpperCase().slice(0,3) || 'CE';
+}
+function resRef(v){
+  const r = v.reserved || {};
+  if(r.ref) return r.ref;
+  const n = (Number(DB.resSeq)||0) + 1;
+  DB.resSeq = n;
+  r.ref = resPrefix() + '-' + String(n).padStart(3,'0');
+  saveDB();
+  return r.ref;
+}
+function resBalance(v){
+  const r = v.reserved || {};
+  const price = Number(r.agreedPrice)||Number(v.askingPrice)||0;
+  const dep = Number(r.deposit)||0;
+  return {price:price, dep:dep, bal: Math.max(0, price - dep)};
+}
+/* the shared look of the printed receipt */
+function resShell(ref, rows, foot){
+  const c = resContact(), e = fmEsc;
+  const logo = (typeof BRAND_LOGO === 'string' && BRAND_LOGO) ? '<img src="'+BRAND_LOGO+'" alt="">' : '';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>Reservation Receipt'+(ref?' '+e(ref):'')+'</title><style>'+
+  '@page{size:A4;margin:0}'+
+  '*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+  'body{font-family:Arial,"Helvetica Neue",sans-serif;color:#17191C;margin:0;font-size:13px;line-height:1.5}'+
+  '.wrap{padding:9mm 14mm 16mm}'+
+  '.band{background:#0B0C0E;border-bottom:5px solid #D4080A;display:flex;align-items:center;gap:20px;padding:16px 24px}'+
+  '.band img{height:56px;display:block}'+
+  '.band .t{flex:1;text-align:right;color:#fff}'+
+  '.band h1{margin:0;font-size:25px;letter-spacing:.055em;font-weight:800}'+
+  '.band .c{font-size:11.5px;color:#C9CDD2;margin-top:5px}'+
+  '.band .rn{font-size:11.5px;color:#C9CDD2;margin-top:3px}'+
+  '.band .rn b{color:#fff;letter-spacing:.08em;margin-left:6px}'+
+  'h2{font-size:11.5px;letter-spacing:.14em;color:#D4080A;margin:20px 0 2px;font-weight:800}'+
+  'table{width:100%;border-collapse:collapse}'+
+  'td{padding:11px 2px;border-bottom:1px solid #E4E7EA;vertical-align:top}'+
+  'td.k{width:34%;color:#5A6069}'+
+  'td.v{font-weight:600}'+
+  'tr.big td{border-top:2.4px solid #17191C;border-bottom:1px solid #E4E7EA;padding:13px 2px}'+
+  'tr.big td.k{color:#17191C;font-weight:700;font-size:14.5px}'+
+  'tr.big td.v{font-size:16px;font-weight:800}'+
+  'tr.big td.v span{font-size:12px;font-weight:400;color:#5A6069;margin-left:10px}'+
+  '.fill{display:inline-block;min-width:150px;border-bottom:1px solid #9AA0A6}'+
+  '.sg{display:flex;gap:46px;margin-top:54px}'+
+  '.sg div{flex:1}'+
+  '.sg .ln{border-top:1px solid #17191C;padding-top:6px;font-size:11.5px;color:#5A6069}'+
+  '.ft{margin-top:26px;font-size:11px;color:#5A6069;line-height:1.6}'+
+  '.pbtn{position:fixed;top:12px;right:12px;background:#D4080A;color:#fff;border:0;border-radius:6px;padding:9px 16px;font-size:13px;cursor:pointer;font-weight:700;z-index:9}'+
+  '@media screen{.band{padding-right:190px}}'+
+  '@media print{.pbtn{display:none}}'+
+  '</style></head><body>'+
+  '<button class="pbtn" onclick="window.print()">Print / save as PDF</button>'+
+  '<div class="band">'+logo+'<div class="t"><h1>RESERVATION RECEIPT</h1>'+
+    '<div class="c">'+[e(c.adr), e(c.tel)].filter(Boolean).join(' · ')+'</div>'+
+    '<div class="rn">Receipt no:<b>'+(ref?e(ref):'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;')+'</b></div></div></div>'+
+  '<div class="wrap">'+rows+
+  '<div class="sg"><div><div class="ln">Customer signature &amp; date</div></div>'+
+    '<div><div class="ln">For '+e(fmBrand())+' &amp; date</div></div></div>'+
+  '<div class="ft">'+foot+'</div></div></body></html>';
+}
+function resRow(k, v, cls){
+  return '<tr'+(cls?' class="'+cls+'"':'')+'><td class="k">'+k+'</td><td class="v">'+v+'</td></tr>';
+}
+function resFoot(){
+  const c = resContact(), e = fmEsc;
+  return 'Deposit to reserve the vehicle above. Please keep this receipt.'+
+    (c.tel||c.hours ? ' Questions: '+[e(c.tel), e(c.hours)].filter(Boolean).join(' · ')+'.' : '');
+}
+function reservationReceipt(vId){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vId; });
+  if(!v || !v.reserved){ alert('Reserve the car first, then the receipt has something to print.'); return; }
+  const r = v.reserved, e = fmEsc, b = resBalance(v);
+  const money = function(n){ return '£&nbsp;'+Number(n||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  const dmy = function(d){
+    if(!d) return '__ / __ / ____';
+    const p = String(d).slice(0,10).split('-');
+    return p.length===3 ? (p[2]+' / '+p[1]+' / '+p[0]) : e(d);
+  };
+  const veh = [v.year, v.make, v.model].filter(Boolean).join(' ');
+  const rows =
+    '<h2>CUSTOMER</h2><table>'+
+      resRow('Name', e(r.name||''))+
+      resRow('Address', e([r.address, r.postcode].filter(Boolean).join(', ')))+
+      resRow('Date of reservation', dmy(r.depositDate || (r.at||'').slice(0,10)))+
+    '</table>'+
+    '<h2>VEHICLE</h2><table>'+
+      resRow('Vehicle', e(veh))+
+      resRow('Registration', '<b>'+e(v.reg||'')+'</b>')+
+    '</table>'+
+    '<h2>RESERVATION DEPOSIT</h2><table>'+
+      resRow('Agreed vehicle price', b.price ? money(b.price) : '£&nbsp;<span class="fill"></span>')+
+      resRow('Vehicle held until', dmy(r.dueDate))+
+      resRow('Deposit received', money(b.dep) +
+        (r.depositPaidBy ? '<span>by '+e(r.depositPaidBy.toLowerCase())+'</span>' : ''), 'big')+
+      (b.price ? resRow('Balance to pay', money(b.bal)) : '')+
+    '</table>';
+  fmOpen(resShell(resRef(v), rows, resFoot()));
+}
+/* a blank one for the Forms tab */
+function fmReservationBlank(){
+  const f = '<span class="fill"></span>';
+  const rows =
+    '<h2>CUSTOMER</h2><table>'+
+      resRow('Name', f)+ resRow('Address', '<span class="fill" style="min-width:420px"></span>')+
+      resRow('Date of reservation', '__ / __ / ____')+
+    '</table>'+
+    '<h2>VEHICLE</h2><table>'+
+      resRow('Vehicle', f)+ resRow('Registration', f)+
+    '</table>'+
+    '<h2>RESERVATION DEPOSIT</h2><table>'+
+      resRow('Agreed vehicle price', '£&nbsp;'+f)+
+      resRow('Vehicle held until', '__ / __ / ____')+
+      resRow('Deposit received', '£&nbsp;'+f+'<span>cash / card / bank transfer</span>', 'big')+
+      resRow('Balance to pay', '£&nbsp;'+f)+
+    '</table>';
+  fmOpen(resShell('', rows, resFoot()));
+}
 /* ---------- the library ---------- */
 const OFFICE_FORMS = [
   {id:'vrec',  cat:'Vehicle', name:'Vehicle Record', blurb:'The front of the document wallet. Filled in the day a car arrives — MOT, keys, owners, service years, timing belt, money spent.', fn:fmVehicleRecord, land:true},
@@ -1445,6 +2253,7 @@ const OFFICE_FORMS = [
   {id:'cust',  cat:'Sales', name:'Customer Enquiry and Details', blurb:'Taken at the first conversation — what they want, their budget, and how they are happy to be contacted.', fn:fmCustomerDetails},
   {id:'drive', cat:'Sales', name:'Test Drive Record', blurb:'Licence checked, mileage out and back, and who went with them.', fn:fmTestDrive},
   {id:'dep',   cat:'Sales', name:'Deposit Receipt', blurb:'What was paid, what is left, and exactly what the deposit holds.', fn:fmDeposit},
+  {id:'resv',  cat:'Sales', name:'Reservation Receipt', blurb:'Given when a deposit holds a car. Prints filled in from the reservation itself \u2014 open the car and use the button there. This one is blank.', fn:fmReservationBlank},
   {id:'hand',  cat:'Sales', name:'Vehicle Handover Checklist', blurb:'Worked through with the customer on collection — paperwork, keys, and what was explained.', fn:fmHandover},
   {id:'trade', cat:'Sales', name:'Trade Sale Invoice — Sold as Seen', blurb:'For selling to another trader. Not for private customers.', fn:fmTradeSale},
   {id:'ret',   cat:'Sales', name:'Return, Complaint and Refund Form', blurb:'Opened the moment a customer comes back, with the 30-day and six-month rules on the page.', fn:fmReturn},
@@ -2469,7 +3278,7 @@ function renderStock(){
       const openIss = openIssuesCount(v);
       return `<tr style="cursor:pointer" onclick="openVehicle('${v.id}')">
         <td class="mono" style="font-weight:700">${v.reg} ${gapBadge(v)}
-          ${v.reserved?`<div class="small-muted" style="font-weight:400">for ${escapeHtml(v.reserved.name)}${v.reserved.dueDate?' · '+fmtDate(v.reserved.dueDate):''}</div>`:''}
+          ${v.reserved?`<div class="small-muted" style="font-weight:400">for ${escapeHtml(v.reserved.name)}${v.reserved.deposit?' · '+fmtMoney(v.reserved.deposit)+(v.reserved.depositPaidBy?' '+escapeHtml(v.reserved.depositPaidBy.toLowerCase()):''):''}${v.reserved.dueDate?' · '+fmtDate(v.reserved.dueDate):''}</div>`:''}
           ${(()=>{const a=nextApptForVehicle(v.id);
             return a?`<div style="font-weight:400" class="small-muted">📅 ${apptLabel(a.appointment)} ${apptWhen(a.appointment)}</div>`:'';})()}</td>
         <td>${v.make||''} ${v.model||''}<div class="small-muted">${v.year||''} ${v.color||''}</div></td>
@@ -2485,7 +3294,8 @@ function renderStock(){
         <td style="color:${margin>=0?'var(--green)':'var(--red)'};font-weight:700">${fmtMoney(margin)}</td>
         <td style="white-space:nowrap">
           ${!v.sale?`<button class="btn btn-sm ${v.reserved?'btn-brand':'btn-ghost'}" title="${v.reserved?'Reserved for '+escapeAttr(v.reserved.name):'Reserve this car'}"
-            onclick="event.stopPropagation();openReserve('${v.id}')">${v.reserved?'🔖 Reserved':'Reserve'}</button> `:''}
+            onclick="event.stopPropagation();openReserve('${v.id}')">${v.reserved?'🔖 Reserved':'Reserve'}</button> ${v.reserved?`<button class="btn btn-sm btn-ghost" title="Print the reservation receipt"
+            onclick="event.stopPropagation();reservationReceipt('${v.id}')">🖨️</button> `:''}`:''}
           <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();openVehicle('${v.id}')">Open</button></td>
       </tr>`;
     }).join('')}
@@ -2497,12 +3307,19 @@ function renderStock(){
   `;
 }
 
+/* Whatever has been picked to lead the page comes first, in that order, so the
+   site's "first few cars" are exactly the ones chosen in the Website tab. */
+function featuredSorted(list){
+  const pick = (DB.featuredCars||[]);
+  const rank = v => { const i = pick.indexOf(v.id); return i < 0 ? 9999 : i; };
+  return list.slice().sort((a,b) => (rank(a)-rank(b)) || (b.dateAdded||'').localeCompare(a.dateAdded||''));
+}
 /* Builds stock.json for the public website. Only customer-facing fields are
    included — never costs, margins, customers or supplier details. */
 function exportStockForWebsite(){
   if(!isManager()) return;
-  const pub = DB.vehicles
-    .filter(v => v.status === 'ready' || v.status === 'sold')
+  const pub = featuredSorted(DB.vehicles
+    .filter(v => v.status === 'ready' || v.status === 'sold'))
     .map(v => ({
       id: v.id,
       make: v.make || '',
@@ -2520,7 +3337,8 @@ function exportStockForWebsite(){
       video: (v.videoUrl||'').trim(),
       spin: (v.spin||[]).length >= SPIN_MIN ? (v.spin||[]).map(p => photoUrlSync(p.id)).filter(Boolean) : [],
       spinEmbed: (v.spinEmbed||'').trim(),
-      status: v.sale ? 'sold' : 'available'
+      status: v.sale ? 'sold' : 'available',
+      featured: (DB.featuredCars||[]).indexOf(v.id) >= 0
     }));
   const withoutPhotos = pub.filter(c => !c.photos.length).length;
   const blob = new Blob([JSON.stringify(pub, null, 2)], {type:'application/json'});
@@ -2534,8 +3352,8 @@ function exportStockForWebsite(){
    It writes to a SEPARATE public_stock table — never app_data — so the public
    site can read stock without ever being able to see costs, customers or payroll. */
 function publicStockPayload(){
-  return DB.vehicles
-    .filter(v => v.status === 'ready' || v.status === 'sold')
+  return featuredSorted(DB.vehicles
+    .filter(v => v.status === 'ready' || v.status === 'sold'))
     .map(v => ({
       id: v.id, make: v.make||'', model: v.model||'', year: v.year||'',
       price: Number(v.askingPrice)||0, mileage: v.mileage||'', fuel: v.fuel||'',
@@ -2545,14 +3363,17 @@ function publicStockPayload(){
       video: (v.videoUrl||'').trim(),
       spin: (v.spin||[]).length >= SPIN_MIN ? (v.spin||[]).map(p=>photoUrlSync(p.id)).filter(Boolean) : [],
       spinEmbed: (v.spinEmbed||'').trim(),
-      status: v.sale ? 'sold' : 'available'
+      status: v.sale ? 'sold' : 'available',
+      featured: (DB.featuredCars||[]).indexOf(v.id) >= 0
     }));
 }
 async function publishToWebsite(){
   if(!isManager()) return;
   const cars = publicStockPayload();
   const noPhotos = cars.filter(c=>!c.photos.length).length;
+  const picked = cars.filter(c=>c.featured).length;
   if(!confirm(`Publish ${cars.length} car${cars.length===1?'':'s'} to the website?` +
+      (picked?`\n\n${picked} hand-picked car${picked===1?'':'s'} will lead the page.`:'') +
       (noPhotos?`\n\n${noPhotos} have no photos yet.`:'') +
       `\n\nOnly make, model, price, spec, description and photos are published. Costs, customers and figures are never sent.`)) return;
   try{
@@ -3529,9 +4350,11 @@ function vehicleSaleTab(v){
     ${r?`<div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
       <div style="font-weight:700;margin-bottom:4px;">Reserved for ${escapeHtml(r.name)}</div>
       <div class="small-muted">${escapeHtml([r.phone,r.email,r.postcode].filter(Boolean).join(' · '))}
-        ${r.deposit?' · '+fmtMoney(r.deposit)+' deposit taken':''}</div>
-      <button class="btn btn-sm btn-brand" style="margin-top:8px" onclick="useReservedCustomer('${v.id}')">
-        Use these details</button>
+        ${r.deposit?' · '+fmtMoney(r.deposit)+' deposit'+(r.depositPaidBy?' by '+escapeHtml(r.depositPaidBy.toLowerCase()):'')+(r.depositDate?' on '+fmtDate(r.depositDate):''):''}</div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-sm btn-brand" onclick="useReservedCustomer('${v.id}')">Use these details</button>
+        <button class="btn btn-sm btn-ghost" onclick="reservationReceipt('${v.id}')">🖨️ Reservation receipt</button>
+      </div>
     </div>`:''}
     ${licenceCard(v)}
     <div class="field"><label>Customer</label>
@@ -4618,7 +5441,12 @@ function renderTasks(){
   return `
   <div class="topbar">
     <div><h1>Daily Tasks</h1><div class="date">Assign, follow up and track completion by day</div></div>
-    ${taskView==='board'?`<button class="btn btn-brand" onclick="openAddTask()">+ Assign task</button>`:''}
+    ${taskView==='board'?`<div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="openNotifySettings()">🔔 Reminders</button>
+      <button class="btn btn-ghost" onclick="tasksToCalendar()" title="Put today's open tasks in your phone's calendar">📅</button>
+      ${isManager()?`<button class="btn btn-ghost" onclick="openVoiceTasks()">🎤 Assign by voice</button>`:''}
+      <button class="btn btn-brand" onclick="openAddTask()">+ Assign task</button>
+    </div>`:''}
   </div>
   <div class="chip-row">
     <div class="chip ${taskView==='board'?'active':''}" onclick="taskView='board';render()">Daily Board</div>
@@ -6631,7 +7459,7 @@ function appointmentsCard(){
   return `
   <div class="section-title"><h2>Viewings &amp; test drives booked</h2></div>
   <div class="card" style="padding:0;">
-    <table><thead><tr><th>When</th><th>What</th><th>Customer</th><th>Car</th><th></th></tr></thead><tbody>
+    <table><thead><tr><th>When</th><th>What</th><th>Customer</th><th>Car</th><th></th><th></th></tr></thead><tbody>
     ${list.slice(0,10).map(l=>{
       const a=l.appointment;
       const v=(DB.vehicles||[]).find(x=>x.id===l.vehicleId);
@@ -6642,6 +7470,8 @@ function appointmentsCard(){
         <td>${escapeHtml(l.name)}${l.phone?`<div class="small-muted">${escapeHtml(l.phone)}</div>`:''}</td>
         <td>${v?escapeHtml(v.reg):escapeHtml(l.vehicleText||'—')}</td>
         <td>${a.note?`<span class="small-muted">${escapeHtml(a.note)}</span>`:''}</td>
+        <td class="num"><button class="btn btn-sm btn-ghost" title="Put it in your phone's calendar with an alarm"
+          onclick="event.stopPropagation();apptToCalendar('${l.id}')">📅</button></td>
       </tr>`;}).join('')}
     </tbody></table>
   </div>`;
@@ -8726,6 +9556,101 @@ function renderSiteBuilder(){
   </div>`;
 }
 
+/* ---------- choosing which cars lead the page ---------- */
+function featuredList(){ return (DB.featuredCars || []).slice(); }
+function setFeatured(ids){ DB.featuredCars = ids.slice(0,24); }
+function websiteCars(){
+  return (DB.vehicles||[]).filter(function(v){
+    return (v.status === 'ready' || v.status === 'sold') && !v.sale;
+  });
+}
+function featuredPick(vId){
+  const list = featuredList();
+  const at = list.indexOf(vId);
+  if(at >= 0) list.splice(at,1); else list.push(vId);
+  setFeatured(list); touchSite(); saveDB(); render();
+}
+function featuredMove(vId, dir){
+  const list = featuredList();
+  const at = list.indexOf(vId);
+  const to = at + dir;
+  if(at < 0 || to < 0 || to >= list.length) return;
+  list.splice(to, 0, list.splice(at,1)[0]);
+  setFeatured(list); touchSite(); saveDB(); render();
+}
+function featuredClear(){
+  if(!confirm('Go back to showing the newest cars first?')) return;
+  DB.featuredCars = []; touchSite(); saveDB(); render();
+}
+/* the cars the site will lead with, in order, skipping anything gone */
+function featuredResolved(){
+  const live = websiteCars();
+  return featuredList()
+    .map(function(id){ return live.find(function(v){ return v.id===id; }); })
+    .filter(Boolean);
+}
+function featuredPickerHtml(limit){
+  const live = websiteCars();
+  const chosen = featuredResolved();
+  const chosenIds = chosen.map(function(v){ return v.id; });
+  const rest = live.filter(function(v){ return chosenIds.indexOf(v.id) < 0; })
+                   .sort(function(a,b){ return (b.dateAdded||'').localeCompare(a.dateAdded||''); });
+  const label = function(v){
+    return [v.year, v.make, v.model].filter(Boolean).join(' ') || v.reg || 'Car';
+  };
+  const shot = function(v){
+    const p = (v.photos||[])[0];
+    const u = p ? photoUrlSync(p.id) : '';
+    return u ? '<img src="'+u+'" style="width:52px;height:38px;object-fit:cover;border-radius:4px;flex:0 0 52px"/>'
+             : '<div style="width:52px;height:38px;border-radius:4px;background:var(--line);flex:0 0 52px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted)">no photo</div>';
+  };
+  const n = Number(limit)||6;
+
+  return '<div class="field"><label>Which cars lead the page</label>' +
+  '<div class="wb-note" style="margin-bottom:8px">' +
+    (chosen.length
+      ? 'The page shows <b>' + n + '</b> car' + (n===1?'':'s') + '. You have picked <b>' + chosen.length + '</b>' +
+        (chosen.length > n ? ' — only the first ' + n + ' will appear.' :
+         (chosen.length < n ? ', and the newest cars fill the other ' + (n-chosen.length) + '.' : '.'))
+      : 'Nothing picked, so the page shows the newest cars first. Tap a car below to put it at the front.') +
+  '</div>' +
+
+  (chosen.length ? '<div style="margin-bottom:10px">' +
+    chosen.map(function(v,i){
+      const over = i >= n;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 7px;border:1px solid var(--line);' +
+        'border-left:3px solid ' + (over?'var(--line)':'var(--brand)') + ';border-radius:5px;margin-bottom:5px;' +
+        (over?'opacity:.5':'') + '">' +
+        '<b style="width:18px;text-align:center;color:var(--muted)">' + (i+1) + '</b>' +
+        shot(v) +
+        '<div style="flex:1;min-width:0"><b style="font-size:12.5px">' + escapeHtml(label(v)) + '</b>' +
+          '<div class="small-muted">' + escapeHtml(v.reg||'') +
+          (v.askingPrice ? ' · ' + fmtMoney(v.askingPrice) : ' · no price') +
+          ((v.photos||[]).length ? '' : ' · <span style="color:var(--red)">no photo</span>') + '</div></div>' +
+        '<button class="wb-mini" onclick="featuredMove(\'' + v.id + '\',-1)"' + (i===0?' disabled':'') + '>▲</button>' +
+        '<button class="wb-mini" onclick="featuredMove(\'' + v.id + '\',1)"' + (i===chosen.length-1?' disabled':'') + '>▼</button>' +
+        '<button class="wb-mini del" onclick="featuredPick(\'' + v.id + '\')">✕</button>' +
+      '</div>';
+    }).join('') +
+    '<button class="wb-mini" onclick="featuredClear()">Clear and use the newest instead</button></div>' : '') +
+
+  '<div class="small-muted" style="margin:8px 0 5px">' +
+    (chosen.length ? 'Add another' : 'Pick from your published stock') + ' — tap to add' +
+  '</div>' +
+  (rest.length
+    ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:6px;max-height:260px;overflow:auto;padding-right:4px">' +
+      rest.map(function(v){
+        return '<div onclick="featuredPick(\'' + v.id + '\')" style="display:flex;align-items:center;gap:7px;' +
+          'padding:5px 7px;border:1px solid var(--line);border-radius:5px;cursor:pointer">' +
+          shot(v) +
+          '<div style="flex:1;min-width:0"><b style="font-size:12px">' + escapeHtml(label(v)) + '</b>' +
+          '<div class="small-muted" style="font-size:10.5px">' + escapeHtml(v.reg||'') +
+          ((v.photos||[]).length ? '' : ' · <span style="color:var(--red)">no photo</span>') + '</div></div>' +
+        '</div>';
+      }).join('') + '</div>'
+    : '<div class="small-muted">Every car in your published stock is already picked.</div>') +
+  '</div>';
+}
 /* ---------- pages and sections ---------- */
 function wbSecSummary(s){
   if(s.type==='hero'){ const n=(s.slides||[]).length; const h=(s.slides&&s.slides[0]&&s.slides[0].heading)||''; return `${n} slide${n===1?'':'s'}${h?` · \u201c${h}\u201d`:''}`; }
@@ -8985,7 +9910,8 @@ function editSiteSection(pid, sid){
         <option value="all" ${s.showAll!==false?'selected':''}>A few, with a "view all cars" button</option>
         <option value="every" ${s.showAll===false?'selected':''}>Every available car</option></select></div>
       <div class="field"><label>How many to show (when "a few")</label><input id="sec_limit" type="number" min="1" value="${s.limit||6}"/></div>
-      <div class="wb-note">ℹ️ Cars come from your stock automatically. Publish stock from the Stock page. The finder (body type and price) appears on its own.</div>`;
+      ${featuredPickerHtml(s.limit||6)}
+      <div class="wb-note">ℹ️ Cars come from your stock automatically. Publish stock from the Stock page after changing this, or the site keeps the old order. The finder (body type and price) appears on its own.</div>`;
   }
   else if(s.type==='text'){
     body = `${field('Heading','sec_title', s.title)}
@@ -10294,6 +11220,9 @@ function openReserve(vid){
     <div class="field"><label>Address</label><input id="rs_addr" value="${escapeAttr(r.address||'')}"/></div>
     <div class="field-row">
       <div class="field"><label>Deposit taken (£)</label><input id="rs_dep" type="number" step="0.01" value="${r.deposit||''}"/></div>
+      <div class="field"><label>Paid by</label>
+        <select id="rs_paid"><option${r.depositPaidBy==='Bank transfer'?' selected':''}>Bank transfer</option><option${r.depositPaidBy==='Cash'?' selected':''}>Cash</option><option${r.depositPaidBy==='Card'?' selected':''}>Card</option><option${r.depositPaidBy==='Other'?' selected':''}>Other</option></select></div>
+      <div class="field"><label>Received on</label><input id="rs_depdate" type="date" value="${r.depositDate||todayISO()}"/></div>
       <div class="field"><label>Collecting on</label><input id="rs_due" type="date" value="${r.dueDate||''}"/></div>
     </div>
     <div class="field"><label>What the customer asked for</label>
@@ -10306,6 +11235,7 @@ function openReserve(vid){
     <div class="modal-actions">
       ${r.at?`<button class="btn btn-ghost" style="margin-right:auto" onclick="cancelReserve('${v.id}')">Cancel the reservation</button>`:''}
       <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+      ${r.at?`<button class="btn btn-ghost" onclick="reservationReceipt('${v.id}')">🖨️ Receipt</button>`:''}
       <button class="btn btn-brand" onclick="saveReserve('${v.id}')">${r.at?'Save':'Reserve it'}</button>
     </div>`);
 }
@@ -10324,6 +11254,8 @@ function saveReserve(vid){
     postcode:(document.getElementById('rs_post').value||'').trim(),
     address:(document.getElementById('rs_addr').value||'').trim(),
     deposit:Number(document.getElementById('rs_dep').value)||0,
+    depositPaidBy:((document.getElementById('rs_paid')||{}).value||'Bank transfer'),
+    depositDate:((document.getElementById('rs_depdate')||{}).value||todayISO()),
     dueDate:due, request:(document.getElementById('rs_req').value||'').trim(),
     at:(v.reserved&&v.reserved.at)||new Date().toISOString(),
     by:(v.reserved&&v.reserved.by)||currentUserName,
@@ -10462,6 +11394,7 @@ async function enterApp(user){
   const stl = document.getElementById('storageTestLink');
   if(stl) stl.style.display = isManager() ? 'block' : 'none';
   setupNotifications();
+  try{ pushBoot(); }catch(e){}
 }
 function bootstrapCurrentUserProfile(){
   let me = DB.team.find(m=>(m.email||'').toLowerCase()===currentUserEmail);
@@ -10499,8 +11432,14 @@ function setupNotifications(){
   updateNotifyToggleLabel();
   if(notificationsEnabledLocally() && typeof Notification!=='undefined' && Notification.permission==='granted'){
     if(notifyInterval) clearInterval(notifyInterval);
-    notifyInterval = setInterval(()=>{ checkAndNotify(); checkLeadReminders(); checkAttendanceReminders(); }, 10*60*1000); // every 10 min while the tab is open
-    setTimeout(()=>{ checkAndNotify(); checkLeadReminders(); checkAttendanceReminders(); }, 4000); // and once shortly after load
+    let notifyBeat = 0;
+    notifyInterval = setInterval(()=>{
+      try{ notifyTick(); }catch(e){}                     // viewings and the daily run-through: every minute
+      if((++notifyBeat % 10) === 0){                     // the slower ones stay on 10 minutes
+        checkAndNotify(); checkLeadReminders(); checkAttendanceReminders();
+      }
+    }, 60*1000);
+    setTimeout(()=>{ try{ notifyTick(); }catch(e){} checkAndNotify(); checkLeadReminders(); checkAttendanceReminders(); }, 4000);
   }
 }
 async function toggleNotifications(){
