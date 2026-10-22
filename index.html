@@ -428,7 +428,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-22 · build 60</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-22 · build 61</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -3192,7 +3192,7 @@ async function studioRunFiles(vId){
       const shot = await studioCompose(cut);
       const res  = await storePhoto(shot);
       if(!res.ref) throw new Error(res.error || 'could not save');
-      v.photos.push({id: res.ref, addedAt: todayISO(), studioAt: todayISO()});
+      v.photos.push({id: res.ref, addedAt: new Date().toISOString(), studioAt: todayISO()});
       ok++; if(ok % 4 === 0) saveDB();
     }catch(e){ bad++; console.error('studio file', e); }
   }
@@ -3679,6 +3679,9 @@ async function vehiclePhotosTab(v){
     <div class="vm-h"><div><h3>📷 Photos for the website</h3>
       <div class="small-muted">The <b>first photo</b> is the main one everywhere. Drag <b>⠿</b> to reorder, or tap ★ to make one the main photo.</div></div>
       <div style="display:flex;gap:7px;flex-wrap:wrap">
+        ${photos.length>1?`<button class="btn btn-sm btn-ghost" title="Put the oldest photo first" onclick="sortVehiclePhotos('${v.id}','asc')">↑ Oldest first</button>
+        <button class="btn btn-sm btn-ghost" title="Put the newest photo first" onclick="sortVehiclePhotos('${v.id}','desc')">↓ Newest first</button>
+        <button class="btn btn-sm btn-ghost" title="Flip the order" onclick="reverseVehiclePhotos('${v.id}')">⇅ Flip</button>`:''}
         ${isManager()&&photos.length?`<button class="btn btn-sm btn-ghost" onclick="openStudioPhotos('${v.id}')">📸 Studio background</button>`:''}
         <button class="btn btn-sm btn-ghost" onclick="openMediaGuide('vehicle')">📷 Photo guide</button></div></div>
     <div class="wb-gal vm-gal" id="vpGal">${photos.map((p,i)=>`<div class="g" data-id="${p.id}">
@@ -3760,12 +3763,45 @@ async function uploadVehiclePhotos(vId, files){
     n++; wbToast('Uploading photo ' + n + ' of ' + files.length + '…');
     try{
       const blob = await compressImage(f, 1600, 0.82); const res = await storePhoto(blob);
-      if(res.ref){ v.photos.push({id:res.ref, addedAt:todayISO()}); notePhotoFallback(res); }
+      if(res.ref){ v.photos.push({id:res.ref, addedAt: new Date().toISOString()}); notePhotoFallback(res); }
       else alert("A photo couldn't be saved. Error: " + (res.error||'unknown'));
     }catch(e){ alert("A photo couldn't be read: " + (e.message||e)); }
   }
   saveDB(); renderVehicleDetail(); wbToast('Photos added');
 }
+
+/* ---------- putting the photos in a chosen order ---------- */
+function sortVehiclePhotos(vId, dir){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vId; });
+  if(!v || !(v.photos||[]).length) return;
+  const was = v.photos.map(function(p){ return p.id; }).join(',');
+  /* one canonical order, worked out the same way every time, so asc and desc are
+     exact opposites and toggling always lands back where it started. Older photos
+     only carry a date, so same-day ones settle by id rather than by where they
+     happen to be sitting now. */
+  const asc = v.photos.slice().sort(function(a,b){
+    return String(a.addedAt||'').localeCompare(String(b.addedAt||'')) ||
+           String(a.id||'').localeCompare(String(b.id||''));
+  });
+  v.photos = dir === 'desc' ? asc.reverse() : asc;
+  const now = v.photos.map(function(p){ return p.id; }).join(',');
+  saveDB();
+  if(typeof renderVehicleDetail === 'function') renderVehicleDetail(); else render();
+  if(typeof wbToast === 'function'){
+    wbToast(was === now
+      ? 'Already in that order'
+      : (dir === 'desc' ? 'Newest photo first' : 'Oldest photo first') + ' — the first one is the main photo');
+  }
+}
+function reverseVehiclePhotos(vId){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vId; });
+  if(!v || (v.photos||[]).length < 2) return;
+  v.photos.reverse();
+  saveDB();
+  if(typeof renderVehicleDetail === 'function') renderVehicleDetail(); else render();
+  if(typeof wbToast === 'function') wbToast('Order flipped — the first one is the main photo');
+}
+
 function makeMainPhoto(vId, id){
   const v = DB.vehicles.find(x=>x.id===vId); const i = (v.photos||[]).findIndex(p=>p.id===id); if(i<=0) return;
   const [p] = v.photos.splice(i,1); v.photos.unshift(p); saveDB(); renderVehicleDetail(); wbToast('Main photo changed');
@@ -3986,7 +4022,7 @@ async function uploadVehiclePhoto(vId, input){
   const res = await storePhoto(blob);
   if(!res.ref){ alert("The photo couldn't be saved. Error: " + (res.error||'unknown')); return; }
   if(!v.photos) v.photos=[];
-  v.photos.push({id:res.ref, addedAt: todayISO()});
+  v.photos.push({id:res.ref, addedAt: new Date().toISOString()});
   saveDB(); renderVehicleDetail(); notePhotoFallback(res);
 }
 function openVehiclePhoto(vId, idx){
@@ -4425,7 +4461,7 @@ async function uploadLicence(vId, input){
   const res = await storePhoto(blob);
   if(!res.ref){ alert("The licence couldn't be saved. Error: " + (res.error||'unknown')); return; }
   if(!v.licenceDocs) v.licenceDocs=[];
-  v.licenceDocs.push({id:res.ref, isPdf, addedAt: todayISO(), by: currentUserName||''});
+  v.licenceDocs.push({id:res.ref, isPdf, addedAt: new Date().toISOString(), by: currentUserName||''});
   logChange('sale','Uploaded customer ID for', vehRef(v), 'Driving licence', '', 'added');
   saveDB(); renderVehicleDetail(); notePhotoFallback(res);
 }
