@@ -428,7 +428,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-22 · build 59</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-22 · build 60</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -3307,19 +3307,12 @@ function renderStock(){
   `;
 }
 
-/* Whatever has been picked to lead the page comes first, in that order, so the
-   site's "first few cars" are exactly the ones chosen in the Website tab. */
-function featuredSorted(list){
-  const pick = (DB.featuredCars||[]);
-  const rank = v => { const i = pick.indexOf(v.id); return i < 0 ? 9999 : i; };
-  return list.slice().sort((a,b) => (rank(a)-rank(b)) || (b.dateAdded||'').localeCompare(a.dateAdded||''));
-}
 /* Builds stock.json for the public website. Only customer-facing fields are
    included — never costs, margins, customers or supplier details. */
 function exportStockForWebsite(){
   if(!isManager()) return;
-  const pub = featuredSorted(DB.vehicles
-    .filter(v => v.status === 'ready' || v.status === 'sold'))
+  const pub = DB.vehicles
+    .filter(v => v.status === 'ready' || v.status === 'sold')
     .map(v => ({
       id: v.id,
       make: v.make || '',
@@ -3337,8 +3330,7 @@ function exportStockForWebsite(){
       video: (v.videoUrl||'').trim(),
       spin: (v.spin||[]).length >= SPIN_MIN ? (v.spin||[]).map(p => photoUrlSync(p.id)).filter(Boolean) : [],
       spinEmbed: (v.spinEmbed||'').trim(),
-      status: v.sale ? 'sold' : 'available',
-      featured: (DB.featuredCars||[]).indexOf(v.id) >= 0
+      status: v.sale ? 'sold' : 'available'
     }));
   const withoutPhotos = pub.filter(c => !c.photos.length).length;
   const blob = new Blob([JSON.stringify(pub, null, 2)], {type:'application/json'});
@@ -3352,8 +3344,8 @@ function exportStockForWebsite(){
    It writes to a SEPARATE public_stock table — never app_data — so the public
    site can read stock without ever being able to see costs, customers or payroll. */
 function publicStockPayload(){
-  return featuredSorted(DB.vehicles
-    .filter(v => v.status === 'ready' || v.status === 'sold'))
+  return DB.vehicles
+    .filter(v => v.status === 'ready' || v.status === 'sold')
     .map(v => ({
       id: v.id, make: v.make||'', model: v.model||'', year: v.year||'',
       price: Number(v.askingPrice)||0, mileage: v.mileage||'', fuel: v.fuel||'',
@@ -3363,17 +3355,14 @@ function publicStockPayload(){
       video: (v.videoUrl||'').trim(),
       spin: (v.spin||[]).length >= SPIN_MIN ? (v.spin||[]).map(p=>photoUrlSync(p.id)).filter(Boolean) : [],
       spinEmbed: (v.spinEmbed||'').trim(),
-      status: v.sale ? 'sold' : 'available',
-      featured: (DB.featuredCars||[]).indexOf(v.id) >= 0
+      status: v.sale ? 'sold' : 'available'
     }));
 }
 async function publishToWebsite(){
   if(!isManager()) return;
   const cars = publicStockPayload();
   const noPhotos = cars.filter(c=>!c.photos.length).length;
-  const picked = cars.filter(c=>c.featured).length;
   if(!confirm(`Publish ${cars.length} car${cars.length===1?'':'s'} to the website?` +
-      (picked?`\n\n${picked} hand-picked car${picked===1?'':'s'} will lead the page.`:'') +
       (noPhotos?`\n\n${noPhotos} have no photos yet.`:'') +
       `\n\nOnly make, model, price, spec, description and photos are published. Costs, customers and figures are never sent.`)) return;
   try{
@@ -9557,104 +9546,144 @@ function renderSiteBuilder(){
 }
 
 /* ---------- choosing which cars lead the page ---------- */
-function featuredList(){ return (DB.featuredCars || []).slice(); }
-function setFeatured(ids){ DB.featuredCars = ids.slice(0,24); }
+function carsSectionMode(s){ return s && s.mode === 'pick' ? 'pick' : 'auto'; }
+function carsSectionPick(s){ return (s && Array.isArray(s.pick)) ? s.pick.slice() : []; }
 function websiteCars(){
   return (DB.vehicles||[]).filter(function(v){
-    return (v.status === 'ready' || v.status === 'sold') && !v.sale;
+    return (v.status === 'ready' || v.status === 'sold') && v.published !== false;
   });
 }
-function featuredPick(vId){
-  const list = featuredList();
-  const at = list.indexOf(vId);
-  if(at >= 0) list.splice(at,1); else list.push(vId);
-  setFeatured(list); touchSite(); saveDB(); render();
-}
-function featuredMove(vId, dir){
-  const list = featuredList();
-  const at = list.indexOf(vId);
-  const to = at + dir;
-  if(at < 0 || to < 0 || to >= list.length) return;
-  list.splice(to, 0, list.splice(at,1)[0]);
-  setFeatured(list); touchSite(); saveDB(); render();
-}
-function featuredClear(){
-  if(!confirm('Go back to showing the newest cars first?')) return;
-  DB.featuredCars = []; touchSite(); saveDB(); render();
-}
-/* the cars the site will lead with, in order, skipping anything gone */
-function featuredResolved(){
+function carsPickResolved(s){
   const live = websiteCars();
-  return featuredList()
+  return carsSectionPick(s)
     .map(function(id){ return live.find(function(v){ return v.id===id; }); })
     .filter(Boolean);
 }
-function featuredPickerHtml(limit){
-  const live = websiteCars();
-  const chosen = featuredResolved();
+/* every one of these collects the open form first, so a half-typed title is not lost,
+   then reopens the editor so the change is actually visible */
+function carsPickToggle(pid, sid, vId){
+  wbCollect(pid, sid);
+  const s = wbFind(pid, sid); if(!s) return;
+  const list = carsSectionPick(s);
+  const at = list.indexOf(vId);
+  if(at >= 0) list.splice(at,1); else list.push(vId);
+  s.pick = list.slice(0,40);
+  s.mode = s.pick.length ? 'pick' : 'auto';
+  wbReopen(pid, sid);
+}
+function carsPickMove(pid, sid, vId, dir){
+  wbCollect(pid, sid);
+  const s = wbFind(pid, sid); if(!s) return;
+  const list = carsSectionPick(s);
+  const at = list.indexOf(vId), to = at + dir;
+  if(at < 0 || to < 0 || to >= list.length) return;
+  list.splice(to, 0, list.splice(at,1)[0]);
+  s.pick = list;
+  wbReopen(pid, sid);
+}
+function carsPickClear(pid, sid){
+  if(!confirm('Go back to showing the newest cars automatically?')) return;
+  wbCollect(pid, sid);
+  const s = wbFind(pid, sid); if(!s) return;
+  s.pick = []; s.mode = 'auto';
+  wbReopen(pid, sid);
+}
+function carsPickMode(pid, sid, mode){
+  wbCollect(pid, sid);
+  const s = wbFind(pid, sid); if(!s) return;
+  s.mode = mode === 'pick' ? 'pick' : 'auto';
+  if(s.mode === 'pick' && !carsSectionPick(s).length) s.pick = [];
+  wbReopen(pid, sid);
+}
+function carsPickLabel(v){
+  return [v.year, v.make, v.model].filter(Boolean).join(' ') || v.reg || 'Car';
+}
+function carsPickShot(v, size){
+  const w = size || 54, h = Math.round(w*0.72);
+  const p = (v.photos||[])[0];
+  const u = p ? photoUrlSync(p.id) : '';
+  return u
+    ? '<img src="'+u+'" style="width:'+w+'px;height:'+h+'px;object-fit:cover;border-radius:4px;flex:0 0 '+w+'px"/>'
+    : '<div style="width:'+w+'px;height:'+h+'px;border-radius:4px;background:#E8EAEE;flex:0 0 '+w+'px;' +
+      'display:flex;align-items:center;justify-content:center;font-size:9px;color:#8A9099;text-align:center;line-height:1.1">no<br>photo</div>';
+}
+function featuredPickerHtml(pid, sid, s){
+  const mode = carsSectionMode(s);
+  const chosen = carsPickResolved(s);
   const chosenIds = chosen.map(function(v){ return v.id; });
-  const rest = live.filter(function(v){ return chosenIds.indexOf(v.id) < 0; })
-                   .sort(function(a,b){ return (b.dateAdded||'').localeCompare(a.dateAdded||''); });
-  const label = function(v){
-    return [v.year, v.make, v.model].filter(Boolean).join(' ') || v.reg || 'Car';
-  };
-  const shot = function(v){
-    const p = (v.photos||[])[0];
-    const u = p ? photoUrlSync(p.id) : '';
-    return u ? '<img src="'+u+'" style="width:52px;height:38px;object-fit:cover;border-radius:4px;flex:0 0 52px"/>'
-             : '<div style="width:52px;height:38px;border-radius:4px;background:var(--line);flex:0 0 52px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted)">no photo</div>';
-  };
-  const n = Number(limit)||6;
+  const live = websiteCars();
+  const q = "'"+pid+"','"+sid+"'";
 
-  return '<div class="field"><label>Which cars lead the page</label>' +
-  '<div class="wb-note" style="margin-bottom:8px">' +
-    (chosen.length
-      ? 'The page shows <b>' + n + '</b> car' + (n===1?'':'s') + '. You have picked <b>' + chosen.length + '</b>' +
-        (chosen.length > n ? ' — only the first ' + n + ' will appear.' :
-         (chosen.length < n ? ', and the newest cars fill the other ' + (n-chosen.length) + '.' : '.'))
-      : 'Nothing picked, so the page shows the newest cars first. Tap a car below to put it at the front.') +
-  '</div>' +
+  const modeRow =
+    '<div class="field"><label>Which cars</label>' +
+    '<select onchange="carsPickMode('+q+',this.value)">' +
+      '<option value="auto"'+(mode==='auto'?' selected':'')+'>The newest cars, automatically</option>' +
+      '<option value="pick"'+(mode==='pick'?' selected':'')+'>Only the ones I choose, in my order</option>' +
+    '</select></div>';
 
-  (chosen.length ? '<div style="margin-bottom:10px">' +
-    chosen.map(function(v,i){
-      const over = i >= n;
-      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 7px;border:1px solid var(--line);' +
-        'border-left:3px solid ' + (over?'var(--line)':'var(--brand)') + ';border-radius:5px;margin-bottom:5px;' +
-        (over?'opacity:.5':'') + '">' +
-        '<b style="width:18px;text-align:center;color:var(--muted)">' + (i+1) + '</b>' +
-        shot(v) +
-        '<div style="flex:1;min-width:0"><b style="font-size:12.5px">' + escapeHtml(label(v)) + '</b>' +
-          '<div class="small-muted">' + escapeHtml(v.reg||'') +
-          (v.askingPrice ? ' · ' + fmtMoney(v.askingPrice) : ' · no price') +
-          ((v.photos||[]).length ? '' : ' · <span style="color:var(--red)">no photo</span>') + '</div></div>' +
-        '<button class="wb-mini" onclick="featuredMove(\'' + v.id + '\',-1)"' + (i===0?' disabled':'') + '>▲</button>' +
-        '<button class="wb-mini" onclick="featuredMove(\'' + v.id + '\',1)"' + (i===chosen.length-1?' disabled':'') + '>▼</button>' +
-        '<button class="wb-mini del" onclick="featuredPick(\'' + v.id + '\')">✕</button>' +
-      '</div>';
-    }).join('') +
-    '<button class="wb-mini" onclick="featuredClear()">Clear and use the newest instead</button></div>' : '') +
+  if(mode !== 'pick'){
+    return modeRow +
+      '<div class="small-muted" style="margin:-4px 0 10px">The page fills itself from your stock, newest first. ' +
+      'Switch to <b>only the ones I choose</b> to put particular cars at the front.</div>';
+  }
 
-  '<div class="small-muted" style="margin:8px 0 5px">' +
-    (chosen.length ? 'Add another' : 'Pick from your published stock') + ' — tap to add' +
-  '</div>' +
-  (rest.length
-    ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:6px;max-height:260px;overflow:auto;padding-right:4px">' +
-      rest.map(function(v){
-        return '<div onclick="featuredPick(\'' + v.id + '\')" style="display:flex;align-items:center;gap:7px;' +
-          'padding:5px 7px;border:1px solid var(--line);border-radius:5px;cursor:pointer">' +
-          shot(v) +
-          '<div style="flex:1;min-width:0"><b style="font-size:12px">' + escapeHtml(label(v)) + '</b>' +
-          '<div class="small-muted" style="font-size:10.5px">' + escapeHtml(v.reg||'') +
-          ((v.photos||[]).length ? '' : ' · <span style="color:var(--red)">no photo</span>') + '</div></div>' +
-        '</div>';
-      }).join('') + '</div>'
-    : '<div class="small-muted">Every car in your published stock is already picked.</div>') +
-  '</div>';
+  const picked = chosen.map(function(v,i){
+    return '<div style="display:flex;align-items:center;gap:9px;padding:6px 8px;border:1px solid var(--line);' +
+      'border-left:3px solid var(--brand);border-radius:6px;margin-bottom:6px;background:#fff">' +
+      '<b style="width:20px;text-align:center;color:var(--brand);font-size:14px">' + (i+1) + '</b>' +
+      carsPickShot(v) +
+      '<div style="flex:1;min-width:0"><b style="font-size:12.5px">' + escapeHtml(carsPickLabel(v)) + '</b>' +
+        '<div class="small-muted">' + escapeHtml(v.reg||'') +
+        (v.askingPrice ? ' · ' + fmtMoney(v.askingPrice) : ' · <span style="color:var(--red)">no price</span>') +
+        ((v.photos||[]).length ? '' : ' · <span style="color:var(--red)">no photo</span>') + '</div></div>' +
+      '<button class="wb-mini" onclick="carsPickMove('+q+',\'' + v.id + '\',-1)"' + (i===0?' disabled':'') + '>▲</button>' +
+      '<button class="wb-mini" onclick="carsPickMove('+q+',\'' + v.id + '\',1)"' + (i===chosen.length-1?' disabled':'') + '>▼</button>' +
+      '<button class="wb-mini del" onclick="carsPickToggle('+q+',\'' + v.id + '\')">✕</button>' +
+    '</div>';
+  }).join('');
+
+  const grid = live.map(function(v){
+    const at = chosenIds.indexOf(v.id);
+    const on = at >= 0;
+    return '<div onclick="carsPickToggle('+q+',\'' + v.id + '\')" title="' +
+      (on?'Tap to remove':'Tap to add') + '" style="position:relative;display:flex;align-items:center;gap:8px;' +
+      'padding:6px 8px;border:' + (on?'2px solid var(--brand);background:var(--brand-dim)':'1px solid var(--line);background:#fff') +
+      ';border-radius:6px;cursor:pointer;user-select:none">' +
+      (on ? '<span style="position:absolute;top:-7px;left:-7px;width:20px;height:20px;border-radius:50%;' +
+            'background:var(--brand);color:#fff;font-size:11px;font-weight:800;display:flex;' +
+            'align-items:center;justify-content:center">' + (at+1) + '</span>' : '') +
+      carsPickShot(v, 46) +
+      '<div style="flex:1;min-width:0"><b style="font-size:12px">' + escapeHtml(carsPickLabel(v)) + '</b>' +
+      '<div class="small-muted" style="font-size:10.5px">' + escapeHtml(v.reg||'') +
+      ((v.photos||[]).length ? '' : ' · <span style="color:var(--red)">no photo</span>') + '</div></div>' +
+    '</div>';
+  }).join('');
+
+  return modeRow +
+    '<div class="small-muted" style="margin:-4px 0 9px">' +
+      (chosen.length
+        ? 'The website shows these <b>' + chosen.length + '</b>, in this order, and nothing else.'
+        : '<b>Nothing picked yet.</b> Tap a car below — it will number itself in the order you pick.') +
+    '</div>' +
+    (chosen.length ? '<div style="margin-bottom:10px">' + picked +
+      '<button class="wb-mini" onclick="carsPickClear('+q+')">Clear them all</button></div>' : '') +
+    '<div class="small-muted" style="margin:10px 0 6px">' +
+      (chosen.length ? 'Tap to add or remove' : 'Your published stock — tap to add') + '</div>' +
+    (live.length
+      ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(186px,1fr));gap:7px;' +
+        'max-height:300px;overflow:auto;padding:4px">' + grid + '</div>'
+      : '<div class="small-muted">No cars are marked ready yet, so there is nothing to choose from.</div>') +
+    '<div class="wb-note" style="margin-top:10px">ℹ️ Tap <b>Save</b>, then <b>Publish</b>. ' +
+    'Changing the order here does not need the stock publishing again.</div>';
 }
 /* ---------- pages and sections ---------- */
 function wbSecSummary(s){
   if(s.type==='hero'){ const n=(s.slides||[]).length; const h=(s.slides&&s.slides[0]&&s.slides[0].heading)||''; return `${n} slide${n===1?'':'s'}${h?` · \u201c${h}\u201d`:''}`; }
-  if(s.type==='cars') return (s.title||'Cars') + (s.showAll===false ? ' · every available car' : ` · up to ${s.limit||6} cars`);
+  if(s.type==='cars'){
+    if(carsSectionMode(s)==='pick'){ const n=carsSectionPick(s).length;
+      return (s.title||'Cars') + ' · ' + (n ? n + ' hand-picked car' + (n===1?'':'s') : 'hand-picked, none chosen yet'); }
+    return (s.title||'Cars') + (s.showAll===false ? ' · every available car' : ` · up to ${s.limit||6} cars`);
+  }
   if(s.type==='gallery') return `${s.title||'Gallery'} · ${(s.photoIds||[]).length} photos`;
   if(s.type==='steps'||s.type==='features') return `${s.title||''} · ${(s.items||[]).length} items`;
   if(s.type==='reviews') return `${s.title||''} · ${(s.items||[]).length} reviews`;
@@ -9910,8 +9939,8 @@ function editSiteSection(pid, sid){
         <option value="all" ${s.showAll!==false?'selected':''}>A few, with a "view all cars" button</option>
         <option value="every" ${s.showAll===false?'selected':''}>Every available car</option></select></div>
       <div class="field"><label>How many to show (when "a few")</label><input id="sec_limit" type="number" min="1" value="${s.limit||6}"/></div>
-      ${featuredPickerHtml(s.limit||6)}
-      <div class="wb-note">ℹ️ Cars come from your stock automatically. Publish stock from the Stock page after changing this, or the site keeps the old order. The finder (body type and price) appears on its own.</div>`;
+      ${featuredPickerHtml(pid, sid, s)}
+      <div class="wb-note">ℹ️ The finder (body type and price) appears on its own. A car only shows here once it is marked ready and its stock has been published.</div>`;
   }
   else if(s.type==='text'){
     body = `${field('Heading','sec_title', s.title)}
