@@ -428,7 +428,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-22 · build 61</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-22 · build 62</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -3311,8 +3311,7 @@ function renderStock(){
    included — never costs, margins, customers or supplier details. */
 function exportStockForWebsite(){
   if(!isManager()) return;
-  const pub = DB.vehicles
-    .filter(v => v.status === 'ready' || v.status === 'sold')
+  const pub = webShowCars()
     .map(v => ({
       id: v.id,
       make: v.make || '',
@@ -3330,7 +3329,7 @@ function exportStockForWebsite(){
       video: (v.videoUrl||'').trim(),
       spin: (v.spin||[]).length >= SPIN_MIN ? (v.spin||[]).map(p => photoUrlSync(p.id)).filter(Boolean) : [],
       spinEmbed: (v.spinEmbed||'').trim(),
-      status: v.sale ? 'sold' : 'available'
+      status: webState(v).status
     }));
   const withoutPhotos = pub.filter(c => !c.photos.length).length;
   const blob = new Blob([JSON.stringify(pub, null, 2)], {type:'application/json'});
@@ -3344,8 +3343,7 @@ function exportStockForWebsite(){
    It writes to a SEPARATE public_stock table — never app_data — so the public
    site can read stock without ever being able to see costs, customers or payroll. */
 function publicStockPayload(){
-  return DB.vehicles
-    .filter(v => v.status === 'ready' || v.status === 'sold')
+  return webShowCars()
     .map(v => ({
       id: v.id, make: v.make||'', model: v.model||'', year: v.year||'',
       price: Number(v.askingPrice)||0, mileage: v.mileage||'', fuel: v.fuel||'',
@@ -3355,14 +3353,21 @@ function publicStockPayload(){
       video: (v.videoUrl||'').trim(),
       spin: (v.spin||[]).length >= SPIN_MIN ? (v.spin||[]).map(p=>photoUrlSync(p.id)).filter(Boolean) : [],
       spinEmbed: (v.spinEmbed||'').trim(),
-      status: v.sale ? 'sold' : 'available'
+      status: webState(v).status
     }));
 }
 async function publishToWebsite(){
   if(!isManager()) return;
   const cars = publicStockPayload();
   const noPhotos = cars.filter(c=>!c.photos.length).length;
+  const byState = s => cars.filter(c=>c.status===s).length;
+  const hidden = (DB.vehicles||[]).filter(v=>!webState(v).include && v.status!=='scrap').length;
   if(!confirm(`Publish ${cars.length} car${cars.length===1?'':'s'} to the website?` +
+      `\n\n${byState('available')} on sale` +
+      (byState('reserved')?`, ${byState('reserved')} reserved`:'') +
+      (byState('coming')?`, ${byState('coming')} coming soon`:'') +
+      (byState('sold')?`, ${byState('sold')} sold`:'') + '.' +
+      (hidden?`\n${hidden} car${hidden===1?' is':'s are'} hidden from the site.`:'') +
       (noPhotos?`\n\n${noPhotos} have no photos yet.`:'') +
       `\n\nOnly make, model, price, spec, description and photos are published. Costs, customers and figures are never sent.`)) return;
   try{
@@ -3555,6 +3560,7 @@ function changeVehicleStatus(id, status){
 
 function vehicleOverviewTab(v,cost,margin){
   return `
+  ${webShowCardHtml(v)}
   <div class="grid kpi-grid">
     <div class="card kpi"><div class="label">Status</div><div class="value small"><span class="tag ${statusTagClass(v.status)}">${statusLabel(v.status)}</span></div></div>
     <div class="card kpi"><div class="label">Total cost so far</div><div class="value small">${fmtMoney(cost)}</div></div>
@@ -9581,14 +9587,81 @@ function renderSiteBuilder(){
   </div>`;
 }
 
+/* ---------- whether a car appears on the website, and how ---------- */
+const WEB_SHOW_OPTS = [
+  ['auto',   'Decide for me'],
+  ['always', 'Always show it'],
+  ['never',  'Never show it']
+];
+/* 'auto' means: on sale when ready, flagged when reserved or sold, hidden while
+   it is still being worked on. 'always' overrides that, so a car in the workshop
+   can go up as coming soon. */
+function webState(v){
+  const choice = v.webShow || 'auto';
+  const sold = !!v.sale || v.status === 'sold';
+  const reserved = !!v.reserved && !sold;
+  let status = sold ? 'sold' : (reserved ? 'reserved'
+             : (v.status === 'ready' ? 'available' : 'coming'));
+  let include;
+  if(choice === 'never')      include = false;
+  else if(choice === 'always') include = true;
+  else                         include = (v.status === 'ready' || sold || reserved);
+  if(v.status === 'scrap' && choice !== 'always') include = false;
+  return { include: include, status: status, choice: choice,
+           sold: sold, reserved: reserved, coming: status === 'coming' };
+}
+function webShowCars(){ return (DB.vehicles||[]).filter(function(v){ return webState(v).include; }); }
+function setWebShow(vId, choice){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vId; });
+  if(!v) return;
+  const was = v.webShow || 'auto';
+  v.webShow = (choice === 'always' || choice === 'never') ? choice : 'auto';
+  if(typeof logChange === 'function' && was !== v.webShow){
+    logChange('stock','Website visibility', vehRef(v), 'Show on website', was, v.webShow, '');
+  }
+  saveDB();
+  if(typeof renderVehicleDetail === 'function') renderVehicleDetail(); else render();
+  const st = webState(v);
+  if(typeof wbToast === 'function'){
+    wbToast(!st.include ? 'Hidden from the website'
+      : (st.status === 'coming' ? 'Will show as coming soon'
+      : (st.status === 'reserved' ? 'Will show as reserved'
+      : (st.status === 'sold' ? 'Will show as sold' : 'Will show as on sale'))) +
+      ' — publish stock to apply it');
+  }
+}
+function webShowCardHtml(v){
+  const st = webState(v);
+  const line = !st.include
+    ? '<b style="color:var(--red)">Not on the website.</b> ' +
+      (st.choice === 'never' ? 'You have hidden this one.'
+       : 'Cars still being worked on stay off until they are ready — choose <b>Always show it</b> to put it up as coming soon.')
+    : st.status === 'coming'
+      ? '<b style="color:#8A5B07">Shows as coming soon.</b> It is not ready yet, so customers see it without a buy-now call.'
+      : st.status === 'reserved'
+        ? '<b style="color:var(--brand)">Shows as reserved.</b> Still listed, marked so nobody enquires about it.'
+        : st.status === 'sold'
+          ? '<b>Shows as sold.</b> Proof you shift stock — switch to <b>Never</b> to take it down.'
+          : '<b style="color:var(--green)">On sale.</b> Listed normally.';
+  const warn = st.include && !(v.photos||[]).length
+    ? '<div style="color:var(--red);margin-top:5px">No photos, so it will show as an empty grey box. Add some first.</div>' : '';
+  return '<div class="card" style="margin-bottom:14px">' +
+    '<div class="flex-between" style="gap:12px;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:200px"><b>🌐 On the website</b>' +
+        '<div class="small-muted" style="margin-top:3px">' + line + warn + '</div></div>' +
+      '<select style="min-width:168px" onchange="setWebShow(\'' + v.id + '\',this.value)">' +
+        WEB_SHOW_OPTS.map(function(o){
+          return '<option value="'+o[0]+'"'+(st.choice===o[0]?' selected':'')+'>'+o[1]+'</option>';
+        }).join('') +
+      '</select>' +
+    '</div>' +
+    '<div class="small-muted" style="margin-top:7px">Changes here reach customers only when you <b>publish stock</b>.</div>' +
+  '</div>';
+}
 /* ---------- choosing which cars lead the page ---------- */
 function carsSectionMode(s){ return s && s.mode === 'pick' ? 'pick' : 'auto'; }
 function carsSectionPick(s){ return (s && Array.isArray(s.pick)) ? s.pick.slice() : []; }
-function websiteCars(){
-  return (DB.vehicles||[]).filter(function(v){
-    return (v.status === 'ready' || v.status === 'sold') && v.published !== false;
-  });
-}
+function websiteCars(){ return webShowCars(); }
 function carsPickResolved(s){
   const live = websiteCars();
   return carsSectionPick(s)
