@@ -79,6 +79,17 @@
   .nav-item.active{ background:linear-gradient(90deg,#E1060038,#E106000d); color:#fff; box-shadow:inset 3px 0 0 #E10600; }
   .nav-item .dot{ width:7px;height:7px;border-radius:50%; background:var(--amber); display:none;}
   .nav-item.has-alert .dot{ display:inline-block; }
+  .nav-group{ margin:6px 0 2px; }
+  .nav-head{ display:flex; align-items:center; gap:8px; margin:2px 10px; padding:8px 12px; cursor:pointer;
+    color:#8B9199; font-size:11.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    border-radius:8px; user-select:none; }
+  .nav-head:hover{ background:#ffffff08; color:#C7CCD1; }
+  .nav-head .chev{ font-size:10px; transition:transform .16s ease; display:inline-block; transform:rotate(90deg); }
+  .nav-group.closed .nav-head .chev{ transform:rotate(0deg); }
+  .nav-head .dot{ width:7px;height:7px;border-radius:50%; background:var(--amber); display:none; margin-left:auto; }
+  .nav-group.has-alert .nav-head .dot{ display:inline-block; }
+  .nav-group.closed .nav-sub{ display:none; }
+  .nav-sub .nav-item{ margin-left:18px; margin-right:10px; font-size:14.5px; }
   #sidebar .foot{ margin-top:auto; padding:14px 20px 4px; color:#7D848B; font-size:11px; }
 
   /* ---------- Main ---------- */
@@ -428,7 +439,7 @@
     <div id="loginError" style="color:#B23A24;font-size:12.5px;margin-bottom:8px;display:none;"></div>
     <button class="btn btn-brand" style="width:100%;justify-content:center;min-height:44px;" onclick="doLogin()">Sign in</button>
     <div style="color:#9AA0A6;font-size:11.5px;margin-top:14px;">Don't have an account? Ask your manager to add you in the Supabase dashboard under Authentication → Users.</div>
-    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-22 · build 62</div>
+    <div style="color:#6B7075;font-size:10.5px;margin-top:10px;letter-spacing:.4px;">Version 2026-10-26 · build 65</div>
   </div>
 </div>
 <div id="app" style="display:none;">
@@ -444,18 +455,37 @@
     </div>
     <div id="sidebarNavItems">
       <div class="nav-item" data-tab="dashboard" onclick="App.go('dashboard')">📊 Dashboard</div>
-      <div class="nav-item" data-tab="stock" onclick="App.go('stock')">🚗 Stock</div>
-      <div class="nav-item" data-tab="leads" onclick="App.go('leads')">🎯 Leads <span class="dot"></span></div>
       <div class="nav-item has-alert" data-tab="tasks" onclick="App.go('tasks')">✅ Daily Tasks <span class="dot"></span></div>
-      <div class="nav-item" data-tab="team" onclick="App.go('team')">👥 Team &amp; Pay</div>
-      <div class="nav-item" data-tab="customers" onclick="App.go('customers')">🧾 Customers &amp; Sales</div>
-      <div class="nav-item" data-tab="reports" onclick="App.go('reports')">📈 Reports</div>
-      <div class="nav-item" data-tab="boardroom" onclick="App.go('boardroom')">💡 Ideas &amp; Capital</div>
-      <div class="nav-item" data-tab="muzaribat" onclick="App.go('muzaribat')">🤝 Muzaribat</div>
-      <div class="nav-item" data-tab="company" onclick="App.go('company')">🏛️ Company assets</div>
-      <div class="nav-item" data-tab="forms" onclick="App.go('forms')">🖨️ Forms</div>
-      <div class="nav-item" data-tab="website" onclick="App.go('website')">🌐 Website</div>
-      <div class="nav-item" data-tab="audit" onclick="App.go('audit')">🔍 Change log</div>
+
+      <div class="nav-group" data-group="cars">
+        <div class="nav-head" onclick="navToggle('cars')"><span class="chev">▸</span>Cars &amp; customers<span class="dot"></span></div>
+        <div class="nav-sub">
+          <div class="nav-item" data-tab="stock" onclick="App.go('stock')">🚗 Stock</div>
+          <div class="nav-item" data-tab="leads" onclick="App.go('leads')">🎯 Leads <span class="dot"></span></div>
+          <div class="nav-item" data-tab="customers" onclick="App.go('customers')">🧾 Customers &amp; Sales</div>
+        </div>
+      </div>
+
+      <div class="nav-group" data-group="money">
+        <div class="nav-head" onclick="navToggle('money')"><span class="chev">▸</span>Money<span class="dot"></span></div>
+        <div class="nav-sub">
+          <div class="nav-item" data-tab="cashbook" onclick="App.go('cashbook')">📒 Day book</div>
+          <div class="nav-item" data-tab="team" onclick="App.go('team')">👥 Team &amp; Pay</div>
+          <div class="nav-item" data-tab="reports" onclick="App.go('reports')">📈 Reports</div>
+          <div class="nav-item" data-tab="muzaribat" onclick="App.go('muzaribat')">🤝 Muzaribat</div>
+          <div class="nav-item" data-tab="company" onclick="App.go('company')">🏛️ Company assets</div>
+          <div class="nav-item" data-tab="boardroom" onclick="App.go('boardroom')">💡 Ideas &amp; Capital</div>
+        </div>
+      </div>
+
+      <div class="nav-group" data-group="admin">
+        <div class="nav-head" onclick="navToggle('admin')"><span class="chev">▸</span>Set-up<span class="dot"></span></div>
+        <div class="nav-sub">
+          <div class="nav-item" data-tab="website" onclick="App.go('website')">🌐 Website</div>
+          <div class="nav-item" data-tab="forms" onclick="App.go('forms')">🖨️ Forms</div>
+          <div class="nav-item" data-tab="audit" onclick="App.go('audit')">🔍 Change log</div>
+        </div>
+      </div>
       <div class="foot">
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
@@ -1465,7 +1495,7 @@ function vtBody(){
   '<textarea id="vt_text" rows="4" placeholder="speak, or type it here" oninput="VT.text=this.value">' + e(VT.text) + '</textarea></div>' +
 
   '<div style="display:flex;gap:8px;margin-bottom:12px">' +
-  '<button class="btn btn-brand" onclick="vtBuild()">Turn it into tasks</button>' +
+  '<button class="btn btn-brand" id="vt_go" onclick="vtBuild()">Turn it into tasks</button>' +
   '<button class="btn btn-ghost" onclick="VT.text=\'\';VT.rows=[];vtRefresh()">Clear</button></div>' +
 
   '<div id="vt_rows">' + vtRowsHtml() + '</div>';
@@ -1474,7 +1504,10 @@ function vtRowsHtml(){
   if(!VT.rows.length) return '';
   const e = escapeHtml;
   const people = (DB.team||[]).map(function(m){ return m.name; }).filter(Boolean);
-  return '<div class="section-title" style="margin-top:4px"><h2 style="font-size:15px">Check these before they go on the board</h2></div>' +
+  const badge = VT.aiUsed
+    ? '<div class="small-muted" style="margin-bottom:8px">Split by the model. Still worth a glance — names from speech are the usual slip.</div>'
+    : (VT.aiWhy ? '<div class="overdue-banner" style="margin-bottom:8px"><span>' + escapeHtml(VT.aiWhy) + '</span></div>' : '');
+  return '<div class="section-title" style="margin-top:4px"><h2 style="font-size:15px">Check these before they go on the board</h2></div>' + badge +
   VT.rows.map(function(r,i){
     const unknown = !r.assignee;
     return '<div class="card" style="padding:10px;margin-bottom:8px;' +
@@ -1506,14 +1539,62 @@ function vtRefresh(){
   const t = document.getElementById('vt_text');
   if(t && t.value !== VT.text) t.value = VT.text;
 }
-function vtBuild(){
-  const t = document.getElementById('vt_text');
-  VT.text = t ? t.value : VT.text;
-  VT.rows = vtParse(VT.text);
-  if(!VT.rows.length){ alert('Nothing to turn into a task yet — say or type what needs doing.'); return; }
+/* ---------- splitting a spoken note with the model ---------- */
+let VT_AI_BUSY = false;
+function vtAiReady(){ return !!(typeof sb !== 'undefined' && sb && SUPABASE_URL); }
+async function vtBuild(){
+  const box = document.getElementById('vt_text');
+  VT.text = box ? box.value : VT.text;
+  const text = (VT.text||'').trim();
+  if(!text){ alert('Nothing to turn into a task yet — say or type what needs doing.'); return; }
+  if(VT_AI_BUSY) return;
+
+  const btn = document.getElementById('vt_go');
+  const setBusy = function(on){
+    VT_AI_BUSY = on;
+    if(btn){ btn.disabled = on; btn.textContent = on ? 'Working it out…' : 'Turn it into tasks'; }
+  };
+  const people = (DB.team||[]).map(function(m){ return m.name; }).filter(Boolean);
+
+  setBusy(true);
+  let rows = null, why = '';
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    const res = await fetch(SUPABASE_URL + '/functions/v1/split-tasks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + ((session && session.access_token) || SUPABASE_ANON_KEY)
+      },
+      body: JSON.stringify({ text: text, people: people, today: todayISO() })
+    });
+    const out = await res.json().catch(function(){ return {}; });
+    if(res.ok && out && Array.isArray(out.tasks)){
+      rows = out.tasks.map(function(t){
+        return { title:t.title, assignee:t.assignee||'', date:t.date||todayISO(),
+                 priority:t.priority||'standard', heard:t.heard||'' };
+      });
+    } else {
+      why = (out && (out.error || out.detail)) ? String(out.error||'') + (out.detail?(' — '+out.detail):'') : ('HTTP ' + res.status);
+    }
+  }catch(e){ why = String(e.message||e); }
+  setBusy(false);
+
+  if(rows && rows.length){
+    VT.rows = rows; VT.aiUsed = true; VT.aiWhy = '';
+    vtRefresh();
+    return;
+  }
+  /* the model could not be reached, or found nothing — fall back to the
+     plain pattern matching so the button still does something useful */
+  VT.rows = vtParse(text);
+  VT.aiUsed = false;
+  VT.aiWhy = rows && !rows.length ? 'The model found no tasks in that, so this is the simple reading.'
+                                  : ('Could not reach the model (' + (why||'unknown') + '), so this is the simple reading — check it carefully.');
+  if(!VT.rows.length){ alert('Nothing could be turned into a task.' + (why?('\n\n'+why):'')); return; }
   vtRefresh();
-}
-function vtToggle(){ VT.listening ? vtStop() : vtStart(); }
+}function vtToggle(){ VT.listening ? vtStop() : vtStart(); }
 function vtStart(){
   const Eng = voiceEngine();
   if(!Eng) return;
@@ -2450,6 +2531,7 @@ function daysToSell(v){
    ========================================================================= */
 function render(){
   document.querySelectorAll('.nav-item').forEach(n=> n.classList.toggle('active', n.dataset.tab===currentTab));
+  try{ navSync(); }catch(e){}
   // Ideas & Capital is a manager-level section
   const brNav = document.querySelector('.nav-item[data-tab="boardroom"]');
   if(brNav) brNav.style.display = isManager() ? '' : 'none';
@@ -2483,6 +2565,7 @@ function render(){
   else if(currentTab==='boardroom') html = renderBoardroom();
   else if(currentTab==='muzaribat') html = renderMuzaribat();
   else if(currentTab==='company') html = renderCompanyAssets();
+  else if(currentTab==='cashbook') html = renderCashbook();
   else if(currentTab==='forms') html = renderForms();
   else if(currentTab==='website') html = renderSiteBuilder();
   else if(currentTab==='audit') html = renderAudit();
@@ -9587,6 +9670,470 @@ function renderSiteBuilder(){
   </div>`;
 }
 
+/* ---------- the menu, in groups ---------- */
+const NAV_GROUPS = ['cars','money','admin'];
+function navOpenSet(){
+  try{
+    const raw = localStorage.getItem('nav_open');
+    if(raw) return new Set(JSON.parse(raw));
+  }catch(e){}
+  return new Set(['cars']);          /* first time: the one most people want */
+}
+function navSave(set){
+  try{ localStorage.setItem('nav_open', JSON.stringify([...set])); }catch(e){}
+}
+function navToggle(g){
+  const set = navOpenSet();
+  if(set.has(g)) set.delete(g); else set.add(g);
+  navSave(set);
+  navSync();
+}
+/* open whichever group holds the page you are on, hide empty groups,
+   and show a dot on a closed group when something inside needs attention */
+function navSync(){
+  const set = navOpenSet();
+  NAV_GROUPS.forEach(function(g){
+    const el = document.querySelector('.nav-group[data-group="'+g+'"]');
+    if(!el) return;
+    const items = [...el.querySelectorAll('.nav-item')];
+    const shown = items.filter(function(n){ return n.style.display !== 'none'; });
+    el.style.display = shown.length ? '' : 'none';
+    const holdsCurrent = shown.some(function(n){ return n.dataset.tab === currentTab; });
+    const open = holdsCurrent || set.has(g);
+    el.classList.toggle('closed', !open);
+    const alert = shown.some(function(n){ return n.classList.contains('has-alert'); });
+    el.classList.toggle('has-alert', alert && !open);
+  });
+}
+
+/* ================= the day book: every pound in and out ================= */
+const CB_IN_CATS  = ['Car sale','Deposit','Part-exchange','Investor capital','Garage work','Refund','Loan in','Other'];
+const CB_OUT_CATS = ['Car purchase','Parts','Repairs / garage','MOT','Transport / recovery','Valeting',
+                     'Advertising','Rent','Wages','Utilities','Insurance','Fuel','Office','Paying staff back',
+                     'Drawings','Other'];
+function cbCats(dir){ return dir==='out' ? CB_OUT_CATS : CB_IN_CATS; }
+function cbOpening(){
+  const o = DB.cashOpening || {};
+  return { cash: Number(o.cash)||0, bank: Number(o.bank)||0, at: o.at || '' };
+}
+function cbRows(){ return (DB.cashbook||[]).slice(); }
+function cbSorted(){
+  return cbRows().sort(function(a,b){
+    return (a.date||'').localeCompare(b.date||'') || String(a.id).localeCompare(String(b.id));
+  });
+}
+/* running balances, worked out once and keyed by row */
+function cbLedger(){
+  const o = cbOpening();
+  let cash = o.cash, bank = o.bank;
+  const bal = {};
+  cbSorted().forEach(function(r){
+    const amt = Number(r.amount)||0;
+    const sign = r.dir === 'out' ? -1 : 1;
+    if(r.method === 'bank') bank += sign*amt; else cash += sign*amt;
+    bal[r.id] = { cash: cash, bank: bank, total: cash + bank };
+  });
+  return { bal: bal, cash: cash, bank: bank, total: cash + bank, opening: o };
+}
+function cbTotals(from, to){
+  const rows = cbRows().filter(function(r){
+    return (!from || (r.date||'') >= from) && (!to || (r.date||'') <= to);
+  });
+  const sum = function(f){ return rows.filter(f).reduce(function(t,r){ return t+(Number(r.amount)||0); },0); };
+  const inAll  = sum(function(r){ return r.dir!=='out'; });
+  const outAll = sum(function(r){ return r.dir==='out'; });
+  return { rows: rows, in: inAll, out: outAll, net: inAll-outAll,
+           cashIn:  sum(function(r){ return r.dir!=='out' && r.method!=='bank'; }),
+           cashOut: sum(function(r){ return r.dir==='out' && r.method!=='bank'; }),
+           bankIn:  sum(function(r){ return r.dir!=='out' && r.method==='bank'; }),
+           bankOut: sum(function(r){ return r.dir==='out' && r.method==='bank'; }) };
+}
+function cbVehLabel(id){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===id; });
+  if(!v) return '';
+  return (v.reg||'') + ' ' + [v.make,v.model].filter(Boolean).join(' ');
+}
+/* a car-linked payment out should land on that car's cost too */
+function cbApplyToVehicle(r, add){
+  if(!r.vehicleId || r.dir !== 'out') return;
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===r.vehicleId; });
+  if(!v) return;
+  const key = r.costType || 'other';
+  if(!v.costs) v.costs = {};
+  const cur = Number(v.costs[key])||0;
+  v.costs[key] = Math.max(0, cur + (add ? (Number(r.amount)||0) : -(Number(r.amount)||0)));
+}
+function cbLooksDuplicate(r){
+  /* the same car, same money, same day already logged as a staff spend */
+  if(!r.vehicleId) return null;
+  const hit = (DB.expenses||[]).find(function(e){
+    return e.vehicleId === r.vehicleId && e.date === r.date &&
+           Math.abs((Number(e.amount)||0) - (Number(r.amount)||0)) < 0.005;
+  });
+  return hit || null;
+}
+function cbAdd(){
+  if(!isManager()) return;
+  const v = function(i){ const el=document.getElementById(i); return el ? String(el.value).trim() : ''; };
+  const amount = Number(v('cb_amt'))||0;
+  if(!amount){ alert('Put an amount in.'); return; }
+  const dir = v('cb_dir')==='out' ? 'out' : 'in';
+  const row = {
+    id: nextId('cb'), date: v('cb_date')||todayISO(), dir: dir,
+    amount: Math.abs(amount), method: v('cb_method')==='bank' ? 'bank' : 'cash',
+    cat: v('cb_cat')||'Other', vehicleId: v('cb_veh')||'', costType: v('cb_costtype')||'other',
+    who: v('cb_who'), note: v('cb_note'),
+    createdBy: currentUserName||'', createdAt: new Date().toISOString()
+  };
+  const dup = cbLooksDuplicate(row);
+  if(dup && !confirm('A staff spend of ' + fmtMoney(dup.amount) + ' on that car is already logged for that day' +
+      (dup.employee ? ' by ' + dup.employee : '') + '.\n\nThis would be counted twice. Add it anyway?')) return;
+  const toCar = document.getElementById('cb_tocar');
+  row.onVehicle = !!(row.vehicleId && row.dir==='out' && toCar && toCar.checked);
+  (DB.cashbook = DB.cashbook||[]).push(row);
+  if(row.onVehicle) cbApplyToVehicle(row, true);
+  if(typeof logChange === 'function'){
+    logChange('money','Day book entry', {id:row.id,label:(row.note||row.cat)},
+      row.dir==='out'?'Out':'In', '', fmtMoney(row.amount), row.method);
+  }
+  saveDB(); render();
+  if(typeof wbToast === 'function') wbToast(dir==='out' ? 'Money out logged' : 'Money in logged');
+}
+function cbDelete(id){
+  if(!isManager()) return;
+  const r = (DB.cashbook||[]).find(function(x){ return x.id===id; });
+  if(!r) return;
+  if(!confirm('Remove this entry?' + (r.onVehicle ? '\n\nIt will also come back off the car’s costs.' : ''))) return;
+  if(r.onVehicle) cbApplyToVehicle(r, false);
+  DB.cashbook = (DB.cashbook||[]).filter(function(x){ return x.id!==id; });
+  saveDB(); render();
+}
+function cbSaveOpening(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can set the opening balances.'); return; }
+  const v = function(i){ const el=document.getElementById(i); return el ? String(el.value).trim() : ''; };
+  DB.cashOpening = { cash: Number(v('cb_opcash'))||0, bank: Number(v('cb_opbank'))||0, at: v('cb_opat')||todayISO() };
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast('Opening balances set');
+}
+function cbOpeningModal(){
+  const o = cbOpening();
+  openModal('<button class="close-x" onclick="closeModal()">✕</button><h3>Opening balances</h3>' +
+    '<div class="small-muted" style="margin-bottom:12px">What was in the till and in the bank on the day you started using the day book. ' +
+    'Everything after that is worked out from the entries.</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Cash in hand (£)</label><input id="cb_opcash" type="number" step="0.01" value="'+(o.cash||'')+'"/></div>' +
+      '<div class="field"><label>In the bank (£)</label><input id="cb_opbank" type="number" step="0.01" value="'+(o.bank||'')+'"/></div>' +
+      '<div class="field"><label>As at</label><input id="cb_opat" type="date" value="'+(o.at||todayISO())+'"/></div>' +
+    '</div>' +
+    '<div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>' +
+    '<button class="btn btn-brand" onclick="cbSaveOpening()">Save</button></div>');
+}
+function cbDirChanged(){
+  const d = (document.getElementById('cb_dir')||{}).value;
+  const sel = document.getElementById('cb_cat');
+  if(sel) sel.innerHTML = cbCats(d).map(function(c){ return '<option>'+c+'</option>'; }).join('');
+  const car = document.getElementById('cb_carwrap');
+  if(car) car.style.display = (d==='out') ? '' : 'none';
+}
+/* ---------- importing a bank statement ---------- */
+function cbCsvPick(){ const el = document.getElementById('cb_csv'); if(el) el.click(); }
+function cbParseCsv(text){
+  const lines = String(text||'').split(/\r?\n/).filter(function(l){ return l.trim(); });
+  if(!lines.length) return [];
+  const split = function(l){
+    const out=[]; let cur='', q=false;
+    for(let i=0;i<l.length;i++){
+      const c=l[i];
+      if(c==='"'){ if(q && l[i+1]==='"'){ cur+='"'; i++; } else q=!q; }
+      else if(c===',' && !q){ out.push(cur); cur=''; }
+      else cur+=c;
+    }
+    out.push(cur);
+    return out.map(function(x){ return x.trim().replace(/^"|"$/g,''); });
+  };
+  const head = split(lines[0]).map(function(h){ return h.toLowerCase(); });
+  const find = function(names){
+    for(let i=0;i<head.length;i++){
+      for(let j=0;j<names.length;j++){ if(head[i].indexOf(names[j])>=0) return i; }
+    }
+    return -1;
+  };
+  const iDate = find(['date']);
+  const iDesc = find(['description','details','reference','narrative','memo','payee']);
+  const iAmt  = find(['amount','value']);
+  const iIn   = find(['paid in','credit','money in','in']);
+  const iOut  = find(['paid out','debit','money out','out']);
+  if(iDate < 0 || (iAmt < 0 && iIn < 0 && iOut < 0)) return [];
+
+  const num = function(s){ return Number(String(s||'').replace(/[^0-9.\-]/g,'')) || 0; };
+  const toISO = function(s){
+    s = String(s||'').trim();
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[1]+'-'+m[2]+'-'+m[3];
+    m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);   /* UK: day first */
+    if(m){
+      let y = m[3].length===2 ? ('20'+m[3]) : m[3];
+      return y+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[1]).padStart(2,'0');
+    }
+    const d = new Date(s);
+    return isNaN(d) ? '' : d.toISOString().slice(0,10);
+  };
+  const out = [];
+  for(let i=1;i<lines.length;i++){
+    const c = split(lines[i]);
+    const date = toISO(c[iDate]);
+    if(!date) continue;
+    let amt = 0, dir = 'in';
+    if(iAmt >= 0){ amt = num(c[iAmt]); dir = amt < 0 ? 'out' : 'in'; amt = Math.abs(amt); }
+    else {
+      const cin = iIn>=0 ? num(c[iIn]) : 0, cout = iOut>=0 ? num(c[iOut]) : 0;
+      if(cout){ amt = Math.abs(cout); dir = 'out'; } else { amt = Math.abs(cin); dir = 'in'; }
+    }
+    if(!amt) continue;
+    out.push({ date: date, dir: dir, amount: amt, method: 'bank',
+               cat: dir==='out' ? 'Other' : 'Other',
+               note: iDesc>=0 ? String(c[iDesc]||'').slice(0,120) : '' });
+  }
+  return out;
+}
+function cbCsvLoaded(input){
+  const f = input.files && input.files[0];
+  if(!f) return;
+  const rd = new FileReader();
+  rd.onload = function(){
+    const rows = cbParseCsv(rd.result);
+    input.value = '';
+    if(!rows.length){
+      alert('Nothing could be read from that file.\n\nIt needs a header row with a date column and either an amount column, or paid-in and paid-out columns. Most banks export exactly that as CSV.');
+      return;
+    }
+    /* skip anything already in on the same day for the same money */
+    const have = {};
+    (DB.cashbook||[]).forEach(function(r){ have[r.date+'|'+r.method+'|'+(Number(r.amount)||0).toFixed(2)+'|'+r.dir] = true; });
+    const fresh = rows.filter(function(r){ return !have[r.date+'|bank|'+r.amount.toFixed(2)+'|'+r.dir]; });
+    const skipped = rows.length - fresh.length;
+    if(!fresh.length){ alert('All ' + rows.length + ' lines are already in the day book.'); return; }
+    if(!confirm('Found ' + rows.length + ' bank line' + (rows.length===1?'':'s') + '.\n\n' +
+        'Add ' + fresh.length + ' of them' + (skipped ? ' (' + skipped + ' already logged)' : '') +
+        '?\n\nThey come in as bank entries with no category — set those yourself afterwards.')) return;
+    fresh.forEach(function(r){
+      r.id = nextId('cb'); r.createdBy = currentUserName||''; r.createdAt = new Date().toISOString();
+      r.fromCsv = true;
+      (DB.cashbook = DB.cashbook||[]).push(r);
+    });
+    saveDB(); render();
+    if(typeof wbToast === 'function') wbToast(fresh.length + ' bank lines imported');
+  };
+  rd.readAsText(f);
+}
+
+/* ---------- what each person has put in and is owed ---------- */
+function staffMoney(){
+  const by = {};
+  (DB.expenses||[]).forEach(function(e){
+    if(e.muzaribId) return;                       /* investor cash is its own ledger */
+    if(e.fundedBy !== 'own') return;              /* only money out of their pocket is owed back */
+    const name = (e.employee||'Unknown').trim() || 'Unknown';
+    const paid = (typeof expensePaidAmount === 'function') ? expensePaidAmount(e) : (Number(e.paidAmount)||0);
+    const amt  = Number(e.amount)||0;
+    const b = by[name] || (by[name] = { name: name, spent: 0, repaid: 0, owed: 0, rows: [] });
+    b.spent += amt; b.repaid += paid; b.owed += Math.max(0, amt - paid);
+    b.rows.push(e);
+  });
+  return Object.keys(by).sort(function(a,b){ return by[b].owed - by[a].owed; }).map(function(k){ return by[k]; });
+}
+let cbWho = '';
+function cbOpenPerson(name){ cbWho = (cbWho===name ? '' : name); render(); }
+
+/* ---------- the screen ---------- */
+let cbFrom = '', cbTo = '';
+function cbSetRange(days){
+  const d = new Date(); d.setDate(d.getDate() - (days-1));
+  cbFrom = d.toISOString().slice(0,10); cbTo = todayISO(); render();
+}
+function cbClearRange(){ cbFrom=''; cbTo=''; render(); }
+function cbRangeChanged(){
+  cbFrom = (document.getElementById('cb_from')||{}).value || '';
+  cbTo   = (document.getElementById('cb_to')||{}).value   || '';
+  render();
+}
+function renderCashbook(){
+  if(!isManager()) return '<div class="topbar"><div><h1>Day book</h1></div></div>' +
+    '<div class="card"><div class="empty">Managers only.</div></div>';
+  const L = cbLedger();
+  const T = cbTotals(cbFrom, cbTo);
+  const staff = staffMoney();
+  const owedTotal = staff.reduce(function(t,s){ return t+s.owed; },0);
+  const live = (DB.vehicles||[]).filter(function(v){ return !v.sale; });
+  const rows = T.rows.slice().sort(function(a,b){
+    return (b.date||'').localeCompare(a.date||'') || String(b.id).localeCompare(String(a.id));
+  });
+  const money = fmtMoney;
+
+  /* --- by day, so it reads like a diary --- */
+  const days = {};
+  rows.forEach(function(r){ (days[r.date] = days[r.date] || []).push(r); });
+  const dayKeys = Object.keys(days).sort().reverse();
+
+  return `
+  <div class="topbar">
+    <div><h1>Day book</h1><div class="date">Every pound in and out, and what is left in the till and the bank</div></div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="cbCsvPick()">⬇ Import bank CSV</button>
+      <input type="file" id="cb_csv" accept=".csv,text/csv" style="display:none" onchange="cbCsvLoaded(this)"/>
+      ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="cbOpeningModal()">Opening balances</button>`:''}
+    </div>
+  </div>
+
+  <div class="grid kpi-grid">
+    <div class="card kpi"><div class="label">Cash in hand</div>
+      <div class="value small" style="color:${L.cash<0?'var(--red)':'var(--ink)'}">${money(L.cash)}</div>
+      <div class="sub">started on ${money(L.opening.cash)}</div></div>
+    <div class="card kpi"><div class="label">In the bank</div>
+      <div class="value small" style="color:${L.bank<0?'var(--red)':'var(--ink)'}">${money(L.bank)}</div>
+      <div class="sub">started on ${money(L.opening.bank)}</div></div>
+    <div class="card kpi"><div class="label">Available altogether</div>
+      <div class="value small" style="color:${L.total<0?'var(--red)':'var(--green)'}">${money(L.total)}</div>
+      <div class="sub">cash + bank</div></div>
+    <div class="card kpi" style="cursor:pointer" onclick="App.go('team')"><div class="label">Owed to the team</div>
+      <div class="value small" style="color:${owedTotal>0?'#8A5B07':'var(--ink)'}">${money(owedTotal)}</div>
+      <div class="sub">${staff.length} ${staff.length===1?'person has':'people have'} paid out of pocket</div></div>
+  </div>
+
+  <div class="card" style="padding:11px 13px">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="flex:0 0 150px;margin:0"><label>From</label>
+        <input id="cb_from" type="date" value="${cbFrom}" onchange="cbRangeChanged()"/></div>
+      <div class="field" style="flex:0 0 150px;margin:0"><label>To</label>
+        <input id="cb_to" type="date" value="${cbTo}" onchange="cbRangeChanged()"/></div>
+      <button class="btn btn-sm btn-ghost" onclick="cbSetRange(1)">Today</button>
+      <button class="btn btn-sm btn-ghost" onclick="cbSetRange(7)">Last 7 days</button>
+      <button class="btn btn-sm btn-ghost" onclick="cbSetRange(30)">Last 30</button>
+      <button class="btn btn-sm btn-ghost" onclick="cbClearRange()">Everything</button>
+      <div style="flex:1"></div>
+      <div class="small-muted" style="text-align:right">
+        <b style="color:var(--green)">${money(T.in)}</b> in &nbsp;
+        <b style="color:var(--red)">${money(T.out)}</b> out &nbsp;
+        <b style="color:${T.net<0?'var(--red)':'var(--green)'}">${money(T.net)}</b> net
+        ${cbFrom||cbTo?'':' · all time'}
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title"><h2>Log something</h2></div>
+  <div class="card">
+    <div class="field-row" style="align-items:flex-end">
+      <div class="field" style="flex:0 0 140px"><label>Date</label><input id="cb_date" type="date" value="${todayISO()}"/></div>
+      <div class="field" style="flex:0 0 118px"><label>In or out</label>
+        <select id="cb_dir" onchange="cbDirChanged()"><option value="in">Money in</option><option value="out">Money out</option></select></div>
+      <div class="field" style="flex:0 0 118px"><label>Cash or bank</label>
+        <select id="cb_method"><option value="cash">Cash</option><option value="bank">Bank</option></select></div>
+      <div class="field" style="flex:0 0 125px"><label>Amount (£)</label><input id="cb_amt" type="number" step="0.01"/></div>
+      <div class="field" style="flex:0 0 180px"><label>What for</label>
+        <select id="cb_cat">${CB_IN_CATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
+      <div class="field" style="flex:0 0 150px"><label>Who</label><input id="cb_who" placeholder="optional"/></div>
+    </div>
+    <div class="field-row" style="align-items:flex-end">
+      <div class="field"><label>Note</label><input id="cb_note" placeholder="what it was — be specific enough to recognise it in a month"/></div>
+      <div class="field" style="flex:0 0 auto"><button class="btn btn-brand" onclick="cbAdd()">Add</button></div>
+    </div>
+    <div id="cb_carwrap" style="display:none">
+      <div class="field-row" style="align-items:flex-end">
+        <div class="field"><label>For a car? (goes onto its costs)</label>
+          <select id="cb_veh"><option value="">Not for a particular car</option>
+            ${live.sort((a,b)=>(a.reg||'').localeCompare(b.reg||'')).map(v=>`<option value="${v.id}">${escapeHtml(v.reg||'')} — ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}</option>`).join('')}
+          </select></div>
+        <div class="field" style="flex:0 0 170px"><label>Type of cost</label>
+          <select id="cb_costtype">
+            <option value="mechanical">Mechanical</option><option value="bodywork">Bodywork</option>
+            <option value="service">Service</option><option value="mot">MOT</option>
+            <option value="delivery">Delivery or recovery</option><option value="fuel">Fuel</option>
+            <option value="autotrader">Advertising</option><option value="purchase">Purchase price</option>
+            <option value="other">Other</option></select></div>
+        <div class="field" style="flex:0 0 auto">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="cb_tocar" checked style="width:15px;height:15px"/> Add to that car's costs</label></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title"><h2>The diary</h2></div>
+  ${dayKeys.length===0 ? '<div class="card"><div class="empty">Nothing logged in this period.</div></div>' :
+  dayKeys.map(function(d){
+    const list = days[d].slice().sort(function(a,b){ return String(b.id).localeCompare(String(a.id)); });
+    const dIn  = list.filter(r=>r.dir!=='out').reduce((t,r)=>t+(Number(r.amount)||0),0);
+    const dOut = list.filter(r=>r.dir==='out').reduce((t,r)=>t+(Number(r.amount)||0),0);
+    const last = list[0];
+    return `<div class="card" style="padding:0;margin-bottom:10px">
+      <div class="flex-between" style="padding:9px 13px;border-bottom:1px solid var(--line);background:var(--soft,#F7F8FA)">
+        <b>${new Date(d).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}${d===todayISO()?' <span class="tag tag-brand">Today</span>':''}</b>
+        <span class="small-muted"><b style="color:var(--green)">${money(dIn)}</b> in ·
+          <b style="color:var(--red)">${money(dOut)}</b> out ·
+          left ${money((L.bal[last.id]||{}).total||0)}</span>
+      </div>
+      <table><thead><tr><th style="width:92px">Cash/bank</th><th>What it was</th><th style="width:160px">Type</th>
+        <th class="num" style="width:104px">In</th><th class="num" style="width:104px">Out</th>
+        <th class="num" style="width:112px">Balance</th><th style="width:76px"></th></tr></thead><tbody>
+      ${list.map(function(r){
+        const out = r.dir==='out', amt = Number(r.amount)||0;
+        const b = L.bal[r.id] || {total:0};
+        const veh = r.vehicleId ? cbVehLabel(r.vehicleId) : '';
+        return `<tr>
+          <td><span class="tag ${r.method==='bank'?'tag-blue':'tag-grey'}">${r.method==='bank'?'Bank':'Cash'}</span></td>
+          <td><b>${escapeHtml(r.note||r.cat||'')}</b>
+            ${veh?`<div class="small-muted">on ${escapeHtml(veh)}${r.onVehicle?' · added to its costs':''}</div>`:''}
+            ${r.who?`<div class="small-muted">${escapeHtml(r.who)}</div>`:''}
+            ${r.fromCsv?'<div class="small-muted">from the bank file</div>':''}</td>
+          <td><span class="tag ${out?'tag-amber':'tag-green'}">${escapeHtml(r.cat||'Other')}</span></td>
+          <td class="num">${out?'—':money(amt)}</td>
+          <td class="num">${out?money(amt):'—'}</td>
+          <td class="num" style="color:${b.total<0?'var(--red)':'var(--ink)'}">${money(b.total)}</td>
+          <td class="num">${isManager()?`<button class="btn btn-sm btn-ghost" onclick="cbDelete('${r.id}')">Remove</button>`:''}</td>
+        </tr>`;}).join('')}
+      </tbody></table></div>`;
+  }).join('')}
+
+  <div class="section-title"><h2>What the team has put in</h2></div>
+  <div class="card" style="padding:0">
+    ${staff.length===0 ? '<div class="empty">Nobody has paid for anything out of their own pocket.</div>' : `
+    <table><thead><tr><th>Who</th><th class="num">Paid out of pocket</th><th class="num">Paid back</th>
+      <th class="num">Still owed</th><th style="width:120px"></th></tr></thead><tbody>
+    ${staff.map(function(s){
+      const open = cbWho===s.name;
+      return `<tr${open?' style="background:var(--brand-dim)"':''}>
+        <td><span class="swatch" style="background:${personColour(s.name)[0]}"></span><b>${escapeHtml(s.name)}</b>
+          <div class="small-muted">${s.rows.length} payment${s.rows.length===1?'':'s'}</div></td>
+        <td class="num">${money(s.spent)}</td>
+        <td class="num">${money(s.repaid)}</td>
+        <td class="num"><b style="color:${s.owed>0?'#8A5B07':'var(--ink)'}">${money(s.owed)}</b></td>
+        <td class="num"><button class="btn btn-sm btn-ghost" onclick="cbOpenPerson('${escapeAttr(s.name)}')">${open?'Hide':'Breakdown'}</button></td>
+      </tr>` + (open ? `<tr><td colspan="5" style="padding:0">
+        <table style="margin:0"><thead><tr><th style="width:110px">Date</th><th>What it was</th><th>Car</th>
+          <th class="num" style="width:104px">Amount</th><th class="num" style="width:104px">Paid back</th><th style="width:110px">State</th></tr></thead><tbody>
+        ${s.rows.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(function(e){
+          const paid = (typeof expensePaidAmount==='function') ? expensePaidAmount(e) : (Number(e.paidAmount)||0);
+          const amt = Number(e.amount)||0;
+          const st = paid>=amt ? ['tag-green','Paid back'] : (paid>0 ? ['tag-amber','Part paid'] : ['tag-red','Owed']);
+          return `<tr>
+            <td>${fmtDate(e.date)}</td>
+            <td>${escapeHtml(e.note||'—')}</td>
+            <td>${e.vehicleId?escapeHtml(cbVehLabel(e.vehicleId)):'<span class="small-muted">general</span>'}</td>
+            <td class="num">${money(amt)}</td>
+            <td class="num">${paid?money(paid):'—'}</td>
+            <td><span class="tag ${st[0]}">${st[1]}</span></td>
+          </tr>`;}).join('')}
+        </tbody></table></td></tr>` : '');
+    }).join('')}
+    <tr><td><b>Altogether</b></td>
+      <td class="num"><b>${money(staff.reduce((t,s)=>t+s.spent,0))}</b></td>
+      <td class="num"><b>${money(staff.reduce((t,s)=>t+s.repaid,0))}</b></td>
+      <td class="num"><b style="color:#8A5B07">${money(owedTotal)}</b></td><td></td></tr>
+    </tbody></table>`}
+  </div>
+  <div class="small-muted" style="margin-top:6px">Money a member of staff paid from their own pocket is not out of the company till
+    until you pay them back — so it shows here as owed, and the repayment goes in the diary above as <b>Paying staff back</b>.</div>
+  `;
+}
 /* ---------- whether a car appears on the website, and how ---------- */
 const WEB_SHOW_OPTS = [
   ['auto',   'Decide for me'],
