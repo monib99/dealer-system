@@ -745,6 +745,10 @@ function isDueSoon(dateStr){ if(!dateStr) return false; const d=new Date(dateStr
 /* =========================================================================
    DERIVED CALCS
    ========================================================================= */
+/* A car that has left us for good: scrapped, or handed back to the supplier it
+   came from. A car a CUSTOMER brought back is not gone - it is in stock again. */
+function vGone(v){ return v.status==='scrap' || !!(v.returned && v.returned.kind==='supplier' && !v.sale); }
+function vReturnRefund(v){ return (v.returned && v.returned.kind==='supplier') ? (Number(v.returned.amount)||0) : 0; }
 function vehicleCostTotal(v){
   const c = v.costs||{};
   const base = ['purchase','delivery','service','mot','bodywork','mechanical','autotrader','fuel','other']
@@ -765,7 +769,7 @@ function vehicleProfit(v){ return vehicleNetSale(v) - vehicleCostTotal(v); }
 function openIssuesCount(v){ return (v.issues||[]).filter(i=>i.status!=='done').length; }
 /* Who owns what is on the forecourt right now. */
 function stockSplit(){
-  const live = DB.vehicles.filter(v=>!v.sale && v.status!=='sold' && v.status!=='scrap');
+  const live = DB.vehicles.filter(v=>!v.sale && v.status!=='sold' && !vGone(v));
   const mz = live.filter(v=>v.ownerType==='muzarib' && v.muzaribId);
   const co = live.filter(v=>!(v.ownerType==='muzarib' && v.muzaribId));
   const cost = list => list.reduce((t,v)=>t+vehicleCostTotal(v),0);
@@ -2355,7 +2359,7 @@ function delGarageAsset(id){
 }
 
 function stockValuation(){
-  const inStock = DB.vehicles.filter(v=>v.status!=='sold' && v.status!=='scrap');
+  const inStock = DB.vehicles.filter(v=>v.status!=='sold' && !vGone(v));
   const costValue = inStock.reduce((s,v)=>s+vehicleCostTotal(v),0);
   const sellValue = inStock.reduce((s,v)=>s+(Number(v.askingPrice)||0),0);
   return {count: inStock.length, costValue, sellValue};
@@ -2943,7 +2947,7 @@ function studioTargets(scope){
     const one = DB.vehicles.find(v=>v.id===studioOnlyVehicle);
     return one && (one.photos||[]).length ? [one] : [];
   }
-  const live = DB.vehicles.filter(v=>!v.sale && v.status!=='scrap');
+  const live = DB.vehicles.filter(v=>!v.sale && !vGone(v));
   const list = scope==='all' ? DB.vehicles : live;
   return list.filter(v=>(v.photos||[]).length);
 }
@@ -3168,7 +3172,7 @@ function studioRevert(){
   alert(n + ' photo' + (n===1?'':'s') + ' put back.');
 }
 function renderStock(){
-  const isCurrent = v => !v.sale && v.status!=='sold' && v.status!=='scrap';
+  const isCurrent = v => !v.sale && v.status!=='sold' && !vGone(v);
   let list = DB.vehicles.filter(v=>{
     if(stockFilter==='current'){ if(!isCurrent(v)) return false; }
     else if(stockFilter!=='all' && v.status!==stockFilter) return false;
@@ -3310,7 +3314,7 @@ async function publishToWebsite(){
   const cars = publicStockPayload();
   const noPhotos = cars.filter(c=>!c.photos.length).length;
   const byState = s => cars.filter(c=>c.status===s).length;
-  const hidden = (DB.vehicles||[]).filter(v=>!webState(v).include && v.status!=='scrap').length;
+  const hidden = (DB.vehicles||[]).filter(v=>!webState(v).include && !vGone(v)).length;
   if(!confirm(`Publish ${cars.length} car${cars.length===1?'':'s'} to the website?` +
       `\n\n${byState('available')} on sale` +
       (byState('reserved')?`, ${byState('reserved')} reserved`:'') +
@@ -4095,6 +4099,7 @@ async function removeInvoicePhoto(vId, idx){
 
 /* ---- sale ---- */
 function vehicleSaleTab(v){
+  if(v.returned && !v.sale) return returnRecordCard(v);
   if(v.sale){
     const s=v.sale;
     return `<div class="card">
@@ -4116,6 +4121,7 @@ function vehicleSaleTab(v){
       <div style="margin-top:14px;display:flex;gap:10px;">
         <button class="btn btn-brand" onclick="printInvoice('${v.id}')">🖨 View / print invoice</button>
         <button class="btn btn-ghost" onclick="undoSale('${v.id}')">Undo sale</button>
+        <button class="btn btn-ghost" onclick="openReturn('${v.id}','customer')">↩ Customer returned it</button>
       </div>
       ${(function(){ const px = v.sale.pxVehicleId && DB.vehicles.find(x=>x.id===v.sale.pxVehicleId);
         return px ? `<div class="small-muted" style="margin-top:10px">Part exchange
@@ -4128,6 +4134,8 @@ function vehicleSaleTab(v){
   const hasPx = !!(sx && ((sx.partEx && (sx.partEx.reg || sx.partEx.make || sx.partEx.model)) || Number(sx.partExValue)>0));
   return `<div class="card">
     <h3 style="margin-top:0">Record a sale for ${v.reg}</h3>
+    <div class="small-muted" style="margin:-4px 0 12px">Going back to the seller instead?
+      <a class="link" onclick="openReturn('${v.id}','supplier')">Record it as a return</a></div>
     ${r?`<div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
       <div style="font-weight:700;margin-bottom:4px;">Reserved for ${escapeHtml(r.name)}</div>
       <div class="small-muted">${escapeHtml([r.phone,r.email,r.postcode].filter(Boolean).join(' · '))}
@@ -4377,6 +4385,99 @@ function undoSale(vId){
   logChange('sale','Undid sale of', vehRef(v), 'Sale price', fmtMoney(wasPrice), 'removed',
     isMuzaribCar(v) ? 'Reversed the settlement for ' + muzaribName(v.muzaribId) : '');
   v.sale=null; v.status='ready'; saveDB(); renderVehicleDetail();
+}
+
+/* ---- returns -------------------------------------------------------------
+   A return is not a sale. No admin charge is taken and no profit is split,
+   because no car was traded. Two quite different things are called a return:
+
+     supplier  the car goes back to whoever we bought it from and money comes
+               back. The car leaves our stock. Anything that does not come
+               back is a straight loss to whoever paid for the car.
+     customer  a customer brings the car back. No money comes back from
+               anyone - the car is ours again and goes to the back of stock at
+               whatever it has cost us so far, repairs included.
+--------------------------------------------------------------------------- */
+function returnRecordCard(v){
+  const rt = v.returned || {}, cost = vehicleCostTotal(v), back = vReturnRefund(v);
+  const short = Math.max(0, cost - back);
+  return `<div class="card">
+    <h3 style="margin-top:0">Returned to the seller</h3>
+    <table>
+      <tr><td>Date returned</td><td>${fmtDate(rt.date)}</td></tr>
+      <tr><td>Total it had cost</td><td>${fmtMoney(cost)}</td></tr>
+      <tr><td>Money back</td><td>${fmtMoney(back)}</td></tr>
+      <tr><td style="font-weight:700">${short>0?'Not recovered':'Fully recovered'}</td>
+          <td style="font-weight:700;color:${short>0?'var(--red)':'var(--green)'}">${short>0?fmtMoney(short):'—'}</td></tr>
+      ${rt.note?`<tr><td>Note</td><td>${escapeHtml(rt.note)}</td></tr>`:''}
+    </table>
+    <div class="small-muted" style="margin-top:10px">No admin charge and no profit split — a return is not a sale.
+      ${isMuzaribCar(v)?`${short>0?fmtMoney(short)+' is a loss to '+escapeHtml(muzaribName(v.muzaribId))+'.':'Nothing was lost on this car.'}`:''}</div>
+    <div style="margin-top:14px"><button class="btn btn-ghost" onclick="undoReturn('${v.id}')">Undo this return</button></div>
+  </div>`;
+}
+function openReturn(vId, kind){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const cost = vehicleCostTotal(v);
+  if(kind === 'customer'){
+    openModal(`<h3 style="margin-top:0">${escapeHtml(v.reg)} — customer brought it back</h3>
+      <p class="small-muted">The sale is reversed and the car goes back into stock at
+        ${fmtMoney(cost)}, which is everything it has cost so far. Nothing is paid back
+        to anyone here — record a refund to the customer as an expense if there was one.</p>
+      <div class="field-row">
+        <div class="field"><label>Date it came back</label><input id="rt_date" type="date" value="${todayISO()}"/></div>
+      </div>
+      <div class="field"><label>Why (optional)</label><input id="rt_note" placeholder="Gearbox fault"/></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn btn-brand" onclick="saveReturn('${v.id}','customer')">Put it back in stock</button>
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      </div>`);
+    return;
+  }
+  openModal(`<h3 style="margin-top:0">${escapeHtml(v.reg)} — returned to the seller</h3>
+    <p class="small-muted">The car leaves stock. Enter what actually came back into the
+      account, not what it cost. Anything short of ${fmtMoney(cost)} is recorded as a loss.</p>
+    <div class="field-row">
+      <div class="field"><label>Date returned</label><input id="rt_date" type="date" value="${todayISO()}"/></div>
+      <div class="field"><label>Money back (£)</label><input id="rt_amount" type="number" step="0.01" value="${cost.toFixed(2)}"/></div>
+    </div>
+    <div class="small-muted" style="margin:-4px 0 10px">It had cost ${fmtMoney(cost)} in all —
+      ${fmtMoney((v.costs&&v.costs.purchase)||0)} to buy and the rest in work on it.</div>
+    <div class="field"><label>Why (optional)</label><input id="rt_note" placeholder="Mileage discrepancy"/></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="btn btn-brand" onclick="saveReturn('${v.id}','supplier')">Record the return</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+function saveReturn(vId, kind){
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  const date = (document.getElementById('rt_date')||{}).value || todayISO();
+  const note = ((document.getElementById('rt_note')||{}).value || '').trim();
+  const cost = vehicleCostTotal(v);
+  if(kind === 'customer'){
+    const was = v.sale ? Object.assign({}, v.sale) : null;
+    if(was){ v.saleHistory = (v.saleHistory||[]).concat([Object.assign({}, was, {reversedOn:date, reversedWhy:note||'customer returned it'})]); }
+    v.sale = null; v.status = 'repair';
+    v.returnedByCustomer = {date, note, wasSalePrice: was ? was.salePrice : 0};
+    logChange('sale','Customer returned', vehRef(v),
+      'Sale price', fmtMoney(was?was.salePrice:0), 'reversed; back in stock at '+fmtMoney(cost),
+      note || '');
+  } else {
+    const amount = Number((document.getElementById('rt_amount')||{}).value) || 0;
+    v.returned = {kind:'supplier', date, amount, note, costAtReturn: cost};
+    v.sale = null;
+    logChange('stock','Returned to the seller', vehRef(v),
+      'Cost', fmtMoney(cost), 'returned for '+fmtMoney(amount),
+      (cost-amount>0 ? fmtMoney(cost-amount)+' not recovered' : 'fully recovered') + (note?' · '+note:''));
+  }
+  saveDB(); closeModal(); renderVehicleDetail();
+}
+function undoReturn(vId){
+  if(!confirm('Undo this return? The car goes back into stock.')) return;
+  const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
+  logChange('stock','Undid the return of', vehRef(v), 'Money back', fmtMoney(vReturnRefund(v)), 'removed', '');
+  v.returned = null; if(v.status==='sold') v.status='ready';
+  saveDB(); renderVehicleDetail();
 }
 
 /* ---- invoice numbering, terms and helpers ---- */
@@ -6771,7 +6872,7 @@ function drawMonthlyTrendCharts(){
     const costVals = [], sellVals = [];
     months.forEach(m=>{
       const monthEnd = m+'-31';
-      const inStockThen = DB.vehicles.filter(v=> v.dateAdded && v.dateAdded<=monthEnd && (!v.sale || v.sale.date>monthEnd) && v.status!=='scrap');
+      const inStockThen = DB.vehicles.filter(v=> v.dateAdded && v.dateAdded<=monthEnd && (!v.sale || v.sale.date>monthEnd) && !vGone(v));
       costVals.push(inStockThen.reduce((s,v)=>s+vehicleCostTotal(v),0));
       sellVals.push(inStockThen.reduce((s,v)=>s+(Number(v.askingPrice)||0),0));
     });
@@ -7167,7 +7268,7 @@ function renderLeadList(list){
 }
 
 function renderLeadsByCar(){
-  const rows = DB.vehicles.filter(v=>v.status!=='scrap').map(v=>{
+  const rows = DB.vehicles.filter(v=>!vGone(v)).map(v=>{
     const all = leadsForVehicle(v.id);
     const count = k => all.filter(l=>l.stage===k).length;
     return {v, total:all.length, active:all.filter(l=>ACTIVE_STAGES.includes(l.stage)).length,
@@ -7213,7 +7314,7 @@ function renderLeadSources(){
 
 /* ---- create / edit ---- */
 function vehicleOptions(selectedId){
-  const avail = DB.vehicles.filter(v=>v.status!=='scrap' && (v.status!=='sold' || v.id===selectedId))
+  const avail = DB.vehicles.filter(v=>!vGone(v) && (v.status!=='sold' || v.id===selectedId))
     .sort((a,b)=>(a.reg||'').localeCompare(b.reg||''));
   return `<option value="">— Not linked to a car yet —</option>` +
     avail.map(v=>`<option value="${v.id}" ${v.id===selectedId?'selected':''}>${escapeHtml(v.reg)} · ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}${v.status==='sold'?' (sold)':''}</option>`).join('');
@@ -7647,7 +7748,7 @@ function muzaribTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id); }
 function muzaribPosition(id){
   const m = muzarib(id) || {};
   const cars = muzaribCars(id);
-  const unsold = cars.filter(v=>!v.sale && v.status!=='scrap');
+  const unsold = cars.filter(v=>!v.sale && !vGone(v));
   const sold   = cars.filter(v=>v.sale);
   const scrapped = cars.filter(v=>v.status==='scrap' && !v.sale);
 
@@ -7659,13 +7760,19 @@ function muzaribPosition(id){
 
   const tiedUp   = unsold.reduce((s,v)=>s+vehicleCostTotal(v),0);   // money currently in cars
   const scrapLoss= scrapped.reduce((s,v)=>s+vehicleCostTotal(v),0); // written off
+  /* Cars handed back to the supplier. A return is not a sale: no admin charge
+     is taken and no profit is split. Whatever did not come back is a straight
+     loss to the investor, because it was his money that paid for the car. */
+  const returned = cars.filter(v=>v.returned && v.returned.kind==='supplier' && !v.sale);
+  const returnRefund = returned.reduce((s,v)=>s+vReturnRefund(v),0);
+  const returnLoss   = returned.reduce((s,v)=>s+Math.max(0, vehicleCostTotal(v)-vReturnRefund(v)),0);
   let profit = 0, adminPaid = 0, companyShare = 0, grossTotal = 0;
   sold.forEach(v=>{ const s = carSettlement(v);
     profit += s.investor; adminPaid += s.admin; companyShare += s.company; grossTotal += s.gross; });
 
   /* What he is owed never changes because we spent some of his cash on the
      business — that is settled by giving him stock, so it stays internal. */
-  const cash = capital + adjustments + profit - withdrawn - tiedUp - scrapLoss;
+  const cash = capital + adjustments + profit - withdrawn - tiedUp - scrapLoss - returnLoss;
   const usedByCompany = spentFor;          // internal only
   const cashInHand    = cash - usedByCompany;  // physical cash still sitting here
   const reservePct = Number(m.reservePct ?? 10);
@@ -7675,8 +7782,9 @@ function muzaribPosition(id){
     capital, withdrawn, spentFor, usedByCompany, cashInHand,
     adjustments, profit, adminPaid, companyShare, grossTotal,
     tiedUp, scrapLoss, cash, buyingBudget, reservePct,
+    returnRefund, returnLoss,
     total: cash + tiedUp,                 // everything the investor currently has with us
-    cars, unsold, sold, scrapped,
+    cars, unsold, sold, scrapped, returned,
     returnPct: capital ? (profit / capital * 100) : 0
   };
 }
@@ -10063,7 +10171,7 @@ function webState(v){
   if(choice === 'never')      include = false;
   else if(choice === 'always') include = true;
   else                         include = (v.status === 'ready' || sold || reserved);
-  if(v.status === 'scrap' && choice !== 'always') include = false;
+  if(vGone(v) && choice !== 'always') include = false;
   return { include: include, status: status, choice: choice,
            sold: sold, reserved: reserved, coming: status === 'coming' };
 }
