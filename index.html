@@ -490,6 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-10-30 b74</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -2543,13 +2544,16 @@ function render(){
   if(mzNav) mzNav.style.display = isManager() ? '' : 'none';
   const wsNav = document.querySelector('.nav-item[data-tab="website"]');
   if(wsNav) wsNav.style.display = isManager() ? '' : 'none';
+  /* The day book is the manager's to keep - staff should not see the link at all. */
+  const cbNav = document.querySelector('.nav-item[data-tab="cashbook"]');
+  if(cbNav) cbNav.style.display = isManager() ? '' : 'none';
   // Ideas & Capital is the owner's planning space.
   const bdNav = document.querySelector('.nav-item[data-tab="boardroom"]');
   if(bdNav) bdNav.style.display = isSuperAdmin() ? '' : 'none';
   const auNav = document.querySelector('.nav-item[data-tab="audit"]');
   if(auNav) auNav.style.display = isSuperAdmin() ? '' : 'none';
   if(currentTab==='audit' && !isSuperAdmin()) currentTab = 'dashboard';
-  if(['muzaribat','website'].includes(currentTab) && !isManager()) currentTab = 'dashboard';
+  if(['muzaribat','website','cashbook'].includes(currentTab) && !isManager()) currentTab = 'dashboard';
   if(currentTab==='boardroom' && !isSuperAdmin()) currentTab = 'dashboard';
   const overdueIssues = allOpenIssues().filter(i=>isOverdue(i.reminderDate));
   const overdueTasks = DB.tasks.filter(t=>!t.done && isOverdue(t.date));
@@ -3550,7 +3554,7 @@ function openAddVehicle(){
     <div class="field"><label>Who is funding this car?</label>
       <select id="f_owner">
         <option value="company">Company stock</option>
-        ${(DB.muzaribs||[]).filter(m=>m.active!==false).map(m=>{const p=muzaribPosition(m.id);
+        ${liveMuzaribs().filter(m=>m.active!==false).map(m=>{const p=muzaribPosition(m.id);
           return `<option value="mz:${m.id}">${escapeHtml(m.name)} — ${fmtMoney(p.cash)} available</option>`;}).join('')}
       </select>
       <div class="small-muted" style="margin-top:6px;">Costs and the sale of an investor's car flow into their Muzaribat account automatically.</div></div>
@@ -6269,7 +6273,7 @@ function openEditExpense(id){
   if(!isSuperAdmin()){ alert('Only a Super Admin can change a logged spend.'); return; }
   const e = (DB.expenses||[]).find(x=>x.id===id); if(!e) return;
   const car = e.vehicleId ? (DB.vehicles||[]).find(v=>v.id===e.vehicleId) : null;
-  const inv = muzaribs().filter(m=>m.active!==false);
+  const inv = liveMuzaribs().filter(m=>m.active!==false);
   const cur = e.muzaribId ? ('mz:'+e.muzaribId) : (e.fundedBy||'own');
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Edit this spend</h3>
     <div class="small-muted" style="margin-bottom:10px;">Logged by ${escapeHtml(e.employee||'')} on ${fmtDate(e.date)}</div>
@@ -6345,7 +6349,7 @@ function expenseSourceKey(e){
 /* Cash in: money handed to me, from an investor or from the business. */
 function openCashIn(){
   if(!isSuperAdmin()){ alert('Only a Super Admin can record cash in.'); return; }
-  const inv = muzaribs().filter(m=>m.active!==false);
+  const inv = liveMuzaribs().filter(m=>m.active!==false);
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Cash in</h3>
     <div class="small-muted" style="margin-bottom:10px;">Money handed to you to spend. Each spend you log can then be taken off it.</div>
     <div class="field"><label>Who handed it over?</label>
@@ -6414,7 +6418,7 @@ function openAddExpense(){
   openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Log my spend</h3>
     <div class="small-muted" style="margin-bottom:10px;">Logged as <strong>${currentUserName}</strong> — fuel, parts, or anything you've paid for.</div>
     ${(()=>{ const f = floatPosition(currentUserEmail);
-      const inv = muzaribs().filter(m=>m.active!==false)
+      const inv = liveMuzaribs().filter(m=>m.active!==false)
         .map(m=>({m, cash: muzaribPosition(m.id).cashInHand}))
         .filter(x=>x.cash > 0.005);
       return `<div class="field"><label>Whose money was it?</label>
@@ -8020,6 +8024,11 @@ const MZ_TX_TYPES = {
 };
 
 function muzaribs(){ return DB.muzaribs || []; }
+/* Archived investors stay in the data and stay readable - they just come off
+   the working list, the totals and the "who funds this car" menus. */
+function isArchivedMz(m){ return !!(m && m.archived); }
+function liveMuzaribs(){ return muzaribs().filter(function(m){ return !isArchivedMz(m); }); }
+function archivedMuzaribs(){ return muzaribs().filter(isArchivedMz); }
 function muzarib(id){ return muzaribs().find(m=>m.id===id) || null; }
 function muzaribName(id){ const m = muzarib(id); return m ? m.name : 'Unknown investor'; }
 function muzaribCars(id){ return DB.vehicles.filter(v=>v.ownerType==='muzarib' && v.muzaribId===id); }
@@ -8113,7 +8122,7 @@ function monthMuzaribSplit(month){
 }
 
 function allMuzaribTotals(){
-  return muzaribs().reduce((acc,m)=>{
+  return liveMuzaribs().reduce((acc,m)=>{
     const p = muzaribPosition(m.id);
     acc.capital += p.capital; acc.cash += p.cash; acc.tiedUp += p.tiedUp;
     acc.profit += p.profit; acc.company += p.companyShare; acc.cars += p.unsold.length;
@@ -8468,7 +8477,7 @@ function mzFirstMoneyIn(id){
   return tx.map(function(t){ return t.date; }).filter(Boolean).sort()[0];
 }
 function mzFairness(){
-  const rows = muzaribs().filter(function(m){ return m.active !== false; }).map(function(m){
+  const rows = liveMuzaribs().filter(function(m){ return m.active !== false; }).map(function(m){
     const p = muzaribPosition(m.id);
     const inStock = p.tiedUp;
     const free    = Math.max(0, p.cashInHand);      /* real money, ready to buy */
@@ -8492,8 +8501,27 @@ function mzFairness(){
     r.fairStock = tot.inStock * (tot.entitle ? r.entitle/tot.entitle : 0);
     r.shortBy = Math.max(0, r.fairStock - r.inStock);
   });
-  rows.sort(function(a,b){ return b.waited - a.waited; });
-  rows.forEach(function(r,i){ r.rank = i+1; });
+  /* WHOSE TURN IT IS.
+     We rank on how many pounds short of a fair share of the stock a man is -
+     not on how much idle cash he happens to have. Idle pounds alone quietly
+     favour whoever is richest: a big investor nearly always has more cash
+     sitting about even when most of his money is already working.
+     "Short by" is pounds, but pounds measured against HIS OWN fair share, so a
+     small investor still gets his turn. Longest wait breaks a tie, and once
+     everyone is level at nil it is the only thing left, so the rotation keeps
+     turning instead of freezing. */
+  rows.sort(function(a,b){
+    const s = (b.shortBy||0) - (a.shortBy||0);
+    if(Math.abs(s) > 0.5) return s;
+    return (b.days||0) - (a.days||0);
+  });
+  rows.forEach(function(r,i){
+    r.rank = i+1;
+    r.turnWhy = r.shortBy > 0.5
+      ? mzMoney(r.shortBy) + ' below a fair share'
+      : (r.days != null ? 'level on share \u2014 waited ' + r.days + ' day' + (r.days===1?'':'s') : 'level on share');
+    r.canFund = r.free;                       /* what he could actually pay for today */
+  });
   return { rows: rows, tot: tot, avgPct: avgPct };
 }
 /* who should get a car costing this much */
@@ -8528,16 +8556,26 @@ function mzSuggestHtml(){
   };
   let out = '';
   if(s.best){
+    const reason = function(r){
+      return r.shortBy > 0.5
+        ? mzMoney(r.shortBy) + ' below a fair share · ' + Math.round(r.stockPct) + '% of his money is in cars'
+        : 'level on share · ' + (r.days==null?'':r.days + ' day' + (r.days===1?'':'s') + ' since his last car · ') +
+          Math.round(r.stockPct) + '% in cars';
+    };
+    const skipped = s.best.rank > 1 ? s.all.slice(0, s.best.rank-1).filter(function(x){ return x.free < c; }) : [];
     out += '<div class="small-muted" style="margin-bottom:6px"><b>Buy it for ' + escapeHtml(s.best.name) + '.</b> ' +
-      'He has waited longest of anyone who can cover ' + mzMoney(c) + '.</div>';
-    out += line(s.best, 'waiting ' + mzMoney(s.best.idle) + ' idle for ' +
-      (s.best.days==null?'—':s.best.days + ' day' + (s.best.days===1?'':'s')) +
-      ' · ' + Math.round(s.best.stockPct) + '% of his money is in cars', true);
+      (s.best.shortBy > 0.5
+        ? 'He is the furthest below a fair share of anyone who can cover ' + mzMoney(c) + '.'
+        : 'Everyone who can cover ' + mzMoney(c) + ' is level on share, and he has gone longest without a car.') +
+      (skipped.length ? ' Ahead of him ' + (skipped.length===1?'is ':'are ') +
+        skipped.map(function(x){ return escapeHtml(x.name); }).join(', ') +
+        ', but ' + (skipped.length===1?'he has':'they have') + ' not got ' + mzMoney(c) + ' free.' : '') +
+      '</div>';
+    out += line(s.best, reason(s.best), true);
     const rest = s.canBuy.slice(1,4);
     if(rest.length){
       out += '<div class="small-muted" style="margin:8px 0 5px">Next in line if he is already covered</div>';
-      rest.forEach(function(r){ out += line(r, (r.days==null?'':r.days+' days waiting · ') +
-        Math.round(r.stockPct) + '% in cars', false); });
+      rest.forEach(function(r){ out += line(r, reason(r), false); });
     }
   } else {
     out += '<div class="overdue-banner" style="margin-bottom:8px"><span>Nobody has ' + mzMoney(c) +
@@ -8551,6 +8589,82 @@ function mzSuggestHtml(){
   }
   return out;
 }
+/* ---- archiving an investor ------------------------------------------------
+   An archived investor is out of the TURN ROTATION: no car is allocated to
+   them and they are not offered when a car is funded. Nothing is deleted -
+   their cars, cash entries and settlements all stay exactly as they are and
+   their page still reads normally.
+--------------------------------------------------------------------------- */
+function renderMzArchived(){
+  const arch = archivedMuzaribs();
+  if(!arch.length) return '';
+  return `
+  <div class="section-title" style="margin-top:22px"><h2>Archived · ${arch.length}</h2>
+    <span class="small-muted">Out of the turn rotation — no cars are allocated to them. Their records are untouched.</span></div>
+  <div class="card" style="padding:0;">
+    <table><thead><tr><th>Investor</th><th>Archived</th><th class="num">Cash</th><th class="num">In stock</th>
+      <th class="num">Total position</th><th>Reason</th><th></th></tr></thead><tbody>
+    ${arch.map(function(m){ const p = muzaribPosition(m.id); return `
+      <tr>
+        <td style="cursor:pointer" onclick="openMuzarib('${m.id}')"><b>${escapeHtml(m.name)}</b>
+          <div class="small-muted">${p.unsold.length} active / ${p.sold.length} sold</div></td>
+        <td>${m.archived && m.archived.date ? fmtDate(m.archived.date) : '—'}</td>
+        <td class="num">${fmtMoney(p.cash)}</td>
+        <td class="num">${fmtMoney(p.tiedUp)}</td>
+        <td class="num"><b>${fmtMoney(p.total)}</b></td>
+        <td class="small-muted" style="min-width:210px">${escapeHtml((m.archived && m.archived.note) || '')}</td>
+        <td style="white-space:nowrap">${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="unarchiveMuzarib('${m.id}')">Bring back</button>`:''}</td>
+      </tr>`; }).join('')}
+    </tbody></table>
+  </div>`;
+}
+
+function openArchiveMz(id){
+  if(!isSuperAdmin()) return;
+  const m = muzarib(id); if(!m) return;
+  const p = muzaribPosition(id);
+  const warn = [];
+  if(p.unsold.length) warn.push(p.unsold.length + ' car' + (p.unsold.length===1?'':'s') + ' still in stock worth ' + fmtMoney(p.tiedUp));
+  if(Math.abs(p.cash) > 0.01) warn.push(fmtMoney(p.cash) + ' of cash still on his account');
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Archive ${escapeHtml(m.name)}</h3>
+    <p class="small-muted">He comes out of the <b>turn rotation</b> — no car will be allocated to him and he
+      will not be offered when you fund a car. He also comes off the totals at the top of this page.
+      <b>Nothing is deleted.</b> His cars, cash entries and settlements stay exactly as they are and his
+      page still reads normally. You can bring him back at any time.</p>
+    ${warn.length?`<div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px">
+      <b>He is not settled up yet</b><div class="small-muted" style="margin-top:4px">${warn.join(' · ')}.
+      You can still archive him — just worth knowing.</div></div>`:''}
+    <div class="field-row">
+      <div class="field"><label>Date</label><input id="ar_date" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div class="field"><label>Reason (optional)</label><input id="ar_note" placeholder="Taken his money out, not investing for now"/></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="archiveMuzarib('${id}')">Archive him</button>
+    </div>`);
+}
+
+function archiveMuzarib(id){
+  if(!isSuperAdmin()) return;
+  const m = muzarib(id); if(!m) return;
+  const date = (document.getElementById('ar_date')||{}).value || todayISO();
+  const note = ((document.getElementById('ar_note')||{}).value || '').trim();
+  m.archived = {date: date, note: note, by: (typeof currentUserName!=='undefined' ? currentUserName : '')};
+  logChange('muzarib','Archived', m.name, 'Turn rotation', 'in', 'out', note || '');
+  saveDB(); closeModal(); activeMuzaribId = null; render();
+}
+
+function unarchiveMuzarib(id){
+  if(!isSuperAdmin()) return;
+  const m = muzarib(id); if(!m) return;
+  if(!confirm(m.name + ' comes back into the turn rotation and will be allocated cars again. Carry on?')) return;
+  m.archived = null; delete m.archived;
+  logChange('muzarib','Brought back from archive', m.name, 'Turn rotation', 'out', 'in', '');
+  saveDB(); closeModal(); render();
+}
+
 function renderMzFairness(){
   const F = mzFairness();
   if(!F.rows.length) return '';
@@ -8559,13 +8673,15 @@ function renderMzFairness(){
   <div class="section-title"><h2>Whose turn is it</h2></div>
   <div class="card">
     <div class="small-muted" style="margin-bottom:12px">
-      Money that is not in a car earns that investor nothing. So each one builds up <b>waiting</b> —
-      how much of his money is idle, multiplied by how long it has sat. The next car goes to whoever has
-      waited most, and getting one clears it. The reasoning is on screen so you can show him why.
+      A man's return is measured against <b>his own</b> money, so the aim is that everyone has roughly the
+      same proportion of it working. The next car goes to whoever is furthest <b>below a fair share</b> of
+      the stock, in pounds. Longest wait settles a tie. Ranking on idle cash alone would favour whoever is
+      richest, because a big investor nearly always has more sitting about even when most of his is already
+      working. The reasoning is on screen so you can show him why.
     </div>
     <div class="grid kpi-grid" style="margin-bottom:14px">
       <div class="card kpi"><div class="label">Next in line</div><div class="value small">${escapeHtml(r0.name)}</div>
-        <div class="sub">${mzMoney(r0.idle)} idle${r0.days!=null?' for '+r0.days+' day'+(r0.days===1?'':'s'):''}</div></div>
+        <div class="sub">${escapeHtml(r0.turnWhy)}${r0.free>0?' \u00b7 can fund '+mzMoney(r0.free):' \u00b7 <b>no free cash</b>'}</div></div>
       <div class="card kpi"><div class="label">Money not in cars</div>
         <div class="value small">${mzMoney(F.tot.free + F.tot.owed)}</div>
         <div class="sub">${mzMoney(F.tot.free)} in hand · ${mzMoney(F.tot.owed)} the company owes</div></div>
@@ -8632,7 +8748,7 @@ function renderMuzaribat(){
 
   <div class="card" style="padding:0;">
     <table><thead><tr><th>Investor</th><th>Cash available</th><th>In stock</th><th>Total position</th><th>Profit paid</th><th>Cars</th></tr></thead><tbody>
-    ${list.map(m=>{ const p = muzaribPosition(m.id); return `
+    ${list.filter(function(m){ return !isArchivedMz(m); }).map(m=>{ const p = muzaribPosition(m.id); return `
       <tr style="cursor:pointer" onclick="openMuzarib('${m.id}')">
         <td><b>${escapeHtml(m.name)}</b>${m.active===false?' <span class="tag tag-grey">Inactive</span>':''}
             <div class="small-muted">${escapeHtml(m.phone||'')}</div></td>
@@ -8644,6 +8760,7 @@ function renderMuzaribat(){
       </tr>`; }).join('')}
     </tbody></table>
   </div>
+  ${renderMzArchived()}
   ${renderMzFairness()}
 ` : `<div class="card"><div class="empty"><div class="big">No investors yet</div>
     Add an investor, then choose them as the owner when you add a car to stock.</div></div>`}
@@ -8670,8 +8787,16 @@ function renderMuzaribProfile(id){
       <button class="btn btn-brand" onclick="openMzTx('${id}','capital')">+ Capital in</button>
       <button class="btn btn-ghost" onclick="openMzTx('${id}','withdrawal')">Withdraw</button>
       <button class="btn btn-ghost" onclick="openMuzaribForm('${id}')">Edit</button>
+      ${isSuperAdmin() ? (isArchivedMz(m)
+        ? `<button class="btn btn-ghost" onclick="unarchiveMuzarib('${id}')">↩ Bring back into turns</button>`
+        : `<button class="btn btn-ghost" onclick="openArchiveMz('${id}')">📦 Archive</button>`) : ''}
     </div>
   </div>
+  ${isArchivedMz(m)?`<div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
+    <b>📦 Archived${m.archived.date?' on '+fmtDate(m.archived.date):''}</b>
+    <div class="small-muted" style="margin-top:4px">Out of the turn rotation, so no car is allocated to
+      ${escapeHtml(m.name.split(' ')[0])} and he is not offered when funding a car. Everything below is still his record.
+      ${m.archived.note?'<br><b>Reason:</b> '+escapeHtml(m.archived.note):''}</div></div>`:''}
 
   <div class="grid kpi-grid">
     <div class="card kpi"><div class="label">Cash available</div><div class="value small">${fmtMoney(p.cash)}</div>
@@ -10028,6 +10153,46 @@ function cbTotals(from, to){
            bankIn:  sum(function(r){ return r.dir!=='out' && r.method==='bank'; }),
            bankOut: sum(function(r){ return r.dir==='out' && r.method==='bank'; }) };
 }
+/* The cars you can put a cost against: everything in stock, plus the last few
+   sold. An invoice often turns up after the car has gone, and refusing it
+   leaves the cost nowhere - so the money would be right and the car wrong. */
+const CB_SOLD_SHOWN = 10;
+function cbRecentlySold(extraId){
+  const sold = (DB.vehicles||[]).filter(function(v){ return v.sale; });
+  sold.sort(function(a,b){ return String((b.sale&&b.sale.date)||'').localeCompare(String((a.sale&&a.sale.date)||'')); });
+  const out = sold.slice(0, CB_SOLD_SHOWN);
+  if(extraId && !out.some(function(v){ return v.id===extraId; })){
+    const v = sold.find(function(x){ return x.id===extraId; });
+    if(v) out.push(v);
+  }
+  return out;
+}
+function cbIsSoldCar(id){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===id; });
+  return !!(v && v.sale);
+}
+function cbCarOptions(selectedId){
+  const live = (DB.vehicles||[]).filter(function(v){ return !v.sale; })
+    .sort(function(a,b){ return String(a.reg||'').localeCompare(String(b.reg||'')); });
+  const sold = cbRecentlySold(selectedId);
+  const opt = function(v){
+    return '<option value="'+v.id+'"'+(v.id===selectedId?' selected':'')+'>'+escapeHtml(cbVehLabel(v.id))+
+      (v.sale&&v.sale.date?' \u00b7 sold '+fmtDate(v.sale.date):'')+'</option>';
+  };
+  return (live.length ? '<optgroup label="In stock">'+live.map(opt).join('')+'</optgroup>' : '') +
+         (sold.length ? '<optgroup label="Sold recently \u2014 adding a cost changes its profit">'+sold.map(opt).join('')+'</optgroup>' : '');
+}
+/* a plain warning the moment a sold car is chosen */
+function cbSoldWarn(selId, boxId){
+  const box = document.getElementById(boxId); if(!box) return;
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===(document.getElementById(selId)||{}).value; });
+  if(!v || !v.sale){ box.style.display='none'; box.innerHTML=''; return; }
+  const inv = (typeof isMuzaribCar==='function' && isMuzaribCar(v)) ? muzaribName(v.muzaribId) : '';
+  box.style.display='block';
+  box.innerHTML = '<b>' + escapeHtml(v.reg||'') + ' is already sold.</b> Adding a cost to it lowers the profit on that sale' +
+    (inv ? ' and changes what ' + escapeHtml(inv) + ' is settled' : '') + '. Right for an invoice that came in late \u2014 not for a cost that belongs on a car still in stock.';
+}
+
 function cbVehLabel(id){
   const v = (DB.vehicles||[]).find(function(x){ return x.id===id; });
   if(!v) return '';
@@ -10079,6 +10244,114 @@ function cbAdd(){
   saveDB(); render();
   if(typeof wbToast === 'function') wbToast(dir==='out' ? 'Money out logged' : 'Money in logged');
 }
+/* ---- editing an entry (Super Admin) ---------------------------------------
+   Managers put entries in; only a Super Admin can change one afterwards, and
+   every change is written to the change log with the old value beside the new.
+   If the entry was added to a car's costs, the old amount comes off that car
+   and the new one goes on - including when the car itself is changed.
+--------------------------------------------------------------------------- */
+function cbEdit(id){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can change an entry. You can remove it and add it again.'); return; }
+  const r = (DB.cashbook||[]).find(function(x){ return x.id===id; });
+  if(!r) return;
+  const live = (DB.vehicles||[]).filter(function(v){ return !v.sale || v.id===r.vehicleId; });
+  const cats = cbCats(r.dir);
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Change this entry</h3>
+    <div class="small-muted" style="margin-bottom:10px">Put in ${r.createdBy?'by '+escapeHtml(r.createdBy):'by someone'}${r.createdAt?' on '+fmtDate(r.createdAt.slice(0,10)):''}${r.fromCsv?' · came from the bank file':''}.
+      The change is recorded with the old figure beside the new one.</div>
+    <div class="field-row">
+      <div class="field"><label>Date</label><input id="ce_date" type="date" value="${escapeAttr(r.date||todayISO())}"/></div>
+      <div class="field"><label>In or out</label><select id="ce_dir" onchange="cbEditDirChanged()">
+        <option value="in" ${r.dir!=='out'?'selected':''}>Money in</option>
+        <option value="out" ${r.dir==='out'?'selected':''}>Money out</option></select></div>
+      <div class="field"><label>Cash or bank</label><select id="ce_method">
+        <option value="cash" ${r.method!=='bank'?'selected':''}>Cash</option>
+        <option value="bank" ${r.method==='bank'?'selected':''}>Bank</option></select></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Amount (£)</label><input id="ce_amt" type="number" step="0.01" value="${Number(r.amount)||0}"/></div>
+      <div class="field"><label>What for</label><select id="ce_cat">
+        ${cats.map(function(c){ return '<option'+(c===r.cat?' selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('')}
+      </select></div>
+      <div class="field"><label>Who</label><input id="ce_who" value="${escapeAttr(r.who||'')}"/></div>
+    </div>
+    <div class="field"><label>Note</label><input id="ce_note" value="${escapeAttr(r.note||'')}"/></div>
+    <div id="ce_carwrap" style="display:${r.dir==='out'?'block':'none'}">
+      <div class="field-row">
+        <div class="field"><label>Against a car</label><select id="ce_veh" onchange="cbSoldWarn('ce_veh','ce_soldwarn')">
+          <option value="">— none —</option>
+          ${cbCarOptions(r.vehicleId||'')}
+        </select></div>
+        <div class="field"><label>Cost type</label><select id="ce_costtype">
+          ${['purchase','delivery','service','mot','bodywork','mechanical','autotrader','fuel','other'].map(function(k){
+            return '<option value="'+k+'"'+(k===(r.costType||'other')?' selected':'')+'>'+k+'</option>'; }).join('')}
+        </select></div>
+      </div>
+      <div id="ce_soldwarn" class="card" style="display:${r.vehicleId&&cbIsSoldCar(r.vehicleId)?'block':'none'};box-shadow:none;background:var(--brand-dim);padding:10px 12px;margin-bottom:10px;font-size:13px">${r.vehicleId&&cbIsSoldCar(r.vehicleId)?'<b>'+escapeHtml(((DB.vehicles||[]).find(function(x){return x.id===r.vehicleId;})||{}).reg||'')+' is already sold.</b> A cost on it lowers the profit on that sale.':''}</div>
+      <label style="display:flex;align-items:center;gap:8px;margin:4px 0 10px;font-size:13.5px;cursor:pointer">
+        <input type="checkbox" id="ce_tocar" ${r.onVehicle?'checked':''} style="width:17px;height:17px"/>
+        <span>Add this to that car's costs</span></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="cbSaveEdit('${r.id}')">Save the change</button>
+    </div>`);
+}
+
+function cbEditDirChanged(){
+  const dir = (document.getElementById('ce_dir')||{}).value;
+  const wrap = document.getElementById('ce_carwrap');
+  if(wrap) wrap.style.display = dir==='out' ? 'block' : 'none';
+  const cat = document.getElementById('ce_cat');
+  if(cat) cat.innerHTML = cbCats(dir).map(function(c){ return '<option>'+escapeHtml(c)+'</option>'; }).join('');
+}
+
+function cbSaveEdit(id){
+  if(!isSuperAdmin()) return;
+  const r = (DB.cashbook||[]).find(function(x){ return x.id===id; });
+  if(!r) return;
+  const v = function(i){ const el=document.getElementById(i); return el ? String(el.value).trim() : ''; };
+  const amount = Number(v('ce_amt'))||0;
+  if(!amount){ alert('Put an amount in.'); return; }
+  /* take the old figure off the car before anything changes */
+  if(r.onVehicle) cbApplyToVehicle(r, false);
+  const before = {date:r.date, dir:r.dir, amount:Number(r.amount)||0, method:r.method,
+                  cat:r.cat, note:r.note, vehicleId:r.vehicleId};
+  const dir = v('ce_dir')==='out' ? 'out' : 'in';
+  const toCar = document.getElementById('ce_tocar');
+  r.date = v('ce_date')||r.date;
+  r.dir = dir;
+  r.amount = Math.abs(amount);
+  r.method = v('ce_method')==='bank' ? 'bank' : 'cash';
+  r.cat = v('ce_cat')||r.cat;
+  r.who = v('ce_who');
+  r.note = v('ce_note');
+  r.vehicleId = dir==='out' ? (v('ce_veh')||'') : '';
+  r.costType = v('ce_costtype')||'other';
+  r.onVehicle = !!(r.vehicleId && dir==='out' && toCar && toCar.checked);
+  r.editedBy = currentUserName||'';
+  r.editedAt = new Date().toISOString();
+  if(r.onVehicle) cbApplyToVehicle(r, true);
+  const changed = [];
+  if(before.amount !== r.amount) changed.push('amount ' + fmtMoney(before.amount) + ' \u2192 ' + fmtMoney(r.amount));
+  if(before.dir !== r.dir) changed.push((before.dir==='out'?'out':'in') + ' \u2192 ' + (r.dir==='out'?'out':'in'));
+  if(before.date !== r.date) changed.push('date ' + fmtDate(before.date) + ' \u2192 ' + fmtDate(r.date));
+  if(before.method !== r.method) changed.push(before.method + ' \u2192 ' + r.method);
+  if(before.cat !== r.cat) changed.push((before.cat||'') + ' \u2192 ' + (r.cat||''));
+  if((before.vehicleId||'') !== (r.vehicleId||'')) changed.push('car ' + (before.vehicleId?cbVehLabel(before.vehicleId):'none') + ' \u2192 ' + (r.vehicleId?cbVehLabel(r.vehicleId):'none'));
+  if((before.note||'') !== (r.note||'')) changed.push('note changed');
+  if(typeof logChange === 'function'){
+    logChange('money','Changed a day book entry', {id:r.id,label:(r.note||r.cat)},
+      'Was', fmtMoney(before.amount) + ' ' + (before.dir==='out'?'out':'in'),
+      fmtMoney(r.amount) + ' ' + (r.dir==='out'?'out':'in'),
+      changed.join(' \u00b7 ') || 'no change');
+  }
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast('Entry changed');
+}
+
 function cbDelete(id){
   if(!isManager()) return;
   const r = (DB.cashbook||[]).find(function(x){ return x.id===id; });
@@ -10317,11 +10590,12 @@ function renderCashbook(){
       <div class="field"><label>Note</label><input id="cb_note" placeholder="what it was — be specific enough to recognise it in a month"/></div>
       <div class="field" style="flex:0 0 auto"><button class="btn btn-brand" onclick="cbAdd()">Add</button></div>
     </div>
+    <div id="cb_soldwarn" class="card" style="display:none;box-shadow:none;background:var(--brand-dim);padding:10px 12px;margin-bottom:10px;font-size:13px"></div>
     <div id="cb_carwrap" style="display:none">
       <div class="field-row" style="align-items:flex-end">
         <div class="field"><label>For a car? (goes onto its costs)</label>
-          <select id="cb_veh"><option value="">Not for a particular car</option>
-            ${live.sort((a,b)=>(a.reg||'').localeCompare(b.reg||'')).map(v=>`<option value="${v.id}">${escapeHtml(v.reg||'')} — ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}</option>`).join('')}
+          <select id="cb_veh" onchange="cbSoldWarn('cb_veh','cb_soldwarn')"><option value="">Not for a particular car</option>
+            ${cbCarOptions('')}
           </select></div>
         <div class="field" style="flex:0 0 170px"><label>Type of cost</label>
           <select id="cb_costtype">
@@ -10368,7 +10642,7 @@ function renderCashbook(){
           <td class="num">${out?'—':money(amt)}</td>
           <td class="num">${out?money(amt):'—'}</td>
           <td class="num" style="color:${b.total<0?'var(--red)':'var(--ink)'}">${money(b.total)}</td>
-          <td class="num">${isManager()?`<button class="btn btn-sm btn-ghost" onclick="cbDelete('${r.id}')">Remove</button>`:''}</td>
+          <td class="num" style="white-space:nowrap">${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="cbEdit('${r.id}')">Edit</button> `:''}${isManager()?`<button class="btn btn-sm btn-ghost" onclick="cbDelete('${r.id}')">Remove</button>`:''}</td>
         </tr>`;}).join('')}
       </tbody></table></div>`;
   }).join('')}
