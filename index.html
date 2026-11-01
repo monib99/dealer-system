@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-10-30 b74</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-01 b85</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -888,14 +888,25 @@ function vehicleCostTotal(v){
     .reduce((s,k)=> s + (Number(c[k])||0), 0);
   return base + partsTotal(v) + worksTotal(v);
 }
-function vehicleNetSale(v){
-  // What the car itself sold for. The admin fee charged to the customer is NOT
-  // part of this — it belongs to the company alone and is never shared with an
-  // investor, so it is added to the company side in carSettlement instead.
+/* What the car itself sold for. The admin fee charged to the customer is NOT
+   part of this — it belongs to the company alone and is never shared with an
+   investor, so it is added to the company side in carSettlement instead.
+
+   A part exchange is NOT deducted here. The allowance is how the customer paid
+   part of the price, not a cost of the sale: the car they handed over goes into
+   stock at that same allowance, so taking it off here as well would count the
+   same money twice and show a false loss. Whether the part exchange was a good
+   buy shows up as profit or loss on that car, where it belongs. */
+function vehicleSaleValue(v){
   if(!v.sale) return 0;
   const s = v.sale;
-  return (Number(s.salePrice)||0) - (Number(s.discount)||0) - (Number(s.partExValue)||0)
+  return (Number(s.salePrice)||0) - (Number(s.discount)||0)
     + (Number(s.deliveryCharge)||0) + (Number(s.warranty)||0) + (Number(s.extraPackage)||0);
+}
+function vehicleNetSale(v){ return vehicleSaleValue(v); }
+/* The money that actually came in, with the part exchange taken off. */
+function vehicleCashReceived(v){
+  return vehicleSaleValue(v) - (v.sale ? (Number(v.sale.partExValue)||0) : 0);
 }
 function customerAdminFee(v){ return v.sale ? (Number(v.sale.adminCharge)||0) : 0; }
 function vehicleProfit(v){ return vehicleNetSale(v) - vehicleCostTotal(v); }
@@ -3643,6 +3654,7 @@ async function renderVehicleDetail(){
     <div class="chip-row">${tabs.map(([k,l])=>`<div class="chip ${activeVehicleTab===k?'active':''}" onclick="switchVehicleTab('${k}')">${l}</div>`).join('')}</div>
     <div>${inner}</div>
   `;
+  if(activeVehicleTab==='sale' && !v.sale){ try{ saleDraftAttach(v); }catch(e){} }
 }
 function switchVehicleTab(tab){ activeVehicleTab=tab; renderVehicleDetail(); }
 function changeVehicleStatus(id, status){
@@ -4451,7 +4463,9 @@ function vehicleSaleTab(v){
         <tr><td>Delivery charge</td><td>${fmtMoney(s.deliveryCharge)}</td></tr>
         <tr><td>Warranty</td><td>${fmtMoney(s.warranty)}</td></tr>
         <tr><td>Extra package</td><td>${fmtMoney(s.extraPackage)}</td></tr>
-        <tr><td style="font-weight:700">Net received</td><td style="font-weight:700">${fmtMoney(vehicleNetSale(v))}</td></tr>
+        ${saleExtrasLine(s)?`<tr><td>Included</td><td>${escapeHtml(saleExtrasLine(s))}</td></tr>`:''}
+        <tr><td style="font-weight:700">Sold for</td><td style="font-weight:700">${fmtMoney(vehicleSaleValue(v))}</td></tr>
+        ${(Number(s.partExValue)||0)?`<tr><td>Money received</td><td>${fmtMoney(vehicleCashReceived(v))}<div class="small-muted">the rest was paid with the part exchange, which is in stock at ${fmtMoney(s.partExValue)}</div></td></tr>`:''}
         <tr><td style="font-weight:700">Profit</td><td style="font-weight:700;color:${vehicleProfit(v)>=0?'var(--green)':'var(--red)'}">${fmtMoney(vehicleProfit(v))}</td></tr>
       </table>
       ${licenceCard(v)}
@@ -4483,6 +4497,9 @@ function vehicleSaleTab(v){
       </div>
     </div>`:''}
     ${licenceCard(v)}
+    ${v.saleDraft?`<div class="small-muted" style="background:var(--brand-dim);border-radius:7px;padding:8px 10px;margin-bottom:10px">
+      Picked up where you left off — nothing here is saved as a sale until you confirm it.
+      <a class="link" onclick="discardSaleDraft('${v.id}')">Clear the form</a></div>`:''}
     <div class="field"><label>Customer</label>
       <input id="s_custSearch" placeholder="Search name, phone, email or postcode…" style="margin-bottom:6px"
         oninput="searchSalesCustomer('${v.id}')"/>
@@ -4490,7 +4507,9 @@ function vehicleSaleTab(v){
         <option value="">— Select existing customer —</option>
         ${customerOptions(v.sale?v.sale.customerId:(v.saleDraftCustomerId||''))}
       </select>
-      <div class="small-muted" style="margin-top:6px;">Showing the 5 most recent — search above for anyone else. Not on the list? <a class="link" onclick="openAddCustomer(true)">Add a new customer</a></div>
+      <div class="small-muted" style="margin-top:6px;">Showing the 5 most recent — search above for anyone else.
+        <a class="link" onclick="openEditSaleCustomer('${v.id}')">Edit their details</a> before the invoice goes out.
+        Not on the list? <a class="link" onclick="openAddCustomer(true)">Add a new customer</a></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Sale price (£)</label><input id="s_price" type="number" value="${v.askingPrice||0}"/></div>
@@ -4533,8 +4552,22 @@ function vehicleSaleTab(v){
     <div class="small-muted" style="margin:-4px 0 8px">Anything else the customer is paying for. Each line prints on the invoice with its own note, so write what it is for.</div>
     <div id="extraRows" data-vid="${v.id}">${saleExtrasSeed(v).map(x=>extraRowHTML(x.what,x.amt)).join('')}</div>
     <button class="btn btn-ghost btn-sm" type="button" onclick="addExtraRow()">+ Add a charge</button>
-    <div class="field"><label>Any extras (shown on the invoice)</label>
-      <input id="s_extrasText" placeholder="e.g. 3 MONTHS WARRANTY (GEARBOX AND ENGINE)" value="${(v.sale&&v.sale.extrasText)||''}"/></div>
+    <div class="section-title" style="margin-top:12px"><h2>What is included</h2></div>
+    <div class="small-muted" style="margin:-4px 0 8px">Tick what the car goes out with. It writes itself onto the invoice under <b>Any extras</b>.</div>
+    <div class="field-row">
+      <div class="field"><label>MOT</label><select id="s_motInc">
+        ${MOT_OPTIONS.map(function(o){ return '<option value="'+escapeAttr(o)+'"'+(((v.sale&&v.sale.motIncluded)||'')===o?' selected':'')+'>'+escapeHtml(o||'\u2014 not included \u2014')+'</option>'; }).join('')}
+      </select></div>
+      <div class="field"><label>Warranty</label><select id="s_warrMonths" onchange="saleWarrChanged()">
+        ${WARRANTY_OPTIONS.map(function(o){ return '<option value="'+escapeAttr(o)+'"'+(((v.sale&&v.sale.warrantyMonths)||'')===o?' selected':'')+'>'+escapeHtml(o||'\u2014 none \u2014')+'</option>'; }).join('')}
+      </select></div>
+      <div class="field"><label>What it covers</label><select id="s_warrCover">
+        ${WARRANTY_COVER.map(function(o){ return '<option value="'+escapeAttr(o)+'"'+(((v.sale&&v.sale.warrantyCover)||WARRANTY_COVER[0])===o?' selected':'')+'>'+escapeHtml(o)+'</option>'; }).join('')}
+      </select></div>
+    </div>
+    <div class="field"><label>Anything else included (free text)</label>
+      <input id="s_extrasText" placeholder="e.g. full service history, two keys" value="${escapeAttr((v.sale&&v.sale.extrasText)||'')}"/></div>
+    <div class="small-muted" id="s_extrasPreview" style="margin:-2px 0 8px"></div>
     <div class="section-title" style="margin-top:14px"><h2>Money received</h2></div>
     <div class="small-muted" style="margin:-4px 0 8px">Enter each payment once. These add up to the total received \u2014 anything left is the balance due.</div>
     <div class="field-row">
@@ -4659,6 +4692,13 @@ function pxIntoStock(v){
   nv.mileage = p.mileage || '';
   nv.costs.purchase = Number(s.partExValue)||0;
   nv.pxFromVehicleId = v.id;
+  /* The allowance came out of the price of v, so whoever funded v funded this
+     car too. Leaving it with the company would quietly move the investor's
+     money onto the company's books. Use "Move to company stock" to change it. */
+  if(fresh && v.ownerType==='muzarib' && v.muzaribId){
+    nv.ownerType = 'muzarib';
+    nv.muzaribId = v.muzaribId;
+  }
   nv.notes = 'Taken in part exchange against ' + v.reg + ' on ' + fmtDate(s.date)
            + (s.pxFaults ? ' \u2014 declared faults: ' + s.pxFaults : '');
   if(s.pxFaults && fresh){
@@ -4687,6 +4727,9 @@ function confirmSale(vId){
     warranty: Number(document.getElementById('s_warranty').value)||0,
     extras: readExtras(), extraPackage: 0,
     extrasText: (document.getElementById('s_extrasText')||{value:''}).value.trim(),
+    motIncluded: (document.getElementById('s_motInc')||{value:''}).value,
+    warrantyMonths: (document.getElementById('s_warrMonths')||{value:''}).value,
+    warrantyCover: (document.getElementById('s_warrCover')||{value:''}).value,
     time: (document.getElementById('s_time')||{value:''}).value,
     deposit: Number((document.getElementById('s_deposit')||{value:0}).value)||0,
     payBank: Number((document.getElementById('s_payBank')||{value:0}).value)||0,
@@ -4712,6 +4755,8 @@ function confirmSale(vId){
     wasSold?fmtMoney(prevSale.salePrice):'', fmtMoney(v.sale.salePrice),
     'Profit ' + fmtMoney(vehicleProfit(v)) + (isMuzaribCar(v) ? ' · investor ' + muzaribName(v.muzaribId) + ' receives ' + fmtMoney(carSettlement(v).investor) : ''));
   pxIntoStock(v);
+  delete v.saleDraft;                 // the form has become a real sale
+  clearTimeout(saleDraftTimer);
   saveDB();
   renderVehicleDetail();
 }
@@ -4722,6 +4767,123 @@ function undoSale(vId){
   logChange('sale','Undid sale of', vehRef(v), 'Sale price', fmtMoney(wasPrice), 'removed',
     isMuzaribCar(v) ? 'Reversed the settlement for ' + muzaribName(v.muzaribId) : '');
   v.sale=null; v.status='ready'; saveDB(); renderVehicleDetail();
+}
+
+/* ======================================================================
+   Check the Daily Book Record sheet against the cars.
+
+   Paste the rows straight out of Excel. Every line is read for a
+   registration and an amount, whatever order the columns are in, then the
+   spend per car is compared with what that car actually carries here.
+   Purchase price is left out of the comparison - we are checking the money
+   SPENT on a car, not what it cost to buy.
+   ====================================================================== */
+function dbParsePaste(text){
+  const PLATE = /^[A-Z0-9]{2,4} ?[A-Z0-9]{3,4}$/;
+  const rows = [], bad = [];
+  String(text||'').split(/\r?\n/).forEach(function(line){
+    if(!line.trim()) return;
+    const cells = line.split(/\t|  +|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(function(c){ return c.trim().replace(/^"|"$/g,''); });
+    let reg = '', amt = null, desc = '';
+    cells.forEach(function(c){
+      const up = c.toUpperCase();
+      const letters = (up.match(/[A-Z]/g)||[]).length, digits = (up.match(/[0-9]/g)||[]).length;
+      if(!reg && PLATE.test(up) && letters >= 2 && digits >= 2){ reg = up; return; }
+      const n = Number(String(c).replace(/[\u00a3,\s]/g,''));
+      if(c && isFinite(n) && n > 0 && /[0-9]/.test(c) && !/\//.test(c)) amt = n;
+      if(c.length > desc.length && !PLATE.test(up) && !isFinite(Number(c.replace(/[\u00a3,\s]/g,'')))) desc = c;
+    });
+    if(reg && amt != null) rows.push({reg: reg, amount: amt, desc: desc});
+    else if(line.trim()) bad.push(line.trim().slice(0, 60));
+  });
+  return {rows: rows, bad: bad};
+}
+
+/* What has actually been spent on a car here, purchase price aside. */
+function dbSpentOnCar(v){
+  const c = v.costs || {};
+  const spent = ['delivery','service','mot','bodywork','mechanical','autotrader','fuel','other']
+    .reduce(function(t,k){ return t + (Number(c[k])||0); }, 0);
+  return spent + partsTotal(v) + worksTotal(v);
+}
+
+let dbCheckText = '';
+function openDbCheck(){
+  if(!isManager()) return;
+  openModal(`
+    <button class="close-x" onclick="closeModal()">\u2715</button>
+    <h3>Check the day book sheet against the cars</h3>
+    <div class="small-muted" style="margin-bottom:10px">
+      In Excel select the Daily Book Record rows \u2014 date, invoice, registration, what it was for, amount \u2014
+      copy them, and paste below. It reads a registration and an amount off each line whatever order your
+      columns are in, adds up the spend per car and compares it with what that car carries here.
+      <b>Nothing is changed</b>, it only tells you where the two disagree.
+    </div>
+    <textarea id="db_paste" rows="8" style="width:100%;font-family:ui-monospace,monospace;font-size:12px"
+      placeholder="14/09/2026&#9;&#9;AY62 YSN&#9;LOCK REPLACEMENT&#9;&#163;102.00"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runDbCheck()">Compare</button>
+    </div>`);
+  setTimeout(function(){ const el=document.getElementById('db_paste'); if(el){ el.value = dbCheckText; el.focus(); } }, 50);
+}
+
+function runDbCheck(){
+  const el = document.getElementById('db_paste');
+  dbCheckText = el ? el.value : '';
+  const p = dbParsePaste(dbCheckText);
+  if(!p.rows.length){ alert('Nothing readable in that. Each line needs a registration and an amount.'); return; }
+  const by = {};
+  p.rows.forEach(function(r){
+    const k = normaliseReg(r.reg);
+    (by[k] = by[k] || {reg:r.reg, sheet:0, lines:0, items:[]});
+    by[k].sheet += r.amount; by[k].lines++; by[k].items.push(r);
+  });
+  const out = Object.keys(by).map(function(k){
+    const b = by[k], v = findVehicleByReg(b.reg);
+    const app = v ? dbSpentOnCar(v) : 0;
+    return {reg:b.reg, v:v, sheet:b.sheet, lines:b.lines, app:app, diff: b.sheet - app};
+  });
+  const miss = out.filter(function(r){ return !r.v; });
+  const short = out.filter(function(r){ return r.v && r.diff > 0.5; }).sort(function(a,b){ return b.diff-a.diff; });
+  const over  = out.filter(function(r){ return r.v && r.diff < -0.5; }).sort(function(a,b){ return a.diff-b.diff; });
+  const ok    = out.filter(function(r){ return r.v && Math.abs(r.diff) <= 0.5; });
+  const sum = function(a,f){ return a.reduce(function(t,r){ return t + f(r); }, 0); };
+  const tbl = function(list, note){
+    return `<table><thead><tr><th>Car</th><th class="num">On the sheet</th><th class="num">In the app</th>
+      <th class="num">${note}</th><th class="num">Lines</th></tr></thead><tbody>
+      ${list.map(function(r){ return `<tr>
+        <td>${r.v?`<a class="link" onclick="closeModal();openVehicle('${r.v.id}')">${escapeHtml(r.reg)}</a>
+              <div class="small-muted">${escapeHtml([r.v.make,r.v.model].filter(Boolean).join(' '))||''}${r.v.sale?' \u00b7 sold':''}</div>`
+             :`<b>${escapeHtml(r.reg)}</b><div class="small-muted" style="color:var(--red)">no car with that registration</div>`}</td>
+        <td class="num">${fmtMoney(r.sheet)}</td>
+        <td class="num">${r.v?fmtMoney(r.app):'\u2014'}</td>
+        <td class="num"><b style="color:${r.diff>0.5?'var(--red)':(r.diff<-0.5?'#8A5B07':'var(--green)')}">${fmtMoney(Math.abs(r.diff))}</b></td>
+        <td class="num">${r.lines}</td></tr>`; }).join('')}
+      </tbody></table>`;
+  };
+  openModal(`
+    <button class="close-x" onclick="closeModal()">\u2715</button>
+    <h3>Day book compared with the cars</h3>
+    <div class="small-muted" style="margin-bottom:10px">
+      ${p.rows.length} line${p.rows.length===1?'':'s'} read across ${out.length} car${out.length===1?'':'s'} \u00b7
+      ${fmtMoney(sum(p.rows,function(r){return r.amount;}))} on the sheet
+      ${p.bad.length?` \u00b7 <span style="color:#8A5B07">${p.bad.length} line${p.bad.length===1?'':'s'} could not be read</span>`:''}
+      <br>Purchase price is left out on both sides \u2014 this is the money spent on the car, not what it cost to buy.
+    </div>
+    <div style="max-height:52vh;overflow:auto">
+      ${short.length?`<div class="section-title" style="margin-top:0"><h2>Missing from the app \u00b7 ${fmtMoney(sum(short,function(r){return r.diff;}))}</h2>
+        <span class="small-muted">the sheet has more spend than the car carries</span></div>${tbl(short,'Short by')}`:''}
+      ${over.length?`<div class="section-title"><h2>More in the app than on the sheet</h2>
+        <span class="small-muted">either the sheet is behind, or something is on the car twice</span></div>${tbl(over,'Extra')}`:''}
+      ${miss.length?`<div class="section-title"><h2>No matching car \u00b7 ${miss.length}</h2>
+        <span class="small-muted">not in stock records \u2014 or they belong to Car Express</span></div>${tbl(miss,'On the sheet')}`:''}
+      ${ok.length?`<div class="section-title"><h2>Agree \u00b7 ${ok.length}</h2></div>${tbl(ok,'Difference')}`:''}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="openDbCheck()">Paste something else</button>
+      <button class="btn btn-brand" onclick="closeModal()">Close</button>
+    </div>`);
 }
 
 /* ---- returns -------------------------------------------------------------
@@ -4875,6 +5037,126 @@ function depositFromLead(vId){
    it never enters the investor split */
 
 /* ---------- extra charges on a sale ---------- */
+/* ---------------------------------------------------------------------------
+   Keeping a half-finished sale form.
+   Opening the invoice, editing the customer or flicking to another tab used to
+   redraw this screen from scratch, which threw away everything typed. The form
+   now writes itself to v.saleDraft on every keystroke and puts itself back.
+   --------------------------------------------------------------------------- */
+const SALE_DRAFT_FIELDS = ['s_customer','s_price','s_discount','s_date','s_time',
+  's_pxreg','s_pxval','s_pxmake','s_pxmodel','s_pxyear','s_pxmiles','s_pxcolour','s_pxFaults',
+  's_admin','s_delivery','s_warranty','s_motInc','s_warrMonths','s_warrCover','s_extrasText',
+  's_deposit','s_payBank','s_payCard','s_payCash'];
+const SALE_DRAFT_TICKS = ['s_hasPx','s_tradeSale'];
+let saleDraftTimer = null;
+
+function saleDraftCapture(v){
+  if(!v || v.sale) return;
+  if(!document.getElementById('s_price')) return;   // the form is not on screen
+  const d = { f:{}, t:{}, extras:[], at: new Date().toISOString() };
+  SALE_DRAFT_FIELDS.forEach(function(id){ const el=document.getElementById(id); if(el) d.f[id]=el.value; });
+  SALE_DRAFT_TICKS.forEach(function(id){ const el=document.getElementById(id); if(el) d.t[id]=!!el.checked; });
+  d.extras = [].slice.call(document.querySelectorAll('#extraRows .xrow')).map(function(r){
+    return { what:(r.querySelector('.xWhat')||{value:''}).value,
+             amt: (r.querySelector('.xAmt')||{value:''}).value };
+  });
+  v.saleDraft = d;
+  if(d.f.s_customer) v.saleDraftCustomerId = d.f.s_customer;
+  clearTimeout(saleDraftTimer);
+  saleDraftTimer = setTimeout(function(){ try{ saveDB(); }catch(e){} }, 1200);
+}
+
+function saleDraftApply(v){
+  const d = v && v.saleDraft; if(!d) return false;
+  let touched = false;
+  SALE_DRAFT_FIELDS.forEach(function(id){
+    if(!(id in d.f)) return;
+    const el = document.getElementById(id); if(!el) return;
+    if(id==='s_customer'){
+      // only if that customer is still in the list, otherwise leave it alone
+      if(![].some.call(el.options, function(o){ return o.value===d.f[id]; })) return;
+    }
+    el.value = d.f[id]; touched = true;
+  });
+  SALE_DRAFT_TICKS.forEach(function(id){
+    if(!(id in d.t)) return;
+    const el = document.getElementById(id); if(el) el.checked = d.t[id];
+  });
+  if(Array.isArray(d.extras)){
+    const box = document.getElementById('extraRows');
+    if(box) box.innerHTML = d.extras.map(function(x){ return extraRowHTML(x.what, x.amt===''?'':x.amt); }).join('');
+  }
+  try{ togglePxFields(!!(document.getElementById('s_hasPx')||{}).checked); }catch(e){}
+  try{ updatePayTotal(); }catch(e){}
+  try{ saleWarrChanged(); }catch(e){}
+  return touched;
+}
+
+/* Called once each time the sale form is drawn: put the draft back, then listen
+   for anything the user types so the next redraw has something to put back. */
+function saleDraftAttach(v){
+  if(!v || v.sale) return;
+  const form = document.getElementById('saleForm') || document.getElementById('main');
+  saleDraftApply(v);
+  if(!form || form.dataset.saleDraftWired === v.id) return;
+  form.dataset.saleDraftWired = v.id;
+  const hit = function(){ saleDraftCapture(v); };
+  form.addEventListener('input', hit, true);
+  form.addEventListener('change', hit, true);
+}
+
+function clearSaleDraft(v, redraw){
+  if(!v) return;
+  delete v.saleDraft;
+  clearTimeout(saleDraftTimer);
+  try{ saveDB(); }catch(e){}
+  if(redraw) renderVehicleDetail();
+}
+function discardSaleDraft(vId){
+  const v = DB.vehicles.find(function(x){ return x.id===vId; }); if(!v) return;
+  if(!confirm('Clear everything typed on this sale form and start again?')) return;
+  const form = document.getElementById('saleForm') || document.getElementById('main');
+  if(form) delete form.dataset.saleDraftWired;
+  clearSaleDraft(v, true);
+}
+
+/* ---- edit an existing customer without leaving the sale -------------------- */
+function openEditSaleCustomer(vId){
+  const sel = document.getElementById('s_customer');
+  const id = sel ? sel.value : '';
+  if(!id){ alert('Choose the customer first, then you can correct their details.'); return; }
+  const c = (DB.customers||[]).find(function(x){ return x.id===id; });
+  if(!c){ alert('That customer is no longer on file.'); return; }
+  const v = DB.vehicles.find(function(x){ return x.id===vId; });
+  if(v) saleDraftCapture(v);
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Edit customer</h3>
+    <div class="small-muted" style="margin:-6px 0 10px">These details print on the invoice. Changing them here changes them everywhere this customer appears.</div>
+    <div class="field"><label>Name</label><input id="ec_name" value="${escapeAttr(c.name||'')}"/></div>
+    <div class="field-row"><div class="field"><label>Phone</label><input id="ec_phone" value="${escapeAttr(c.phone||'')}"/></div>
+      <div class="field"><label>Email</label><input id="ec_email" value="${escapeAttr(c.email||'')}"/></div></div>
+    <div class="field-row"><div class="field"><label>Address</label><input id="ec_address" value="${escapeAttr(c.address||'')}"/></div>
+      <div class="field"><label>Postcode</label><input id="ec_postcode" style="text-transform:uppercase" value="${escapeAttr(c.postcode||'')}"/></div></div>
+    <div class="field"><label>Notes</label><textarea id="ec_notes" rows="2">${escapeHtml(c.notes||c.note||'')}</textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveSaleCustomer('${vId}','${id}')">Save details</button></div>`);
+}
+function saveSaleCustomer(vId, id){
+  const c = (DB.customers||[]).find(function(x){ return x.id===id; }); if(!c) return;
+  const g = function(i){ const el=document.getElementById(i); return el ? el.value : ''; };
+  const name = g('ec_name').trim();
+  if(!name){ alert('A customer needs a name.'); return; }
+  const before = [c.name,c.phone,c.email,c.address,c.postcode].join(' | ');
+  c.name = name;
+  c.phone = g('ec_phone').trim();
+  c.email = g('ec_email').trim();
+  c.address = g('ec_address').trim();
+  c.postcode = g('ec_postcode').trim().toUpperCase();
+  c.notes = g('ec_notes');
+  const after = [c.name,c.phone,c.email,c.address,c.postcode].join(' | ');
+  if(before !== after){ try{ logChange('customer','Customer details edited', c.name, 'Details', before, after, ''); }catch(e){} }
+  saveDB(); closeModal(); renderVehicleDetail();
+}
+
 function extraRowHTML(what, amt){
   const e = x => String(x==null?'':x).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
   return `<div class="xrow field-row" style="align-items:flex-end">
@@ -4904,6 +5186,31 @@ function saleExtrasSeed(v){
   if(Number(s.extraPackage)) return [{what:'Extra package', amt:Number(s.extraPackage)}];
   return [{what:'', amt:''}];
 }
+/* What the car goes out with. These three write the invoice's "Any extras"
+   line, so nobody has to remember the wording. */
+const MOT_OPTIONS = ['', '12 months MOT', '6 months MOT', 'MOT as current', 'New MOT on collection'];
+const WARRANTY_OPTIONS = ['', '3 month warranty', '6 month warranty', '12 month warranty', '24 month warranty'];
+const WARRANTY_COVER = ['engine & gearbox', 'engine, gearbox & clutch', 'comprehensive'];
+
+function saleExtrasLine(s){
+  s = s || {};
+  const bits = [];
+  if(s.motIncluded) bits.push(s.motIncluded);
+  if(s.warrantyMonths) bits.push(s.warrantyMonths + (s.warrantyCover ? ' (' + s.warrantyCover + ')' : ''));
+  const free = String(s.extrasText||'').trim();
+  if(free) bits.push(free);
+  return bits.join(' \u00b7 ');
+}
+
+/* keeps the little grey line under the pickers honest while you choose */
+function saleWarrChanged(){
+  const box = document.getElementById('s_extrasPreview'); if(!box) return;
+  const g = function(i){ const el=document.getElementById(i); return el?el.value:''; };
+  const line = saleExtrasLine({motIncluded:g('s_motInc'), warrantyMonths:g('s_warrMonths'),
+                               warrantyCover:g('s_warrCover'), extrasText:g('s_extrasText')});
+  box.innerHTML = line ? 'On the invoice: <b>' + escapeHtml(line) + '</b>' : 'Nothing extra will show on the invoice.';
+}
+
 function invoiceTotals(v, sale){
   const s = sale || v.sale || {};
   const price = Number(s.salePrice)||0, disc = Number(s.discount)||0, px = Number(s.partExValue)||0;
@@ -4949,6 +5256,7 @@ function draftSaleFromForm(v){
     payBank: num('s_payBank'), payCard: num('s_payCard'), payCash: num('s_payCash'),
     advertisedPrice: Number(v.askingPrice)||0,
     extrasText: txt('s_extrasText'),
+    motIncluded: txt('s_motInc'), warrantyMonths: txt('s_warrMonths'), warrantyCover: txt('s_warrCover'),
     tradeSale: !!(document.getElementById('s_tradeSale')||{}).checked,
     invoiceRef: (v.sale && v.sale.invoiceRef) || ''
   };
@@ -4974,173 +5282,198 @@ function printInvoice(vId, draftSale){
   const addr = [cust.address, cust.postcode].filter(Boolean).join(', ');
 
   const html = `<!doctype html><html><head><meta charset="utf-8">
-<title>Invoice ${e(s.invoiceRef||'')} — ${e(v.reg||'')}</title>
+<title>${isDraft?'Proforma':'Invoice'} ${e(s.invoiceRef||'')} — ${e(v.reg||'')}</title>
 <style>
   *{box-sizing:border-box}
-  body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;color:#15181c;margin:0;padding:22px;font-size:12px;line-height:1.42}
-  .head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:2.5px solid #15181c;padding-bottom:10px;margin-bottom:12px}
-  .head img{max-height:62px;max-width:260px;display:block}
-  .biz{font-size:20px;font-weight:800;letter-spacing:.3px}
-  .biz small{display:block;font-size:11px;font-weight:400;color:#555;letter-spacing:0;margin-top:3px}
-  .ref{text-align:right;font-size:11.5px;white-space:nowrap}
-  .ref b{display:block;font-size:17px;letter-spacing:.5px}
-  h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;margin:0 0 5px;padding-bottom:3px;border-bottom:1.5px solid #15181c}
-  .cols{display:flex;gap:16px;align-items:flex-start}
-  .cols > *{flex:1;min-width:0}
-  table{width:100%;border-collapse:collapse;margin-bottom:12px}
-  th,td{text-align:left;padding:3.5px 6px;border-bottom:1px solid #e4e6ea;vertical-align:top;font-size:11.5px}
-  th{width:42%;font-weight:600;color:#4a5159}
-  td{font-weight:600}
-  .money th{width:58%} .money td{text-align:right;white-space:nowrap}
-  tr.sub td,tr.sub th{border-top:1.5px solid #15181c;font-size:12.5px}
-  tr.due td,tr.due th{font-size:15px;font-weight:800;border-bottom:none;padding-top:7px}
+  body{font-family:'Segoe UI',-apple-system,Arial,sans-serif;color:#000;margin:0;padding:12mm 11mm;
+       font-size:11.6px;line-height:1.3;background:#fff}
+  .sheet{border:1.6px solid #000}
+  .hd{display:flex;gap:14px;align-items:flex-start;padding:9px 11px;border-bottom:1.6px solid #000}
+  .hd .lg{flex:0 0 178px;display:flex;align-items:center}
+  .hd .lg img{max-width:178px;max-height:66px;width:auto;height:auto;display:block}
+  .hd .co{flex:1}
+  .hd .co b{display:block;font-size:14.5px;font-weight:800;letter-spacing:.2px}
+  .hd .co .ad{font-size:11px;font-weight:700;margin-top:1px}
+  .hd .co .ln{font-size:10.4px;margin-top:2px}
+  .ref{display:flex;border-bottom:1.6px solid #000}
+  .ref > div{display:flex;border-right:1.2px solid #000}
+  .ref > div:last-child{border-right:0}
+  .ref .k{background:#f0f0f0;font-weight:800;font-size:11px;padding:6px 9px;
+          border-right:1.2px solid #000;display:flex;align-items:center;white-space:nowrap}
+  .ref .val{padding:6px 10px;font-weight:700;font-size:12px;display:flex;align-items:center;min-width:80px}
+  .ref .r1{flex:1.25} .ref .r2{flex:1} .ref .r3{flex:.85}
+  .note-bar{padding:7px 11px;border-bottom:1.6px solid #000;font-size:10.6px;line-height:1.45;background:#fbf6ec}
+  .bodycols{display:flex;align-items:stretch}
+  .left{flex:1.58;min-width:0;border-right:1.6px solid #000;display:flex;flex-direction:column}
+  .fillnote{flex:1;display:flex;flex-direction:column;min-height:24px}
+  .fillnote .fb{flex:1}
+  .pxb.pxin{border-top:0}
+  .right{flex:1;min-width:0;display:flex;flex-direction:column}
+  .bar{background:#e8e8e8;font-weight:800;font-size:11px;letter-spacing:.04em;text-transform:uppercase;
+       padding:5px 9px;border-bottom:1.2px solid #000;border-top:1.2px solid #000}
+  .left .bar:first-child,.right .bar:first-child{border-top:0}
+  table{width:100%;border-collapse:collapse}
+  th,td{border-bottom:1px solid #000;padding:4px 9px;text-align:left;vertical-align:top}
+  th{width:38%;font-weight:600;font-size:11px;background:#fafafa;border-right:1px solid #000;white-space:nowrap}
+  td{font-weight:700;font-size:11.6px}
+  tr:last-child th,tr:last-child td{border-bottom:0}
+  table.money td{text-align:right;white-space:nowrap}
+  table.money th{width:58%;white-space:normal}
+  tr.sub th,tr.sub td{border-top:1.4px solid #000;background:#f4f4f4;font-weight:800;font-size:12.2px}
+  tr.due th,tr.due td{background:#e8e8e8;font-weight:800;font-size:14.5px;padding-top:6px;padding-bottom:6px}
+  .tm{padding:7px 10px;font-size:9.4px;line-height:1.36;flex:1}
+  .tm ol{margin:0;padding-left:14px} .tm li{margin-bottom:3.2px}
+  .dc{padding:7px 10px;font-size:9.6px;line-height:1.38}
+  .dc ul{margin:3px 0 0;padding-left:14px} .dc li{margin-bottom:2.6px}
+  .dc .note{font-weight:800;margin-top:5px}
+  .sg{display:flex;gap:10px;margin-top:9px;font-size:10px;font-weight:700}
+  .sg > div{flex:1} .sg .ln{border-bottom:1px solid #000;height:20px}
+  .pay{display:flex;border-top:1.6px solid #000}
+  .pay > div{flex:1;display:flex;border-right:1.2px solid #000}
+  .pay > div:last-child{border-right:0}
+  .pay .k{background:#f0f0f0;font-weight:800;font-size:10.6px;padding:6px 9px;border-right:1.2px solid #000;white-space:nowrap;display:flex;align-items:center}
+  .pay .v{padding:6px 10px;font-weight:800;font-size:11.6px;flex:1;text-align:right}
+  .sigs{display:flex;border-top:1.6px solid #000}
+  .sigs > div{flex:1;padding:8px 10px;border-right:1.2px solid #000;font-size:10.4px;font-weight:700}
+  .sigs > div:last-child{border-right:0}
+  .sigs .ln{border-bottom:1px solid #000;height:26px;margin-top:3px}
+  .pxb{border-top:1.6px solid #000}
+  .pxb .in{padding:7px 10px;font-size:10px;line-height:1.4}
+  .pxb ol{margin:4px 0 0;padding-left:15px} .pxb li{margin-bottom:2.4px}
+  .foot{margin-top:7px;font-size:9.2px;color:#333;text-align:center}
   .ibar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#15181c;color:#fff;
-        margin:-22px -22px 14px;padding:9px 22px;font-size:12px}
+        margin:-12mm -11mm 10px;padding:9px 11mm;font-size:12px}
   .ibar button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:6px;padding:6px 12px;background:#fff;color:#15181c}
   .ibar .hint{opacity:.75;font-size:11px}
-  @media print{ .ibar{display:none !important} }
-  .terms{font-size:9.3px;line-height:1.4;color:#30363d}
-  .terms li{margin-bottom:3px}
-  .terms ol{margin:0;padding-left:15px}
-  .decl{border:1.2px solid #15181c;border-radius:4px;padding:8px 10px;margin-top:4px;font-size:9.8px;line-height:1.45}
-  .decl ul{margin:4px 0 6px;padding-left:16px}
-  .note{font-weight:700;margin-top:5px}
-  .sigs{display:flex;gap:30px;margin-top:20px}
-  .sigs div{flex:1}
-  .sigline{border-top:1px solid #15181c;margin-top:30px;padding-top:4px;font-size:10.5px;color:#4a5159}
-  .foot{margin-top:14px;padding-top:7px;border-top:1px solid #d4d8de;font-size:9.5px;color:#6b7280;text-align:center}
-  /* keep the whole document, signatures included, on one sheet */
   @media print{
-    @page{ size:A4; margin:0; }
-    body{ padding:9mm 10mm; font-size:9.6px; line-height:1.34 }
-    .noprint{ display:none }
-    .head{ padding-bottom:7px; margin-bottom:9px; border-bottom-width:2px }
-    .head img{ max-height:46px; max-width:190px }
-    .biz{ font-size:15px } .biz small{ font-size:8.6px }
-    .ref{ font-size:9px } .ref b{ font-size:13px }
-    h2{ font-size:8.8px; margin:0 0 3px; padding-bottom:2px }
-    .cols{ gap:12px }
-    table{ margin-bottom:7px }
-    th,td{ padding:1.9px 5px; font-size:9.2px }
-    tr.sub td,tr.sub th{ font-size:10px }
-    tr.due td,tr.due th{ font-size:12.5px; padding-top:4px }
-    .terms{ font-size:7.6px; line-height:1.3 }
-    .terms li{ margin-bottom:1.6px }
-    .terms ol{ padding-left:12px }
-    .decl{ padding:5px 7px; font-size:7.8px; line-height:1.34; margin-top:3px }
-    .decl ul{ margin:2px 0 3px; padding-left:13px }
-    .decl ol{ margin:2px 0 3px !important; padding-left:13px !important }
-    .note{ margin-top:3px }
-    .sigs{ margin-top:10px; gap:24px }
-    .sigline{ margin-top:16px; padding-top:3px; font-size:8.6px }
-    .foot{ margin-top:7px; padding-top:4px; font-size:7.6px }
-    .decl, .sigs, table{ break-inside:avoid; page-break-inside:avoid }
+    @page{size:A4;margin:0}
+    body{padding:7mm 8mm;font-size:10px}
+    .ibar{display:none !important}
+    .hd .lg{flex:0 0 160px}
+    .hd .lg img{max-height:58px;max-width:160px}
+    .hd .co b{font-size:13px} .hd .co .ad{font-size:10px} .hd .co .ln{font-size:9.4px}
+    th,td{padding:3px 8px} th{font-size:10px} td{font-size:10.4px}
+    tr.sub th,tr.sub td{font-size:11px} tr.due th,tr.due td{font-size:13px}
+    .bar{font-size:10px;padding:4px 9px}
+    .tm{font-size:8.2px;line-height:1.28;padding:5px 8px} .tm li{margin-bottom:1.8px}
+    .tm ol{padding-left:12px}
+    .dc{font-size:8.4px;line-height:1.3;padding:5px 8px} .dc li{margin-bottom:1.6px}
+    .sigs > div{font-size:9.2px;padding:6px 9px} .sigs .ln{height:20px}
+    .pxb .in{font-size:8.6px;line-height:1.3;padding:5px 8px} .pxb li{margin-bottom:1.6px}
+    .hd{padding:7px 10px} .note-bar{font-size:9.4px;padding:5px 9px}
+    .pay .k,.pay .v{padding:4px 9px}
+    .foot{font-size:8.4px}
+    .sheet,.sigs,.pxb,table{break-inside:avoid;page-break-inside:avoid}
   }
 </style></head><body>
 
 <div class="ibar">
-  <button onclick="window.print()">\u2B07\uFE0F Download PDF</button>
-  <button onclick="dlWord()">\u2B07\uFE0F Download Word</button>
+  <button onclick="window.print()">⬇️ Download PDF</button>
+  <button onclick="dlWord()">⬇️ Download Word</button>
   <button onclick="window.close()">Close</button>
   <span class="hint">For the PDF, pick <b>Save as PDF</b> as the destination in the print box.</span>
 </div>
 
-<div class="head">
-  <div>${logo}
-    <div class="biz" style="${logo?'font-size:15px;margin-top:6px':''}">${e(DB.invoiceLegalName||DB.bizName||'')}</div>
-    <small>${e(DB.invoiceAddress||'')}
-      ${DB.invoicePhone?'<br>Tel '+e(DB.invoicePhone):''}${DB.invoiceEmail?' · '+e(DB.invoiceEmail):''}${DB.invoiceWeb?' · '+e(DB.invoiceWeb):''}
-      ${DB.invoiceVatNo?'<br>VAT No '+e(DB.invoiceVatNo):''}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo)+', registered in England &amp; Wales':''}
-    </small>
+<div class="sheet">
+  <div class="hd">
+    <div class="lg">${logo || '<b style="font-size:16px">'+e(DB.bizName||'')+'</b>'}</div>
+    <div class="co"><b>${e(DB.invoiceLegalName||DB.bizName||'')}</b>
+      ${DB.invoiceAddress?`<div class="ad">${e(DB.invoiceAddress)}</div>`:''}
+      ${(DB.invoicePhone||DB.invoiceEmail)?`<div class="ln">${DB.invoicePhone?'Phone: '+e(DB.invoicePhone):''}${(DB.invoicePhone&&DB.invoiceEmail)?' · ':''}${DB.invoiceEmail?'Email: '+e(DB.invoiceEmail):''}</div>`:''}
+      ${(DB.invoiceWeb||DB.invoiceVatNo)?`<div class="ln">${DB.invoiceWeb?'Web: '+e(DB.invoiceWeb):''}${(DB.invoiceWeb&&DB.invoiceVatNo)?' · ':''}${DB.invoiceVatNo?'VAT No: '+e(DB.invoiceVatNo):''}</div>`:''}
+      ${(DB.invoiceBankAcc||DB.invoiceBankSort)?`<div class="ln">Bank Account No: ${e(DB.invoiceBankAcc||'')}${DB.invoiceBankSort?', Sort Code: '+e(DB.invoiceBankSort):''}</div>`:''}
+      ${DB.marginScheme?`<div class="ln"><b>Margin Scheme — second-hand goods</b></div>`:''}
+    </div>
   </div>
-  <div class="ref"><b>${isDraft?'PROFORMA':'INVOICE'}</b>
-    Ref: <strong>${e(s.invoiceRef||(isDraft?'DRAFT':'—'))}</strong><br>
-    Date: ${e(fmtDate(s.date))}${s.time?'<br>Time: '+e(s.time):''}
-    ${s.soldBy?'<br>Sold by: '+e(s.soldBy):''}
-    ${DB.marginScheme?'<br><strong style="font-size:10.5px">Margin Scheme — second-hand goods</strong>':''}
+
+  <div class="ref">
+    <div class="r1"><div class="k">${isDraft?'PROFORMA REF':'INVOICE REF'}</div><div class="val">${e(s.invoiceRef||(isDraft?'DRAFT':'—'))}</div></div>
+    <div class="r2"><div class="k">DATE</div><div class="val">${e(fmtDate(s.date))}</div></div>
+    <div class="r3"><div class="k">TIME</div><div class="val">${e(s.time||'—')}</div></div>
   </div>
+
+  ${isDraft?`<div class="note-bar"><b>Proforma invoice — this is a request for payment, not a receipt.</b>
+    The vehicle is reserved for you once we receive the amount shown below. Ownership passes only when payment has
+    cleared in full. Please check our bank details by telephone before sending any money — we never notify a
+    change of bank details by email or text.</div>`:''}
+
+  <div class="bodycols">
+    <div class="left">
+      <div class="bar">Customer details</div>
+      <table>
+        ${pair('Name', cust.name)}
+        ${pair('Address', cust.address)}
+        ${pair('Postcode', cust.postcode)}
+        ${pair('Tel', cust.phone)}
+        ${pair('E-mail', cust.email)}
+      </table>
+      <div class="bar">Vehicle details</div>
+      <table>
+        ${pair('Make', v.make)}
+        ${pair('Model', v.model)}
+        ${pair('Reg', v.reg)}
+        ${pair('First registered', v.firstReg ? fmtDate(v.firstReg) : v.year)}
+        ${pair('Mileage', v.mileage ? Number(v.mileage).toLocaleString('en-GB') : '')}
+        ${pair('VIN number', v.vin)}
+        ${pair('MOT', v.motExpiry ? fmtDate(v.motExpiry) : '')}
+        ${pair('Any extras', saleExtrasLine(s))}
+        ${DB.marginScheme?pair('Stock book ref', v.stockNo || v.reg):''}
+      </table>
+      <div class="bar">Price details</div>
+      <table class="money">
+        ${t.advertised?row('Advertised price', m(t.advertised)):''}
+        ${row('Sale price', m(t.price))}
+        ${t.disc?row('Discount', '-'+m(t.disc)):''}
+        ${t.px?row('P/X allowance'+(s.partExDesc?' ('+e(s.partExDesc)+')':''), '-'+m(t.px)):''}
+        ${t.del?row('Delivery cost (non-refundable)', m(t.del)):''}
+        ${t.admin?row(s.tradeSale?'Admin charges (non-transferable and non-refundable)':'Admin charge', m(t.admin)):''}
+        ${t.warr?row('Warranty cost (non-transferable and non-refundable)', m(t.warr)):''}
+        ${(s.extras||[]).filter(x=>Number(x.amt)).map(x=>row(x.what?x.what:'Extra charge', m(Number(x.amt)))).join('')}
+        ${Number(s.extraPackage)?row('Extra package', m(Number(s.extraPackage))):''}
+        ${row('Total balance', m(t.total), 'sub')}
+        ${t.dep?row('Deposit received', m(t.dep)):''}
+        ${t.paid!==t.dep?row('Total money received', m(t.paid), 'sub'):''}
+        ${row(t.due>0?'BALANCE DUE':(t.due<0?'OVERPAID — TO REFUND':'BALANCE DUE'), m(Math.abs(t.due)), 'due')}
+      </table>
+  ${(t.px>0 || (s.partExDesc||'').trim() || (s.pxFaults||'').trim())?`<div class="pxb pxin">
+        <div class="bar" style="border-top:0">Part exchange — customer declaration</div>
+        <div class="in">
+          Vehicle taken in part exchange: <b>${e(s.partExDesc||'—')}</b> · allowance <b>${m(t.px)}</b><br>
+          Faults declared by the customer: <b>${e(s.pxFaults||'None declared')}</b>
+          <ol>${(s.pxTermsSnapshot||invoicePxTerms()).map(x=>`<li>${e(x)}</li>`).join('')}</ol>
+          <div class="sg"><div>Customer’s signature / date<div class="ln"></div></div></div>
+        </div>
+      </div>`:''}
+      ${(t.px>0 || (s.partExDesc||'').trim() || (s.pxFaults||'').trim())?'<div class="fillnote"><div class="fb"></div></div>'
+        :'<div class="fillnote"><div class="bar">Anything else agreed</div><div class="fb"></div></div>'}
+    </div>
+    <div class="right">
+      <div class="bar">${s.tradeSale?'Trade sale terms':'Terms and conditions'}</div>
+      <div class="tm"><ol>${(s.termsSnapshot||termsForSale(s)).map(x=>`<li>${e(x)}</li>`).join('')}</ol></div>
+      <div class="bar">Customer declaration</div>
+      <div class="dc">
+        <ul>${(s.declSnapshot||invoiceDeclaration()).map(x=>`<li>${e(x)}</li>`).join('')}</ul>
+        <div class="note">${e(s.noteSnapshot||invoiceNote())}</div>
+        ${isDraft?'':`<div class="sg"><div>Customer<div class="ln"></div></div><div>Signature<div class="ln"></div></div></div>`}
+      </div>
+    </div>
+  </div>
+
+  ${(s.payBank||s.payCard||s.payCash)?`<div class="pay">
+    <div><div class="k">Bank transfer</div><div class="v">${m(Number(s.payBank)||0)}</div></div>
+    <div><div class="k">Card</div><div class="v">${m(Number(s.payCard)||0)}</div></div>
+    <div><div class="k">Cash</div><div class="v">${m(Number(s.payCash)||0)}</div></div>
+  </div>`:''}
+
+  ${isDraft?'':`<div class="sigs">
+    <div>Seller’s signature / date<div class="ln"></div></div>
+    <div>I understand and agree to the above terms and conditions<br>Customer’s signature / date<div class="ln"></div></div>
+  </div>`}
+
+
 </div>
 
-<div class="cols">
-  <div>
-    <h2>Customer details</h2>
-    <table>
-      ${pair('Name', cust.name)}
-      ${pair('Address', addr)}
-      ${pair('Tel', cust.phone)}
-      ${pair('E-mail', cust.email)}
-    </table>
-    <h2>Vehicle details</h2>
-    <table>
-      ${pair('Make', v.make)}
-      ${pair('Model', v.model)}
-      ${pair('Reg', v.reg)}
-      ${pair('Year', v.year)}
-      ${pair('First registered', v.firstReg ? fmtDate(v.firstReg) : '')}
-      ${pair('Mileage', v.mileage ? Number(v.mileage).toLocaleString('en-GB') : '')}
-      ${pair('VIN number', v.vin)}
-      ${pair('MOT', v.motExpiry ? fmtDate(v.motExpiry) : '')}
-      ${pair('Any extras', s.extrasText)}
-      ${DB.marginScheme?pair('Stock book ref', v.stockNo || v.reg):''}
-    </table>
-  </div>
-  <div class="terms">
-    <h2>${s.tradeSale?'Trade sale terms':'Terms and conditions'}</h2>
-    <ol>${(s.termsSnapshot||termsForSale(s)).map(x=>`<li>${e(x)}</li>`).join('')}</ol>
-  </div>
-</div>
-
-${isDraft?`<div style="border:1.5px solid #15181c;border-radius:4px;padding:8px 11px;margin-bottom:10px;font-size:10.5px;line-height:1.5">
-  <strong>Proforma invoice \u2014 this is a request for payment, not a receipt.</strong>
-  The vehicle is reserved for you once we receive the amount shown below. Ownership passes only when
-  payment has cleared in full. Please check our bank details by telephone before sending any money
-  \u2014 we never notify a change of bank details by email or text.
-</div>`:''}
-<h2>Price details</h2>
-<table class="money">
-  ${t.advertised?row('Advertised price', m(t.advertised)):''}
-  ${row('Sale price', m(t.price))}
-  ${t.disc?row('Discount', '-'+m(t.disc)):''}
-  ${t.px?row('P/X allowance'+(s.partExDesc?' ('+e(s.partExDesc)+')':''), '-'+m(t.px)):''}
-  ${t.del?row('Delivery cost (non-refundable)', m(t.del)):''}
-  ${t.admin?row(s.tradeSale?'Admin charges (non-transferable and non-refundable)':'Admin charge', m(t.admin)):''}
-  ${t.warr?row('Warranty', m(t.warr)):''}
-  ${(s.extras||[]).filter(x=>Number(x.amt)).map(x=>row(x.what?x.what:'Extra charge', m(Number(x.amt)))).join('')}
-  ${Number(s.extraPackage)?row('Extra package', m(Number(s.extraPackage))):''}
-  ${row('Total balance', m(t.total), 'sub')}
-</table>
-
-<table class="money">
-  ${t.dep?row('Deposit received', m(t.dep)):''}
-  ${s.payBank?row('Bank transfer', m(s.payBank)):''}
-  ${s.payCard?row('Card', m(s.payCard)):''}
-  ${s.payCash?row('Cash', m(s.payCash)):''}
-  ${row('Total money received', m(t.paid), 'sub')}
-  ${row(t.due>0?'Balance due':(t.due<0?'Overpaid — to refund':'Paid in full'), m(Math.abs(t.due)), 'due')}
-</table>
-
-${(DB.invoiceBankAcc||DB.invoiceBankSort)?`<table class="money"><tr><th>Payment to ${e(DB.invoiceLegalName||DB.bizName||'')} — account ${e(DB.invoiceBankAcc||'')}, sort code ${e(DB.invoiceBankSort||'')}</th><td></td></tr></table>`:''}
-
-${(t.px>0 || (s.partExDesc||'').trim() || (s.pxFaults||'').trim())?`<div class="decl">
-  <strong>Part exchange — customer declaration</strong>
-  <div style="margin:3px 0 4px">Vehicle taken in part exchange: <strong>${e(s.partExDesc||'—')}</strong> · allowance <strong>${m(t.px)}</strong></div>
-  <div style="margin-bottom:4px">Faults declared by the customer: <strong>${e(s.pxFaults||'None declared')}</strong></div>
-  <ol style="margin:4px 0 6px;padding-left:16px">${(s.pxTermsSnapshot||invoicePxTerms()).map(x=>`<li>${e(x)}</li>`).join('')}</ol>
-  <div class="sigline" style="margin-top:24px">Customer’s signature / date — part exchange declaration</div>
-</div>`:''}
-
-<div class="decl">
-  <strong>Customer declaration</strong>
-  <ul>${(s.declSnapshot||invoiceDeclaration()).map(x=>`<li>${e(x)}</li>`).join('')}</ul>
-  <div class="note">${e(s.noteSnapshot||invoiceNote())}</div>
-</div>
-
-${isDraft?'':`<div class="sigs">
-  <div><div class="sigline">Seller\u2019s signature / date</div></div>
-  <div><div class="sigline">I understand and agree to the above T&amp;C \u2014 customer\u2019s signature / date</div></div>
-</div>`}
-
-${DB.invoiceAdr?`<div class="foot" style="text-align:left;border:0;padding-top:8px">If we cannot settle a complaint between us, you may refer it to ${e(DB.invoiceAdr)}.</div>`:''}
+${DB.invoiceAdr?`<div class="foot" style="text-align:left">If we cannot settle a complaint between us, you may refer it to ${e(DB.invoiceAdr)}.</div>`:''}
 <div class="foot">${e(DB.invoiceLegalName||DB.bizName||'')}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo):''}${DB.invoiceVatNo?' · VAT No '+e(DB.invoiceVatNo):''}${DB.invoiceFooter?' · '+e(DB.invoiceFooter):''}</div>
 </body></html>`;
 
@@ -10534,6 +10867,7 @@ function renderCashbook(){
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="cbCsvPick()">⬇ Import bank CSV</button>
       <input type="file" id="cb_csv" accept=".csv,text/csv" style="display:none" onchange="cbCsvLoaded(this)"/>
+      ${isManager()?`<button class="btn btn-ghost" onclick="openDbCheck()">🔎 Check the day book sheet</button>`:''}
       ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="cbOpeningModal()">Opening balances</button>`:''}
     </div>
   </div>
