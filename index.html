@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-01 b86</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-04 b91</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -925,27 +925,123 @@ function stockSplit(){
   };
 }
 /* The old business, before this one. Plain notes plus the arithmetic. */
+/* The businesses that came before this one — Apex and the garage, which were
+   sister companies. Notes only: nothing here touches an investor's position or
+   the day-to-day figures. It works the leftover out from its parts rather than
+   asking anyone to do the sums:
+
+       what the partners put in
+       closing stock and assets, less what is owed out   =  what is left over
+       the difference between those two                  =  the loss
+
+   Whatever is left over is what this business opened on. */
 function oldBiz(){
   const o = DB.oldBusiness || {};
   const n = k => Number(o[k])||0;
-  const invested = n('invested'), loss = n('loss');
-  const cash = n('carriedCash'), stock = n('carriedStock'), moved = n('movedToMz');
-  const remaining   = invested - loss;              // what should have been left
-  const carried     = cash + stock;                 // what actually came across
-  const retained    = stock - moved;                // stock this business kept
-  const opening     = cash + retained;              // what this business started on
-  const unaccounted = remaining - carried;          // the gap, if the two disagree
-  return {name:o.name||'', note:o.note||'', invested, loss, cash, stock, moved,
-          remaining, carried, retained, opening, unaccounted};
+
+  const partners = (o.partners||[]).map(function(x){
+    const cash=Number(x.cash)||0, bank=Number(x.bank)||0, stock=Number(x.stock)||0, assets=Number(x.assets)||0;
+    return {id:x.id, who:x.who||'', note:x.note||'', cash, bank, stock, assets,
+            total: cash+bank+stock+assets};
+  }).sort(function(a,b){ return b.total - a.total; });
+  const owed = (o.owed||[]).map(function(x){
+    return {id:x.id, who:x.who||'', what:x.what||'', amount:Number(x.amount)||0};
+  }).sort(function(a,b){ return b.amount - a.amount; });
+
+  const putIn      = partners.reduce(function(t,x){ return t+x.total; }, 0);
+  const putInCash  = partners.reduce(function(t,x){ return t+x.cash+x.bank; }, 0);
+  const putInKind  = partners.reduce(function(t,x){ return t+x.stock+x.assets; }, 0);
+
+  const apexStock   = n('apexStock');
+  const garageStock = n('garageStock');
+  const otherAssets = n('otherAssets');
+  const closing     = apexStock + garageStock + otherAssets;
+
+  const owedOut   = owed.reduce(function(t,x){ return t+x.amount; }, 0);
+  const wagesOwed = n('wagesOwed');
+  const liabilities = owedOut + wagesOwed;
+
+  const leftOver = closing - liabilities;   // what actually survived the two businesses
+  const moved    = n('movedToMz');
+  const retained = leftOver - moved;        // what this business kept of it
+  const loss     = putIn - leftOver;        // what the two businesses cost in the end
+
+  /* Older records were a few flat figures typed in by hand. If nothing has been
+     broken out yet, fall back to those so nothing already saved disappears. */
+  const legacy = !partners.length && !closing && (n('invested') || n('carriedStock') || n('carriedCash'));
+  if(legacy){
+    const invested = n('invested'), oldLoss = n('loss');
+    const cash = n('carriedCash'), stock = n('carriedStock');
+    return {legacy:true, name:o.name||'', note:o.note||'', partners:[], owed:[],
+      putIn:invested, putInCash:cash, putInKind:stock,
+      apexStock:stock, garageStock:0, otherAssets:0, closing:cash+stock,
+      owedOut:0, wagesOwed:0, liabilities:0,
+      leftOver:invested-oldLoss, moved:n('movedToMz'),
+      retained:stock-n('movedToMz'), loss:oldLoss,
+      opening:cash+(stock-n('movedToMz'))};
+  }
+  return {legacy:false, name:o.name||'', note:o.note||'', partners, owed,
+    putIn, putInCash, putInKind, apexStock, garageStock, otherAssets, closing,
+    owedOut, wagesOwed, liabilities, leftOver, moved, retained, loss,
+    opening: retained};
+}
+
+function addOldPartner(){
+  if(!isManager()) return;
+  const g = id => (document.getElementById(id)||{value:''}).value;
+  const nm = g('op_who').trim();
+  if(!nm){ alert('Who put the money in?'); return; }
+  if(!DB.oldBusiness) DB.oldBusiness = {};
+  if(!DB.oldBusiness.partners) DB.oldBusiness.partners = [];
+  DB.oldBusiness.partners.push({id:nextId('obp'), who:nm,
+    cash:Number(g('op_cash'))||0, bank:Number(g('op_bank'))||0,
+    stock:Number(g('op_stock'))||0, assets:Number(g('op_assets'))||0,
+    note:g('op_note').trim()});
+  saveDB(); render();
+  if(typeof wbToast==='function') wbToast(nm + ' added');
+}
+function delOldPartner(id){
+  if(!isManager()) return;
+  const o = DB.oldBusiness||{};
+  const who = ((o.partners||[]).find(function(x){ return x.id===id; })||{}).who || 'this entry';
+  if(!confirm('Remove ' + who + ' from the record?')) return;
+  o.partners = (o.partners||[]).filter(function(x){ return x.id!==id; });
+  saveDB(); render();
+}
+function addOldOwed(){
+  if(!isManager()) return;
+  const g = id => (document.getElementById(id)||{value:''}).value;
+  const nm = g('oo_who').trim();
+  if(!nm){ alert('Who is it owed to?'); return; }
+  if(!DB.oldBusiness) DB.oldBusiness = {};
+  if(!DB.oldBusiness.owed) DB.oldBusiness.owed = [];
+  DB.oldBusiness.owed.push({id:nextId('obo'), who:nm,
+    amount:Number(g('oo_amount'))||0, what:g('oo_what').trim()});
+  saveDB(); render();
+  if(typeof wbToast==='function') wbToast('Added');
+}
+function delOldOwed(id){
+  if(!isManager()) return;
+  if(!confirm('Remove this from what was owed out?')) return;
+  const o = DB.oldBusiness||{};
+  o.owed = (o.owed||[]).filter(function(x){ return x.id!==id; });
+  saveDB(); render();
 }
 function saveOldBiz(){
   const num = id => Number((document.getElementById(id)||{value:0}).value)||0;
   const txt = id => (document.getElementById(id)||{value:''}).value.trim();
-  DB.oldBusiness = {
-    name: txt('ob_name'), invested: num('ob_invested'), loss: num('ob_loss'),
-    carriedCash: num('ob_cash'), carriedStock: num('ob_stock'), movedToMz: num('ob_moved'),
-    note: txt('ob_note')
-  };
+  const prev = DB.oldBusiness || {};
+  DB.oldBusiness = Object.assign({}, prev, {
+    name: txt('ob_name'),
+    apexStock:   num('ob_apexStock'),
+    garageStock: num('ob_garageStock'),
+    otherAssets: num('ob_otherAssets'),
+    wagesOwed:   num('ob_wagesOwed'),
+    movedToMz:   num('ob_moved'),
+    note: txt('ob_note'),
+    partners: prev.partners || [],
+    owed:     prev.owed || []
+  });
   saveDB(); render();
   if(typeof wbToast === 'function') wbToast('Saved');
 }
@@ -4361,6 +4457,7 @@ async function vehicleCostsTab(v, cost){
   const fields = [['purchase','Purchase price'],['delivery','Delivery cost'],['service','Service'],['mot','MOT'],['bodywork','Bodywork'],['mechanical','Mechanical repair'],['autotrader','AutoTrader boost'],['fuel','Fuel'],['other','Other']];
   const baseTotal = fields.reduce((s,[k])=>s+(Number(c[k])||0),0);
   return `
+  ${purchaseCard(v)}
   <div class="card" style="margin-bottom:16px;">
     <h3 style="margin-top:0">Cost breakdown</h3>
     <div class="cost-grid">
@@ -5268,6 +5365,242 @@ function printDraftInvoice(vId){
   if(!d.salePrice){ alert('Enter the sale price first.'); return; }
   printInvoice(vId, d);
 }
+/* ===========================================================================
+   BUYING A CAR IN
+   The other half of the sale invoice: who we bought it from, what we paid, and
+   a signed declaration from them that the car is theirs to sell and is clear of
+   finance. Same sheet, same numbering style, so the pair file together.
+   =========================================================================== */
+const PURCHASE_TERMS_DEFAULT = [
+  'The seller confirms they are the legal owner of the vehicle, or are authorised by the owner to sell it, and that it is theirs to pass on.',
+  'The seller confirms there is no outstanding finance, hire purchase, lease or loan secured on the vehicle, and no logbook loan.',
+  'The seller confirms the vehicle is not recorded as stolen, written off, scrapped, or subject to any insurance total loss claim, unless written below.',
+  'The seller confirms the mileage shown is, to the best of their knowledge, true and that the odometer has not been altered.',
+  'The seller confirms the vehicle has not been used as a taxi, private hire or driving school car unless written below.',
+  'The seller hands over the V5C registration document, all keys and any service history held, as listed on this invoice.',
+  'Ownership and risk pass to the buyer on signing and payment. The seller is responsible for notifying the DVLA of the change of keeper.',
+  'Any tax, fines, charges or penalties arising before the date of this invoice remain the seller\u2019s responsibility.',
+  'If any statement above turns out to be untrue, the seller agrees to refund the purchase price in full on demand and to cover any loss it causes.',
+  'This is a sale between the parties named. Nothing here removes any statutory right that applies to this sale.'
+];
+const PURCHASE_DECL_DEFAULT = [
+  'I have received the amount shown and have been paid in full for this vehicle.',
+  'I have handed over the V5C, the keys and the documents listed on this invoice.',
+  'I confirm the vehicle is mine to sell and is free of finance.',
+  'I have declared every fault and every piece of history I am aware of.'
+];
+function purchaseTerms(){ return (DB.purchaseTerms && DB.purchaseTerms.length) ? DB.purchaseTerms : PURCHASE_TERMS_DEFAULT; }
+function purchaseDeclaration(){ return (DB.purchaseDecl && DB.purchaseDecl.length) ? DB.purchaseDecl : PURCHASE_DECL_DEFAULT; }
+function purchasePrefix(){ return DB.purchasePrefix || (invoicePrefix() + '-P'); }
+function nextPurchaseRef(){
+  const used = (DB.vehicles||[])
+    .filter(function(x){ return x.purchase && x.purchase.ref; })
+    .map(function(x){ return parseInt(String(x.purchase.ref).replace(/\D+/g,''),10); })
+    .filter(function(n){ return !isNaN(n); });
+  const start = Number(DB.purchaseStart)||0;
+  const n = Math.max(start, used.length?Math.max.apply(null,used):0) + 1;
+  let t = String(n); const pad = invoicePad();
+  while(t.length < pad) t = '0' + t;
+  return purchasePrefix() + '-' + t;
+}
+
+/* ---- the record on the car ---- */
+function purchaseCard(v){
+  const q = v.purchase || {};
+  const f = function(id, label, val, type, ph){
+    return `<div class="field"><label>${label}</label><input id="${id}" ${type?'type="'+type+'"':''}
+      placeholder="${ph||''}" value="${escapeAttr(val==null?'':val)}" onchange="savePurchase('${v.id}')"/></div>`;
+  };
+  return `
+  <div class="card" style="margin-bottom:16px;">
+    <div class="flex-between"><h3 style="margin:0">Bought from</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-brand" onclick="printPurchaseInvoice('${v.id}')">\U0001f5a8 Purchase invoice</button>
+      </div>
+    </div>
+    <div class="small-muted" style="margin:4px 0 10px">Who you bought this car from and what you paid. Print it, get it
+      signed, and you have their declaration that the car was theirs to sell and clear of finance.</div>
+    <div class="field-row">
+      ${f('pu_name','Seller name', q.name, '', 'Mr A Trader or a dealer name')}
+      ${f('pu_phone','Phone', q.phone)}
+      ${f('pu_email','E-mail', q.email)}
+    </div>
+    <div class="field-row">
+      ${f('pu_address','Address', q.address)}
+      ${f('pu_postcode','Postcode', q.postcode)}
+    </div>
+    <div class="field-row">
+      ${f('pu_date','Date bought', q.date || v.dateAdded || '', 'date')}
+      <div class="field"><label>Price paid (\u00a3)</label>
+        <input id="pu_price" type="number" value="${Number((v.costs&&v.costs.purchase)||0)}" onchange="savePurchase('${v.id}')"/>
+        <div class="small-muted" style="margin-top:4px">This is the purchase price above \u2014 changing it here changes it there.</div></div>
+      <div class="field"><label>Paid by</label>
+        <select id="pu_pay" onchange="savePurchase('${v.id}')">
+          ${['Bank transfer','Cash','Card','Part exchange','Not yet paid'].map(function(o){
+            return '<option'+(((q.pay)||'Bank transfer')===o?' selected':'')+'>'+o+'</option>'; }).join('')}
+        </select></div>
+    </div>
+    <div class="field-row">
+      ${f('pu_mileage','Mileage at purchase', q.mileage || v.mileage || '', 'number')}
+      <div class="field"><label>Where it came from</label>
+        <select id="pu_source" onchange="savePurchase('${v.id}')">
+          ${['Private seller','Trade / another dealer','Auction','Part exchange','Other'].map(function(o){
+            return '<option'+(((q.source)||'Private seller')===o?' selected':'')+'>'+o+'</option>'; }).join('')}
+        </select></div>
+      ${f('pu_ref','Purchase invoice no.', q.ref, '', nextPurchaseRef())}
+    </div>
+    <div class="field"><label>Handed over with the car</label>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:4px">
+        ${[['v5','V5C logbook'],['keys2','Two keys'],['history','Service history'],['mot','MOT certificate'],['locknut','Locking wheel nut']]
+          .map(function(k){ return `<label style="display:flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer">
+            <input type="checkbox" id="pu_${k[0]}" ${q[k[0]]?'checked':''} style="width:16px;height:16px"
+              onchange="savePurchase('${v.id}')"/>${k[1]}</label>`; }).join('')}
+      </div></div>
+    <div class="field"><label>Anything the seller declared \u2014 faults, history, what was agreed</label>
+      <textarea id="pu_notes" rows="2" style="width:100%;font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;"
+        placeholder="e.g. clutch slipping, previously a taxi, no service history"
+        onchange="savePurchase('${v.id}')">${escapeHtml(q.notes||'')}</textarea></div>
+  </div>`;
+}
+
+function savePurchase(vId){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vId; }); if(!v) return;
+  const g = function(i){ const el=document.getElementById(i); return el ? el.value.trim() : ''; };
+  const b = function(i){ const el=document.getElementById(i); return !!(el && el.checked); };
+  const was = v.purchase || {};
+  v.purchase = {
+    name:g('pu_name'), phone:g('pu_phone'), email:g('pu_email'),
+    address:g('pu_address'), postcode:g('pu_postcode').toUpperCase(),
+    date:g('pu_date'), pay:g('pu_pay'), source:g('pu_source'),
+    mileage:g('pu_mileage'), notes:(document.getElementById('pu_notes')||{value:''}).value,
+    ref: g('pu_ref') || was.ref || '',
+    v5:b('pu_v5'), keys2:b('pu_keys2'), history:b('pu_history'), mot:b('pu_mot'), locknut:b('pu_locknut')
+  };
+  const price = Number(g('pu_price'))||0;
+  v.costs = v.costs || {};
+  if(Number(v.costs.purchase||0) !== price){
+    const before = Number(v.costs.purchase||0);
+    v.costs.purchase = price;
+    logChange('cost','Purchase price changed', vehRef(v), 'Purchase price', fmtMoney(before), fmtMoney(price), 'From the bought-from card');
+  }
+  if((was.name||'') !== v.purchase.name && v.purchase.name){
+    logChange('vehicle','Bought from recorded', vehRef(v), 'Seller', was.name||'', v.purchase.name, '');
+  }
+  saveDB();
+}
+
+function printPurchaseInvoice(vId){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vId; }); if(!v) return;
+  const q = v.purchase || {};
+  if(!q.name){ alert('Put the seller’s name in first — a purchase invoice with nobody on it is no use.'); return; }
+  if(!q.ref){ q.ref = nextPurchaseRef(); v.purchase = q; saveDB(); }
+  if(!q.issuedAt){
+    q.termsSnapshot = purchaseTerms().slice();
+    q.declSnapshot  = purchaseDeclaration().slice();
+    q.issuedAt = new Date().toISOString();
+    saveDB();
+  }
+  const price = Number((v.costs&&v.costs.purchase)||0);
+  const e = function(x){ return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  const m = function(n){ return fmtMoney(n||0); };
+  const row  = function(label, val, cls){ return `<tr class="${cls||''}"><th>${e(label)}</th><td>${val}</td></tr>`; };
+  const pair = function(label, val){ return `<tr><th>${e(label)}</th><td>${e(val||'—')}</td></tr>`; };
+  const logo = (typeof BRAND_LOGO === 'string' && BRAND_LOGO) ? `<img src="${BRAND_LOGO}" alt="">` : '';
+  const handed = [[q.v5,'V5C logbook'],[q.keys2,'Two keys'],[q.history,'Service history'],[q.mot,'MOT certificate'],[q.locknut,'Locking wheel nut']]
+    .filter(function(x){ return x[0]; }).map(function(x){ return x[1]; });
+
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<title>Purchase invoice ${e(q.ref||'')} — ${e(v.reg||'')}</title>
+<style>${invoiceCSS()}</style></head><body>
+
+<div class="ibar">
+  <button onclick="window.print()">⬇️ Download PDF</button>
+  <button onclick="dlWord()">⬇️ Download Word</button>
+  <button onclick="window.close()">Close</button>
+  <span class="hint">For the PDF, pick <b>Save as PDF</b> as the destination in the print box.</span>
+</div>
+
+<div class="sheet">
+  <div class="hd">
+    <div class="lg">${logo || '<b style="font-size:16px">'+e(DB.bizName||'')+'</b>'}</div>
+    <div class="co"><b>${e(DB.invoiceLegalName||DB.bizName||'')}</b>
+      ${DB.invoiceAddress?`<div class="ad">${e(DB.invoiceAddress)}</div>`:''}
+      ${(DB.invoicePhone||DB.invoiceEmail)?`<div class="ln">${DB.invoicePhone?'Phone: '+e(DB.invoicePhone):''}${(DB.invoicePhone&&DB.invoiceEmail)?' · ':''}${DB.invoiceEmail?'Email: '+e(DB.invoiceEmail):''}</div>`:''}
+      ${(DB.invoiceWeb||DB.invoiceVatNo)?`<div class="ln">${DB.invoiceWeb?'Web: '+e(DB.invoiceWeb):''}${(DB.invoiceWeb&&DB.invoiceVatNo)?' · ':''}${DB.invoiceVatNo?'VAT No: '+e(DB.invoiceVatNo):''}</div>`:''}
+      <div class="ln"><b>PURCHASE INVOICE — vehicle bought in</b></div>
+    </div>
+  </div>
+
+  <div class="ref">
+    <div class="r1"><div class="k">PURCHASE REF</div><div class="val">${e(q.ref||'—')}</div></div>
+    <div class="r2"><div class="k">DATE</div><div class="val">${e(q.date?fmtDate(q.date):'—')}</div></div>
+    <div class="r3"><div class="k">BOUGHT BY</div><div class="val">${e(currentUserName||DB.bizName||'')}</div></div>
+  </div>
+
+  <div class="bodycols">
+    <div class="left">
+      <div class="bar">Seller details</div>
+      <table>
+        ${pair('Name', q.name)}
+        ${pair('Address', q.address)}
+        ${pair('Postcode', q.postcode)}
+        ${pair('Tel', q.phone)}
+        ${pair('E-mail', q.email)}
+        ${pair('Sold as', q.source)}
+      </table>
+      <div class="bar">Vehicle details</div>
+      <table>
+        ${pair('Make', v.make)}
+        ${pair('Model', v.model)}
+        ${pair('Reg', v.reg)}
+        ${pair('First registered', v.firstReg ? fmtDate(v.firstReg) : v.year)}
+        ${pair('Mileage at purchase', q.mileage ? Number(q.mileage).toLocaleString('en-GB') : (v.mileage?Number(v.mileage).toLocaleString('en-GB'):''))}
+        ${pair('VIN number', v.vin)}
+        ${pair('Colour', v.color)}
+        ${pair('Handed over with the car', handed.length?handed.join(', '):'Nothing listed')}
+      </table>
+      <div class="bar">Payment</div>
+      <table class="money">
+        ${row('Price paid', m(price), 'sub')}
+        ${pair('Paid by', q.pay)}
+      </table>
+      <div class="pxb pxin">
+        <div class="bar" style="border-top:0">Declared by the seller</div>
+        <div class="in">${e(q.notes||'Nothing declared.')}</div>
+      </div>
+      <div class="fillnote"><div class="bar">Anything else agreed</div><div class="fb"></div></div>
+    </div>
+    <div class="right">
+      <div class="bar">Terms of purchase</div>
+      <div class="tm"><ol>${(q.termsSnapshot||purchaseTerms()).map(function(x){ return '<li>'+e(x)+'</li>'; }).join('')}</ol></div>
+      <div class="bar">Seller declaration</div>
+      <div class="dc">
+        <ul>${(q.declSnapshot||purchaseDeclaration()).map(function(x){ return '<li>'+e(x)+'</li>'; }).join('')}</ul>
+        <div class="sg"><div>Seller<div class="ln"></div></div><div>Signature<div class="ln"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sigs">
+    <div>Bought by — signature / date<div class="ln"></div></div>
+    <div>I confirm the above is true and that I have been paid in full<br>Seller’s signature / date<div class="ln"></div></div>
+  </div>
+</div>
+
+<div class="foot">${e(DB.invoiceLegalName||DB.bizName||'')}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo):''}${DB.invoiceVatNo?' · VAT No '+e(DB.invoiceVatNo):''}</div>
+</body></html>`;
+
+  const file = ('Purchase-' + (q.ref||v.reg||'')).replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^-|-$/g,'');
+  const win = window.open('','_blank');
+  if(!win){ alert('Allow pop-ups to open the invoice.'); return; }
+  win.document.write(html); win.document.close();
+  win.document.title = file;
+  win.dlWord = function(){ downloadAsWord(win, file); };
+}
+
+/* One stylesheet, shared by the sale invoice and the purchase invoice, so
+   the two can never drift apart. */
+function invoiceCSS(){ return "\n  *{box-sizing:border-box}\n  body{font-family:'Segoe UI',-apple-system,Arial,sans-serif;color:#000;margin:0;padding:12mm 11mm;\n       font-size:11.6px;line-height:1.3;background:#fff}\n  .sheet{border:1.6px solid #000}\n  .hd{display:flex;gap:14px;align-items:flex-start;padding:9px 11px;border-bottom:1.6px solid #000}\n  .hd .lg{flex:0 0 178px;display:flex;align-items:center}\n  .hd .lg img{max-width:178px;max-height:66px;width:auto;height:auto;display:block}\n  .hd .co{flex:1}\n  .hd .co b{display:block;font-size:14.5px;font-weight:800;letter-spacing:.2px}\n  .hd .co .ad{font-size:11px;font-weight:700;margin-top:1px}\n  .hd .co .ln{font-size:10.4px;margin-top:2px}\n  .ref{display:flex;border-bottom:1.6px solid #000}\n  .ref > div{display:flex;border-right:1.2px solid #000}\n  .ref > div:last-child{border-right:0}\n  .ref .k{background:#f0f0f0;font-weight:800;font-size:11px;padding:6px 9px;\n          border-right:1.2px solid #000;display:flex;align-items:center;white-space:nowrap}\n  .ref .val{padding:6px 10px;font-weight:700;font-size:12px;display:flex;align-items:center;min-width:80px}\n  .ref .r1{flex:1.25} .ref .r2{flex:1} .ref .r3{flex:.85}\n  .note-bar{padding:7px 11px;border-bottom:1.6px solid #000;font-size:10.6px;line-height:1.45;background:#fbf6ec}\n  .bodycols{display:flex;align-items:stretch}\n  .left{flex:1.58;min-width:0;border-right:1.6px solid #000;display:flex;flex-direction:column}\n  .fillnote{flex:1;display:flex;flex-direction:column;min-height:24px}\n  .fillnote .fb{flex:1}\n  .pxb.pxin{border-top:0}\n  .right{flex:1;min-width:0;display:flex;flex-direction:column}\n  .bar{background:#e8e8e8;font-weight:800;font-size:11px;letter-spacing:.04em;text-transform:uppercase;\n       padding:5px 9px;border-bottom:1.2px solid #000;border-top:1.2px solid #000}\n  .left .bar:first-child,.right .bar:first-child{border-top:0}\n  table{width:100%;border-collapse:collapse}\n  th,td{border-bottom:1px solid #000;padding:4px 9px;text-align:left;vertical-align:top}\n  th{width:38%;font-weight:600;font-size:11px;background:#fafafa;border-right:1px solid #000;white-space:nowrap}\n  td{font-weight:700;font-size:11.6px}\n  tr:last-child th,tr:last-child td{border-bottom:0}\n  table.money td{text-align:right;white-space:nowrap}\n  table.money th{width:58%;white-space:normal}\n  tr.sub th,tr.sub td{border-top:1.4px solid #000;background:#f4f4f4;font-weight:800;font-size:12.2px}\n  tr.due th,tr.due td{background:#e8e8e8;font-weight:800;font-size:14.5px;padding-top:6px;padding-bottom:6px}\n  .tm{padding:7px 10px;font-size:9.4px;line-height:1.36;flex:1}\n  .tm ol{margin:0;padding-left:14px} .tm li{margin-bottom:3.2px}\n  .dc{padding:7px 10px;font-size:9.6px;line-height:1.38}\n  .dc ul{margin:3px 0 0;padding-left:14px} .dc li{margin-bottom:2.6px}\n  .dc .note{font-weight:800;margin-top:5px}\n  .sg{display:flex;gap:10px;margin-top:9px;font-size:10px;font-weight:700}\n  .sg > div{flex:1} .sg .ln{border-bottom:1px solid #000;height:20px}\n  .pay{display:flex;border-top:1.6px solid #000}\n  .pay > div{flex:1;display:flex;border-right:1.2px solid #000}\n  .pay > div:last-child{border-right:0}\n  .pay .k{background:#f0f0f0;font-weight:800;font-size:10.6px;padding:6px 9px;border-right:1.2px solid #000;white-space:nowrap;display:flex;align-items:center}\n  .pay .v{padding:6px 10px;font-weight:800;font-size:11.6px;flex:1;text-align:right}\n  .sigs{display:flex;border-top:1.6px solid #000}\n  .sigs > div{flex:1;padding:8px 10px;border-right:1.2px solid #000;font-size:10.4px;font-weight:700}\n  .sigs > div:last-child{border-right:0}\n  .sigs .ln{border-bottom:1px solid #000;height:26px;margin-top:3px}\n  .pxb{border-top:1.6px solid #000}\n  .pxb .in{padding:7px 10px;font-size:10px;line-height:1.4}\n  .pxb ol{margin:4px 0 0;padding-left:15px} .pxb li{margin-bottom:2.4px}\n  .foot{margin-top:7px;font-size:9.2px;color:#333;text-align:center}\n  .ibar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#15181c;color:#fff;\n        margin:-12mm -11mm 10px;padding:9px 11mm;font-size:12px}\n  .ibar button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:6px;padding:6px 12px;background:#fff;color:#15181c}\n  .ibar .hint{opacity:.75;font-size:11px}\n  @media print{\n    @page{size:A4;margin:0}\n    body{padding:7mm 8mm;font-size:10px}\n    .ibar{display:none !important}\n    .hd .lg{flex:0 0 160px}\n    .hd .lg img{max-height:58px;max-width:160px}\n    .hd .co b{font-size:13px} .hd .co .ad{font-size:10px} .hd .co .ln{font-size:9.4px}\n    th,td{padding:3px 8px} th{font-size:10px} td{font-size:10.4px}\n    tr.sub th,tr.sub td{font-size:11px} tr.due th,tr.due td{font-size:13px}\n    .bar{font-size:10px;padding:4px 9px}\n    .tm{font-size:8.2px;line-height:1.28;padding:5px 8px} .tm li{margin-bottom:1.8px}\n    .tm ol{padding-left:12px}\n    .dc{font-size:8.4px;line-height:1.3;padding:5px 8px} .dc li{margin-bottom:1.6px}\n    .sigs > div{font-size:9.2px;padding:6px 9px} .sigs .ln{height:20px}\n    .pxb .in{font-size:8.6px;line-height:1.3;padding:5px 8px} .pxb li{margin-bottom:1.6px}\n    .hd{padding:7px 10px} .note-bar{font-size:9.4px;padding:5px 9px}\n    .pay .k,.pay .v{padding:4px 9px}\n    .foot{font-size:8.4px}\n    .sheet,.sigs,.pxb,table{break-inside:avoid;page-break-inside:avoid}\n  }\n"; }
 function printInvoice(vId, draftSale){
   const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
   const s = draftSale || v.sale; if(!s) return;
@@ -5283,89 +5616,7 @@ function printInvoice(vId, draftSale){
 
   const html = `<!doctype html><html><head><meta charset="utf-8">
 <title>${isDraft?'Proforma':'Invoice'} ${e(s.invoiceRef||'')} — ${e(v.reg||'')}</title>
-<style>
-  *{box-sizing:border-box}
-  body{font-family:'Segoe UI',-apple-system,Arial,sans-serif;color:#000;margin:0;padding:12mm 11mm;
-       font-size:11.6px;line-height:1.3;background:#fff}
-  .sheet{border:1.6px solid #000}
-  .hd{display:flex;gap:14px;align-items:flex-start;padding:9px 11px;border-bottom:1.6px solid #000}
-  .hd .lg{flex:0 0 178px;display:flex;align-items:center}
-  .hd .lg img{max-width:178px;max-height:66px;width:auto;height:auto;display:block}
-  .hd .co{flex:1}
-  .hd .co b{display:block;font-size:14.5px;font-weight:800;letter-spacing:.2px}
-  .hd .co .ad{font-size:11px;font-weight:700;margin-top:1px}
-  .hd .co .ln{font-size:10.4px;margin-top:2px}
-  .ref{display:flex;border-bottom:1.6px solid #000}
-  .ref > div{display:flex;border-right:1.2px solid #000}
-  .ref > div:last-child{border-right:0}
-  .ref .k{background:#f0f0f0;font-weight:800;font-size:11px;padding:6px 9px;
-          border-right:1.2px solid #000;display:flex;align-items:center;white-space:nowrap}
-  .ref .val{padding:6px 10px;font-weight:700;font-size:12px;display:flex;align-items:center;min-width:80px}
-  .ref .r1{flex:1.25} .ref .r2{flex:1} .ref .r3{flex:.85}
-  .note-bar{padding:7px 11px;border-bottom:1.6px solid #000;font-size:10.6px;line-height:1.45;background:#fbf6ec}
-  .bodycols{display:flex;align-items:stretch}
-  .left{flex:1.58;min-width:0;border-right:1.6px solid #000;display:flex;flex-direction:column}
-  .fillnote{flex:1;display:flex;flex-direction:column;min-height:24px}
-  .fillnote .fb{flex:1}
-  .pxb.pxin{border-top:0}
-  .right{flex:1;min-width:0;display:flex;flex-direction:column}
-  .bar{background:#e8e8e8;font-weight:800;font-size:11px;letter-spacing:.04em;text-transform:uppercase;
-       padding:5px 9px;border-bottom:1.2px solid #000;border-top:1.2px solid #000}
-  .left .bar:first-child,.right .bar:first-child{border-top:0}
-  table{width:100%;border-collapse:collapse}
-  th,td{border-bottom:1px solid #000;padding:4px 9px;text-align:left;vertical-align:top}
-  th{width:38%;font-weight:600;font-size:11px;background:#fafafa;border-right:1px solid #000;white-space:nowrap}
-  td{font-weight:700;font-size:11.6px}
-  tr:last-child th,tr:last-child td{border-bottom:0}
-  table.money td{text-align:right;white-space:nowrap}
-  table.money th{width:58%;white-space:normal}
-  tr.sub th,tr.sub td{border-top:1.4px solid #000;background:#f4f4f4;font-weight:800;font-size:12.2px}
-  tr.due th,tr.due td{background:#e8e8e8;font-weight:800;font-size:14.5px;padding-top:6px;padding-bottom:6px}
-  .tm{padding:7px 10px;font-size:9.4px;line-height:1.36;flex:1}
-  .tm ol{margin:0;padding-left:14px} .tm li{margin-bottom:3.2px}
-  .dc{padding:7px 10px;font-size:9.6px;line-height:1.38}
-  .dc ul{margin:3px 0 0;padding-left:14px} .dc li{margin-bottom:2.6px}
-  .dc .note{font-weight:800;margin-top:5px}
-  .sg{display:flex;gap:10px;margin-top:9px;font-size:10px;font-weight:700}
-  .sg > div{flex:1} .sg .ln{border-bottom:1px solid #000;height:20px}
-  .pay{display:flex;border-top:1.6px solid #000}
-  .pay > div{flex:1;display:flex;border-right:1.2px solid #000}
-  .pay > div:last-child{border-right:0}
-  .pay .k{background:#f0f0f0;font-weight:800;font-size:10.6px;padding:6px 9px;border-right:1.2px solid #000;white-space:nowrap;display:flex;align-items:center}
-  .pay .v{padding:6px 10px;font-weight:800;font-size:11.6px;flex:1;text-align:right}
-  .sigs{display:flex;border-top:1.6px solid #000}
-  .sigs > div{flex:1;padding:8px 10px;border-right:1.2px solid #000;font-size:10.4px;font-weight:700}
-  .sigs > div:last-child{border-right:0}
-  .sigs .ln{border-bottom:1px solid #000;height:26px;margin-top:3px}
-  .pxb{border-top:1.6px solid #000}
-  .pxb .in{padding:7px 10px;font-size:10px;line-height:1.4}
-  .pxb ol{margin:4px 0 0;padding-left:15px} .pxb li{margin-bottom:2.4px}
-  .foot{margin-top:7px;font-size:9.2px;color:#333;text-align:center}
-  .ibar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#15181c;color:#fff;
-        margin:-12mm -11mm 10px;padding:9px 11mm;font-size:12px}
-  .ibar button{font:inherit;font-weight:600;cursor:pointer;border:0;border-radius:6px;padding:6px 12px;background:#fff;color:#15181c}
-  .ibar .hint{opacity:.75;font-size:11px}
-  @media print{
-    @page{size:A4;margin:0}
-    body{padding:7mm 8mm;font-size:10px}
-    .ibar{display:none !important}
-    .hd .lg{flex:0 0 160px}
-    .hd .lg img{max-height:58px;max-width:160px}
-    .hd .co b{font-size:13px} .hd .co .ad{font-size:10px} .hd .co .ln{font-size:9.4px}
-    th,td{padding:3px 8px} th{font-size:10px} td{font-size:10.4px}
-    tr.sub th,tr.sub td{font-size:11px} tr.due th,tr.due td{font-size:13px}
-    .bar{font-size:10px;padding:4px 9px}
-    .tm{font-size:8.2px;line-height:1.28;padding:5px 8px} .tm li{margin-bottom:1.8px}
-    .tm ol{padding-left:12px}
-    .dc{font-size:8.4px;line-height:1.3;padding:5px 8px} .dc li{margin-bottom:1.6px}
-    .sigs > div{font-size:9.2px;padding:6px 9px} .sigs .ln{height:20px}
-    .pxb .in{font-size:8.6px;line-height:1.3;padding:5px 8px} .pxb li{margin-bottom:1.6px}
-    .hd{padding:7px 10px} .note-bar{font-size:9.4px;padding:5px 9px}
-    .pay .k,.pay .v{padding:4px 9px}
-    .foot{font-size:8.4px}
-    .sheet,.sigs,.pxb,table{break-inside:avoid;page-break-inside:avoid}
-  }
-</style></head><body>
+<style>${invoiceCSS()}</style></head><body>
 
 <div class="ibar">
   <button onclick="window.print()">⬇️ Download PDF</button>
@@ -6205,11 +6456,175 @@ function expenseStatusLabel(e){
 function photoUrlSync(ref){ return getPhotoUrl(ref); }
 
 let teamView = 'overview';
+/* ===========================================================================
+   One-time: Monib's handwritten record of where an investor's money went.
+   Entered as expenses funded by that investor, so each line lands in Team & Pay
+   AND comes off his cash in hand. Money that came back is an adjustment, not a
+   negative expense, so the two never cancel out by accident.
+   =========================================================================== */
+const HS_SPEND = [{"n":"Abdurahman — first payment","a":1280.0,"k":"out","w":""},{"n":"Abdurahman — second payment","a":1000.0,"k":"out","w":""},{"n":"Tools purchased","a":320.0,"k":"out","w":""},{"n":"Abdurahman — third payment","a":1221.0,"k":"out","w":""},{"n":"Mob","a":300.0,"k":"out","w":""},{"n":"Abdurahman — fourth payment","a":1000.0,"k":"out","w":"noted as “paid today”"},{"n":"Received back from Zahid","a":600.0,"k":"in","w":""},{"n":"Received back from Apex, by bank","a":2000.0,"k":"in","w":"03 Aug 2026"},{"n":"Mirwaise","a":2500.0,"k":"out","w":"noted as “last month”"},{"n":"Tyres outstanding","a":1300.0,"k":"out","w":"approximate figure"},{"n":"Workshop compressor","a":670.0,"k":"out","w":""},{"n":"Mirwaise","a":500.0,"k":"out","w":""},{"n":"Rob — Autofix outstanding","a":3407.93,"k":"out","w":""},{"n":"Mokka seat","a":50.0,"k":"out","w":""},{"n":"Mokka radio cover","a":30.0,"k":"out","w":""},{"n":"Petrol","a":15.0,"k":"out","w":""},{"n":"Abdurahman","a":1614.0,"k":"out","w":""},{"n":"Petrol","a":40.0,"k":"out","w":""},{"n":"Petrol","a":10.0,"k":"out","w":""},{"n":"Petrol","a":10.0,"k":"out","w":""},{"n":"Cash","a":2000.0,"k":"out","w":"noted as “paid today”"},{"n":"Cash to Moneeb jan","a":2000.0,"k":"out","w":""},{"n":"Transfer","a":1000.0,"k":"out","w":""},{"n":"Timber and joist — 25 at £6","a":150.0,"k":"out","w":""},{"n":"Plasterboard — 25 at £10.50","a":262.5,"k":"out","w":""},{"n":"Builder","a":890.0,"k":"out","w":""},{"n":"Electrician","a":60.0,"k":"out","w":""},{"n":"Electric box","a":18.0,"k":"out","w":""},{"n":"Abdurahman","a":500.0,"k":"out","w":""},{"n":"Mirwaise — August wages","a":2500.0,"k":"out","w":""},{"n":"Builder — skimming","a":300.0,"k":"out","w":""},{"n":"James — chair plus","a":151.03,"k":"out","w":""},{"n":"Deposit — cash","a":350.0,"k":"out","w":""},{"n":"Deposit — transferred","a":3683.33,"k":"out","w":""},{"n":"Door carpet","a":48.0,"k":"out","w":""}];
+const HS_SPEND_STATED = 26980.86;   // the total on the handwritten note
+
+function hsOut(){ return HS_SPEND.filter(function(x){ return x.k==='out'; }).reduce(function(t,x){ return t+x.a; }, 0); }
+function hsIn(){  return HS_SPEND.filter(function(x){ return x.k==='in';  }).reduce(function(t,x){ return t+x.a; }, 0); }
+function hsNet(){ return hsOut() - hsIn(); }
+
+function openSpendImport(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can bring in a spend record.'); return; }
+  if(DB.hsSpendDone){
+    if(!confirm('This record has been brought in already, on ' + fmtDate(DB.hsSpendDone) +
+      '.\n\nBringing it in again would double every line. Carry on anyway?')) return;
+  }
+  const live = (typeof liveMuzaribs==='function' ? liveMuzaribs() : muzaribs());
+  if(!live.length){ alert('There are no investors on file to put this against.'); return; }
+  const rows = HS_SPEND.map(function(x, i){
+    return `<tr>
+      <td><input type="checkbox" id="hs_${i}" checked/></td>
+      <td>${escapeHtml(x.n)}${x.w?`<div class="small-muted">${escapeHtml(x.w)}</div>`:''}</td>
+      <td class="num" style="color:${x.k==='in'?'var(--green)':'inherit'}">${x.k==='in'?'+ ':''}${fmtMoney(x.a)}</td>
+      <td>${x.k==='in'?'<span class="tag tag-green">came back</span>':'<span class="tag">paid out</span>'}</td>
+    </tr>`;
+  }).join('');
+  const gap = hsNet() - HS_SPEND_STATED;
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Spend record — where the investor's money went</h3>
+    <div class="small-muted" style="margin-bottom:10px">Monib's handwritten list, ${HS_SPEND.length} lines.
+      Each one goes into Team &amp; Pay as a spend funded by the investor you pick, and comes off his cash in hand.</div>
+    <div class="field-row">
+      <div class="field"><label>Whose money was this?</label>
+        <select id="hs_mz">${live.map(function(m){ return '<option value="'+m.id+'">'+escapeHtml(m.name)+'</option>'; }).join('')}</select></div>
+      <div class="field"><label>Date to record against</label>
+        <input id="hs_date" type="date" value="${todayISO()}"/>
+        <div class="small-muted" style="margin-top:4px">The note only dates one line, so they all get this date. The original wording is kept on each.</div></div>
+      <div class="field"><label>Entered by</label><input id="hs_by" value="Monib"/></div>
+    </div>
+    ${Math.abs(gap) > 0.5 ? `<div class="small-muted" style="background:var(--red-dim);border:1px solid #B23A2433;border-radius:7px;padding:10px 12px;margin:10px 0">
+      <b>The lines do not add up to the total on the note.</b><br>
+      The ${HS_SPEND.length} lines come to <b>${fmtMoney(hsNet())}</b> — ${fmtMoney(hsOut())} paid out less ${fmtMoney(hsIn())} come back.
+      The note says <b>${fmtMoney(HS_SPEND_STATED)}</b>, which is ${fmtMoney(Math.abs(gap))} more.
+      The gap opens at the <b>£7,391</b> subtotal and is carried down every line after it.
+      Either a ${fmtMoney(Math.abs(gap))} payment is missing from the list, or that subtotal was added up wrong.
+      Only what is ticked below gets entered — nothing is invented to close the gap.</div>` : ''}
+    <div class="section-title" style="margin-top:4px"><h2>Was this his own money going in?</h2></div>
+    <label style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="hs_ascap" checked style="width:17px;height:17px;margin-top:2px"/>
+      <span><b>Also record the total as capital he put in.</b> He paid for all of this himself, so it is money into the
+      business as well as money out of it. His cash in hand does not move; what he is owed goes up by the same amount.
+      Without this, the spend comes off cash he never had here and his balance goes badly negative.</span></label>
+    ${(function(){
+      const stock = (DB.vehicles||[]).filter(function(v){ return !v.sale && !vGone(v); })
+        .sort(function(a,b){ return String(a.reg||'').localeCompare(String(b.reg||'')); });
+      if(!stock.length) return '';
+      const guess = stock.find(function(v){ return /mokka/i.test([v.make,v.model].join(' ')); });
+      return `<label style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;font-size:13.5px;cursor:pointer">
+        <input type="checkbox" id="hs_addcar" ${guess?'checked':''} style="width:17px;height:17px;margin-top:2px"/>
+        <span><b>He also put a car in, not just cash.</b> Its cost goes on as capital and the car moves onto his book.</span></label>
+      <div class="field" style="margin-left:25px">
+        <select id="hs_car">${stock.map(function(v){
+          const owner = v.muzaribId ? muzaribName(v.muzaribId) : 'company stock';
+          return '<option value="'+v.id+'"'+((guess&&guess.id===v.id)?' selected':'')+'>'
+            + escapeHtml(v.reg||'') + ' \u00b7 ' + escapeHtml([v.make,v.model].filter(Boolean).join(' '))
+            + ' \u00b7 ' + fmtMoney(vehicleCostTotal(v)) + ' \u00b7 now on ' + escapeHtml(owner) + '</option>'; }).join('')}
+        </select>
+        <div class="small-muted" id="hs_carwarn" style="margin-top:4px"></div></div>`;
+    })()}
+    <div class="section-title" style="margin-top:10px"><h2>The lines</h2></div>
+    <div style="max-height:40vh;overflow:auto">
+      <table><thead><tr><th></th><th>What it was for</th><th class="num">Amount</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runSpendImport()">Enter these</button>
+    </div>`);
+}
+
+function runSpendImport(){
+  if(!isSuperAdmin()) return;
+  const mzId = (document.getElementById('hs_mz')||{value:''}).value;
+  const m = muzarib(mzId);
+  if(!m){ alert('Pick whose money this was.'); return; }
+  const date = (document.getElementById('hs_date')||{value:''}).value || todayISO();
+  const by   = (document.getElementById('hs_by')||{value:''}).value.trim() || 'Monib';
+  if(!DB.expenses) DB.expenses = [];
+  if(!DB.muzaribTx) DB.muzaribTx = [];
+  let paid = 0, back = 0, n = 0;
+  HS_SPEND.forEach(function(x, i){
+    const box = document.getElementById('hs_' + i);
+    if(!box || !box.checked) return;
+    n++;
+    const note = x.n + (x.w ? ' (' + x.w + ')' : '') + ' · from ' + m.name + "'s money";
+    if(x.k === 'in'){
+      /* Money that came back is not a negative expense — it goes straight on his
+         cash as an adjustment, where it reads the right way round. */
+      DB.muzaribTx.push({id:nextId('mztx'), muzaribId:mzId, type:'adjustment',
+        amount: x.a, date: date, method:'Spend record',
+        note: note, addedBy: by});
+      back += x.a;
+      return;
+    }
+    const expense = {id:nextId('exp'), employee: by, userEmail: currentUserEmail,
+      date: date, amount: x.a, note: note,
+      fundedBy: 'mz:' + mzId, muzaribId: mzId, status:'investor',
+      paidAmount: 0, payments: [], photoId: null, fromSpendRecord: true};
+    DB.expenses.push(expense);
+    syncExpenseToInvestor(expense);
+    paid += x.a;
+  });
+  if(!n){ alert('Nothing was ticked.'); return; }
+
+  /* His own money going in. Recording it as capital as well as spend is what
+     keeps his balance honest: the cash passes straight through, but what the
+     business owes him rises by what he paid out. */
+  let asCapital = 0, carNote = '';
+  if((document.getElementById('hs_ascap')||{}).checked && (paid - back) > 0){
+    asCapital = paid - back;
+    DB.muzaribTx.push({id:nextId('mztx'), muzaribId:mzId, type:'capital',
+      amount: asCapital, date: date, method:'Own money',
+      note:'Money he put in and spent on the business \u00b7 ' + n + ' lines, entered by ' + by,
+      addedBy: by});
+  }
+  const addCar = (document.getElementById('hs_addcar')||{}).checked;
+  if(addCar){
+    const vid = (document.getElementById('hs_car')||{value:''}).value;
+    const v = (DB.vehicles||[]).find(function(x){ return x.id===vid; });
+    if(v){
+      const cost = vehicleCostTotal(v);
+      const was = v.muzaribId ? muzaribName(v.muzaribId) : 'company stock';
+      v.ownerType = 'muzarib'; v.muzaribId = mzId;
+      DB.muzaribTx.push({id:nextId('mztx'), muzaribId:mzId, type:'capital',
+        amount: cost, date: date, method:'Car put in',
+        note: (v.reg||'') + ' ' + [v.make,v.model].filter(Boolean).join(' ') + ' \u2014 car he put in, at cost',
+        addedBy: by});
+      asCapital += cost;
+      carNote = v.reg + ' moved from ' + was + ' onto his book at ' + fmtMoney(cost) + '.';
+      logChange('muzarib','Car put in by investor', vehRef(v), 'Funded by', was, m.name, fmtMoney(cost));
+    }
+  }
+  DB.hsSpendDone = todayISO();
+  logChange('muzarib','Spend record entered', m.name, 'Spent from his money', '',
+    fmtMoney(paid - back), n + ' lines, entered by ' + by);
+  saveDB(); closeModal(); render();
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Spend record entered</h3>
+    <p>${n} line${n===1?'':'s'} against <b>${escapeHtml(m.name)}</b>:
+      ${fmtMoney(paid)} paid out${back?', less ' + fmtMoney(back) + ' that came back':''},
+      a net <b>${fmtMoney(paid - back)}</b> off his cash in hand.</p>
+    ${asCapital?`<p><b>${fmtMoney(asCapital)} recorded as capital he put in</b>, so his cash in hand is unchanged
+      and what he is owed has risen by that much.${carNote?' '+escapeHtml(carNote):''}</p>`:''}
+    <p class="small-muted">Each line is in Team &amp; Pay marked as his money, and on his investor record as a spend.
+      Nothing was added to close the gap against the note's own total.</p>
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Done</button></div>`);
+}
+
 function renderTeam(){
   return `
   <div class="topbar">
     <div><h1>Team &amp; Pay</h1><div class="date">Staff, company spend and payroll ${isManager()?'':'· showing your own records'}</div></div>
-    ${isManager() && teamView==='overview'?`<button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>`:''}
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openSpendImport()">📒 Enter the spend record</button>`:''}
+      ${isManager() && teamView==='overview'?`<button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>`:''}
+    </div>
   </div>
   <div class="chip-row">
     <div class="chip ${teamView==='overview'?'active':''}" onclick="teamView='overview';render()">Overview</div>
@@ -8676,333 +9091,113 @@ function renderCompanyAssets(){
     </div>`:''}
   </div>
 
-  <div class="section-title"><h2>The business before this one</h2></div>
+  <div class="section-title"><h2>Apex and the garage — how they finished</h2>
+    <span class="small-muted">Notes only. Nothing here touches an investor's position or the day-to-day figures.</span></div>
   <div class="card">
-    <div class="small-muted" style="margin-bottom:10px">A record of what went in, what was lost, and what came across to this business. Notes only — nothing here touches the day-to-day figures.</div>
-    <div class="field"><label>What it traded as</label>
-      <input id="ob_name" value="${escapeAttr(ob.name)}" placeholder="the old name"/></div>
     <div class="field-row">
-      <div class="field"><label>Money put in at the start (£)</label><input id="ob_invested" type="number" step="0.01" value="${ob.invested||''}"/></div>
-      <div class="field"><label>Total loss (£)</label><input id="ob_loss" type="number" step="0.01" value="${ob.loss||''}"/></div>
+      <div class="field"><label>What they traded as</label>
+        <input id="ob_name" value="${escapeAttr(ob.name)}" placeholder="Apex Motors"/></div>
     </div>
+
+    <div class="section-title" style="margin-top:14px"><h2 style="font-size:15px">What the partners put in</h2></div>
+    <div class="small-muted" style="margin:-4px 0 8px">Money, and anything brought in instead of money — stock on the
+      forecourt, tools, equipment.</div>
+    <div class="card" style="padding:0;box-shadow:none;border:1px solid var(--line)">
+      ${ob.partners.length===0 ? '<div class="empty">Nobody added yet.</div>' : `
+      <table><thead><tr><th>Who</th><th class="num">Cash</th><th class="num">Bank</th><th class="num">Stock</th>
+        <th class="num">Other assets</th><th class="num">Total in</th><th>Note</th>${isManager()?'<th></th>':''}</tr></thead><tbody>
+      ${ob.partners.map(x=>`<tr>
+        <td><b>${escapeHtml(x.who)}</b></td>
+        <td class="num">${x.cash?fmtMoney(x.cash):'—'}</td>
+        <td class="num">${x.bank?fmtMoney(x.bank):'—'}</td>
+        <td class="num">${x.stock?fmtMoney(x.stock):'—'}</td>
+        <td class="num">${x.assets?fmtMoney(x.assets):'—'}</td>
+        <td class="num"><b>${fmtMoney(x.total)}</b></td>
+        <td class="small-muted">${escapeHtml(x.note||'')}</td>
+        ${isManager()?`<td class="num"><button class="btn btn-sm btn-ghost" onclick="delOldPartner('${x.id}')">Remove</button></td>`:''}
+      </tr>`).join('')}
+      <tr><td><b>Total</b></td>
+        <td class="num"><b>${fmtMoney(ob.partners.reduce((t,x)=>t+x.cash,0))}</b></td>
+        <td class="num"><b>${fmtMoney(ob.partners.reduce((t,x)=>t+x.bank,0))}</b></td>
+        <td class="num"><b>${fmtMoney(ob.partners.reduce((t,x)=>t+x.stock,0))}</b></td>
+        <td class="num"><b>${fmtMoney(ob.partners.reduce((t,x)=>t+x.assets,0))}</b></td>
+        <td class="num"><b>${fmtMoney(ob.putIn)}</b></td><td></td>${isManager()?'<td></td>':''}</tr>
+      </tbody></table>`}
+    </div>
+    ${isManager()?`<div class="field-row" style="margin-top:10px;align-items:flex-end">
+      <div class="field"><label>Who</label><input id="op_who" placeholder="Zahid"/></div>
+      <div class="field" style="flex:0 0 120px"><label>Cash (£)</label><input id="op_cash" type="number" step="0.01"/></div>
+      <div class="field" style="flex:0 0 120px"><label>Bank (£)</label><input id="op_bank" type="number" step="0.01"/></div>
+      <div class="field" style="flex:0 0 120px"><label>Stock (£)</label><input id="op_stock" type="number" step="0.01"/></div>
+      <div class="field" style="flex:0 0 130px"><label>Other assets (£)</label><input id="op_assets" type="number" step="0.01"/></div>
+      <div class="field"><label>Note</label><input id="op_note" placeholder="optional"/></div>
+      <div class="field" style="flex:0 0 auto"><button class="btn btn-brand" onclick="addOldPartner()">Add</button></div>
+    </div>`:''}
+
+    <div class="section-title" style="margin-top:18px"><h2 style="font-size:15px">What was left at the end</h2></div>
+    <div class="small-muted" style="margin:-4px 0 8px">Stock and assets still held when each one stopped trading, at cost.</div>
     <div class="field-row">
-      <div class="field"><label>Cash carried into this business (£)</label><input id="ob_cash" type="number" step="0.01" value="${ob.cash||''}"/></div>
-      <div class="field"><label>Stock carried over, at cost (£)</label><input id="ob_stock" type="number" step="0.01" value="${ob.stock||''}"/></div>
-      <div class="field"><label>Of that, moved to Muzaribat (£)</label><input id="ob_moved" type="number" step="0.01" value="${ob.moved||''}"/></div>
+      <div class="field"><label>Apex closing stock (£)</label>
+        <input id="ob_apexStock" type="number" step="0.01" value="${ob.apexStock||''}"/></div>
+      <div class="field"><label>Autofix garage closing stock (£)</label>
+        <input id="ob_garageStock" type="number" step="0.01" value="${ob.garageStock||''}"/></div>
+      <div class="field"><label>Other assets left (£)</label>
+        <input id="ob_otherAssets" type="number" step="0.01" value="${ob.otherAssets||''}"/></div>
     </div>
-    <div class="field"><label>Note</label>
+
+    <div class="section-title" style="margin-top:18px"><h2 style="font-size:15px">What was still owed out</h2></div>
+    <div class="small-muted" style="margin:-4px 0 8px">Suppliers, other companies, and wages not yet paid. These come off
+      the closing stock — they were owed before anything could be carried across.</div>
+    <div class="card" style="padding:0;box-shadow:none;border:1px solid var(--line)">
+      ${ob.owed.length===0 ? '<div class="empty">Nothing added yet.</div>' : `
+      <table><thead><tr><th>Owed to</th><th>What for</th><th class="num">Amount</th>${isManager()?'<th></th>':''}</tr></thead><tbody>
+      ${ob.owed.map(x=>`<tr>
+        <td><b>${escapeHtml(x.who)}</b></td>
+        <td class="small-muted">${escapeHtml(x.what||'')}</td>
+        <td class="num">${fmtMoney(x.amount)}</td>
+        ${isManager()?`<td class="num"><button class="btn btn-sm btn-ghost" onclick="delOldOwed('${x.id}')">Remove</button></td>`:''}
+      </tr>`).join('')}
+      <tr><td colspan="2"><b>Owed to suppliers and companies</b></td>
+        <td class="num"><b>${fmtMoney(ob.owedOut)}</b></td>${isManager()?'<td></td>':''}</tr>
+      </tbody></table>`}
+    </div>
+    ${isManager()?`<div class="field-row" style="margin-top:10px;align-items:flex-end">
+      <div class="field"><label>Owed to</label><input id="oo_who" placeholder="supplier or company"/></div>
+      <div class="field"><label>What for</label><input id="oo_what" placeholder="optional"/></div>
+      <div class="field" style="flex:0 0 140px"><label>Amount (£)</label><input id="oo_amount" type="number" step="0.01"/></div>
+      <div class="field" style="flex:0 0 auto"><button class="btn btn-brand" onclick="addOldOwed()">Add</button></div>
+    </div>`:''}
+    <div class="field-row" style="margin-top:10px">
+      <div class="field"><label>Wages still unpaid (£)</label>
+        <input id="ob_wagesOwed" type="number" step="0.01" value="${ob.wagesOwed||''}"/></div>
+      <div class="field"><label>Of the leftover, moved to Muzaribat (£)</label>
+        <input id="ob_moved" type="number" step="0.01" value="${ob.moved||''}"/>
+        <div class="small-muted" style="margin-top:4px">Stock handed to an investor rather than kept by this business.</div></div>
+    </div>
+
+    <div class="field" style="margin-top:12px"><label>Note</label>
       <textarea id="ob_note" rows="2" placeholder="anything worth remembering about how it ended">${escapeHtml(ob.note)}</textarea></div>
     <button class="btn btn-brand" onclick="saveOldBiz()">Save</button>
 
     <div class="grid kpi-grid" style="margin-top:16px">
-      <div class="card kpi"><div class="label">Should have been left</div>
-        <div class="value small" style="color:${ob.remaining<0?'var(--red)':'var(--ink)'}">${fmtMoney(ob.remaining)}</div>
-        <div class="sub">${fmtMoney(ob.invested)} in, ${fmtMoney(ob.loss)} lost</div></div>
-      <div class="card kpi"><div class="label">Actually came across</div><div class="value small">${fmtMoney(ob.carried)}</div>
-        <div class="sub">${fmtMoney(ob.cash)} cash + ${fmtMoney(ob.stock)} stock</div></div>
-      <div class="card kpi"><div class="label">Stock kept by this business</div><div class="value small">${fmtMoney(ob.retained)}</div>
-        <div class="sub">${fmtMoney(ob.moved)} of it went to investors</div></div>
-      <div class="card kpi"><div class="label">Opening capital here</div>
-        <div class="value small" style="color:var(--green)">${fmtMoney(ob.opening)}</div>
-        <div class="sub">cash + the stock we kept</div></div>
+      <div class="card kpi"><div class="label">Partners put in</div><div class="value small">${fmtMoney(ob.putIn)}</div>
+        <div class="sub">${fmtMoney(ob.putInCash)} money · ${fmtMoney(ob.putInKind)} stock and assets</div></div>
+      <div class="card kpi"><div class="label">Left at the end</div><div class="value small">${fmtMoney(ob.closing)}</div>
+        <div class="sub">less ${fmtMoney(ob.liabilities)} owed out</div></div>
+      <div class="card kpi"><div class="label">Left over</div>
+        <div class="value small" style="color:${ob.leftOver<0?'var(--red)':'var(--ink)'}">${fmtMoney(ob.leftOver)}</div>
+        <div class="sub">what survived both businesses</div></div>
+      <div class="card kpi"><div class="label">${ob.loss>=0?'Lost over the two':'Gained over the two'}</div>
+        <div class="value small" style="color:${ob.loss>0?'var(--red)':'var(--green)'}">${fmtMoney(Math.abs(ob.loss))}</div>
+        <div class="sub">${fmtMoney(ob.putIn)} in, ${fmtMoney(ob.leftOver)} out</div></div>
     </div>
-    ${Math.abs(ob.unaccounted) > 0.5 ? `<div class="overdue-banner" style="margin-top:10px"><span>
-      <b>${fmtMoney(Math.abs(ob.unaccounted))}</b> ${ob.unaccounted>0?'less came across than the figures say was left':'more came across than the figures say was left'} — worth checking before anyone relies on these numbers.
-    </span></div>` : ''}
+    <div class="card kpi" style="margin-top:12px;border-left:3px solid var(--brand,#111)">
+      <div class="label">Carried into this business as opening assets</div>
+      <div class="value small">${fmtMoney(ob.opening)}</div>
+      <div class="sub">${fmtMoney(ob.leftOver)} left over${ob.moved?`, less ${fmtMoney(ob.moved)} handed to investors`:''}</div></div>
+    ${ob.legacy?`<div class="small-muted" style="margin-top:10px">Showing the older hand-typed figures. Add the partners
+      and the closing stock above and it will work the leftover out from the parts instead.</div>`:''}
   </div>
-  `;
-}
-
-/* ---------- moving a company car to an investor ---------- */
-function openTransferToInvestor(vId){
-  if(!isManager()) return;
-  const sp = stockSplit();
-  const cars = sp.co.cars;
-  if(!cars.length){ alert('There are no company-owned cars in stock to move.'); return; }
-  const list = muzaribs();
-  if(!list.length){ alert('Add an investor on the Muzaribat page first.'); return; }
-  const pre = vId && cars.find(v=>v.id===vId) ? vId : cars[0].id;
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>Move a company car to an investor</h3>
-    <div class="small-muted" style="margin-bottom:10px">
-      Use this when you have taken an investor's cash and are settling it with one of our own cars.
-      The car becomes his, so its cost moves out of his cash and into his stock. What he is owed does not change.
-    </div>
-    <div class="field"><label>Car</label>
-      <select id="tr_car" onchange="transferPrefill()">
-        ${cars.map(v=>`<option value="${v.id}" ${v.id===pre?'selected':''}>${escapeHtml(v.reg||'')} — ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))} · ${fmtMoney(vehicleCostTotal(v))}</option>`).join('')}
-      </select></div>
-    <div class="field"><label>Goes to</label>
-      <select id="tr_mz">${list.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('')}</select></div>
-    <div class="field-row">
-      <div class="field"><label>Value handed over (£)</label>
-        <input id="tr_val" type="number" step="0.01" value="${vehicleCostTotal(DB.vehicles.find(v=>v.id===pre)||{})}"/>
-        <div class="small-muted" style="margin-top:4px">Defaults to what the car cost us. Change it if you agreed another figure.</div></div>
-      <div class="field"><label>Date</label><input id="tr_date" type="date" value="${todayISO()}"/></div>
-    </div>
-    <div class="field"><label>Note</label><input id="tr_note" placeholder="e.g. against the £5,000 cash he brought in"/></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-brand" onclick="doTransferToInvestor()">Move the car</button>
-    </div>`);
-}
-function transferPrefill(){
-  const v = DB.vehicles.find(x=>x.id===document.getElementById('tr_car').value);
-  const el = document.getElementById('tr_val');
-  if(v && el) el.value = vehicleCostTotal(v);
-}
-function doTransferToInvestor(){
-  if(!isManager()) return;
-  const vId = document.getElementById('tr_car').value;
-  const mId = document.getElementById('tr_mz').value;
-  const v = DB.vehicles.find(x=>x.id===vId);
-  const m = muzarib(mId);
-  if(!v || !m) return;
-  const value = Number(document.getElementById('tr_val').value)||0;
-  const date  = document.getElementById('tr_date').value || todayISO();
-  const note  = (document.getElementById('tr_note')||{value:''}).value.trim();
-  if(!confirm(`${v.reg} goes to ${m.name} at ${fmtMoney(value)}.\n\nIt will show as his stock from now on. Continue?`)) return;
-  v.ownerType = 'muzarib'; v.muzaribId = mId;
-  assetTransfers().push({id:nextId('astx'), date, vehicleId:v.id, reg:v.reg,
-    label:[v.make,v.model].filter(Boolean).join(' '), muzaribId:mId, value, note,
-    by: (typeof currentUserName!=='undefined' ? currentUserName : '')});
-  logChange('stock','Moved to an investor', vehRef(v), 'owner', 'Company', m.name,
-    fmtMoney(value) + (note ? ' · ' + note : ''));
-  saveDB(); closeModal(); render();
-}
-function undoTransfer(id){
-  if(!isSuperAdmin()) return;
-  const t = assetTransfers().find(x=>x.id===id); if(!t) return;
-  const v = DB.vehicles.find(x=>x.id===t.vehicleId);
-  if(!confirm((t.reg||'This car') + ' goes back to being company stock.\n\nContinue?')) return;
-  if(v){ v.ownerType = 'company'; v.muzaribId = null;
-    logChange('stock','Moved back to the company', vehRef(v), 'owner', muzaribName(t.muzaribId), 'Company', ''); }
-  DB.assetTransfers = assetTransfers().filter(x=>x.id!==id);
-  saveDB(); render();
-}
-/* ================= whose turn is it ==================
-   The problem this solves: not every investor's money is in a car. Some is
-   sitting as cash, and some the company spent on its own costs last year and
-   still owes back. Money that is not in a car earns that investor nothing, so
-   the longer it sits, the more he is losing out against the others.
-
-   So each investor builds up "waiting" — his idle money multiplied by the days
-   it has been idle. The next car goes to whoever has waited most. Getting a car
-   clears that waiting. Nobody can be skipped twice, and the reason is on screen
-   every time, which is what makes it defensible to the investor.
-   ===================================================== */
-function mzDaysSince(iso){
-  if(!iso) return null;
-  const d = new Date(iso);
-  if(isNaN(d)) return null;
-  return Math.max(0, Math.round((new Date() - d) / 86400000));
-}
-function mzLastAllocation(id){
-  /* the last time a car was actually bought for him */
-  const cars = muzaribCars(id).filter(function(v){ return v.dateAdded; });
-  if(!cars.length) return null;
-  return cars.map(function(v){ return v.dateAdded; }).sort().slice(-1)[0];
-}
-function mzFirstMoneyIn(id){
-  const tx = (DB.muzaribTx||[]).filter(function(t){ return t.muzaribId===id && t.type==='capital'; });
-  if(!tx.length) return null;
-  return tx.map(function(t){ return t.date; }).filter(Boolean).sort()[0];
-}
-function mzFairness(){
-  const rows = liveMuzaribs().filter(function(m){ return m.active !== false; }).map(function(m){
-    const p = muzaribPosition(m.id);
-    const inStock = p.tiedUp;
-    const free    = Math.max(0, p.cashInHand);      /* real money, ready to buy */
-    const owed    = Math.max(0, p.usedByCompany);   /* his money the company used */
-    const idle    = free + owed;                    /* everything of his not working */
-    const entitle = inStock + free + owed;
-    const since   = mzLastAllocation(m.id) || mzFirstMoneyIn(m.id);
-    const days    = mzDaysSince(since);
-    const waited  = days == null ? 0 : idle * days; /* pounds × days */
-    return { id:m.id, name:m.name, m:m, p:p, inStock:inStock, free:free, owed:owed,
-             idle:idle, entitle:entitle, since:since, days:days, waited:waited,
-             stockPct: entitle > 0 ? (inStock/entitle*100) : 0 };
-  });
-  const tot = rows.reduce(function(a,r){
-    a.entitle+=r.entitle; a.inStock+=r.inStock; a.free+=r.free; a.owed+=r.owed; a.waited+=r.waited; return a;
-  }, {entitle:0,inStock:0,free:0,owed:0,waited:0});
-  const avgPct = tot.entitle > 0 ? (tot.inStock/tot.entitle*100) : 0;
-  rows.forEach(function(r){
-    r.share   = tot.waited > 0 ? (r.waited/tot.waited*100) : 0;
-    r.vsAvg   = r.stockPct - avgPct;                 /* behind the pack if negative */
-    r.fairStock = tot.inStock * (tot.entitle ? r.entitle/tot.entitle : 0);
-    r.shortBy = Math.max(0, r.fairStock - r.inStock);
-  });
-  /* WHOSE TURN IT IS.
-     We rank on how many pounds short of a fair share of the stock a man is -
-     not on how much idle cash he happens to have. Idle pounds alone quietly
-     favour whoever is richest: a big investor nearly always has more cash
-     sitting about even when most of his money is already working.
-     "Short by" is pounds, but pounds measured against HIS OWN fair share, so a
-     small investor still gets his turn. Longest wait breaks a tie, and once
-     everyone is level at nil it is the only thing left, so the rotation keeps
-     turning instead of freezing. */
-  rows.sort(function(a,b){
-    const s = (b.shortBy||0) - (a.shortBy||0);
-    if(Math.abs(s) > 0.5) return s;
-    return (b.days||0) - (a.days||0);
-  });
-  rows.forEach(function(r,i){
-    r.rank = i+1;
-    r.turnWhy = r.shortBy > 0.5
-      ? mzMoney(r.shortBy) + ' below a fair share'
-      : (r.days != null ? 'level on share \u2014 waited ' + r.days + ' day' + (r.days===1?'':'s') : 'level on share');
-    r.canFund = r.free;                       /* what he could actually pay for today */
-  });
-  return { rows: rows, tot: tot, avgPct: avgPct };
-}
-/* who should get a car costing this much */
-function mzSuggest(cost){
-  const F = mzFairness();
-  const c = Number(cost)||0;
-  const canBuy = F.rows.filter(function(r){ return r.free >= c && c > 0; });
-  const owedOnly = F.rows.filter(function(r){ return r.free < c && r.owed > 0; });
-  return { cost:c, best: canBuy[0] || null, canBuy: canBuy,
-           repay: owedOnly[0] || null, all: F.rows, F: F };
-}
-function mzMoney(n){ return (typeof fmtMoney==='function') ? fmtMoney(n) : ('£'+Number(n||0).toFixed(2)); }
-let mzAllocCost = '';
-function mzAllocCostChanged(){
-  mzAllocCost = (document.getElementById('mz_alloccost')||{}).value || '';
-  const box = document.getElementById('mz_allocout');
-  if(box) box.innerHTML = mzSuggestHtml();
-}
-function mzSuggestHtml(){
-  const c = Number(mzAllocCost)||0;
-  if(!c) return '<div class="small-muted">Put in what the car cost and it will say whose turn it is.</div>';
-  const s = mzSuggest(c);
-  if(!s.all.length) return '<div class="small-muted">No active investors.</div>';
-  const line = function(r, why, ok){
-    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);' +
-      'border-left:4px solid ' + (ok?'var(--green)':'var(--line)') + ';border-radius:6px;margin-bottom:6px">' +
-      '<b style="width:22px;text-align:center;color:var(--muted)">' + r.rank + '</b>' +
-      '<div style="flex:1;min-width:0"><b>' + escapeHtml(r.name) + '</b>' +
-      '<div class="small-muted">' + why + '</div></div>' +
-      '<div style="text-align:right"><b>' + mzMoney(r.free) + '</b>' +
-      '<div class="small-muted">ready to spend</div></div></div>';
-  };
-  let out = '';
-  if(s.best){
-    const reason = function(r){
-      return r.shortBy > 0.5
-        ? mzMoney(r.shortBy) + ' below a fair share · ' + Math.round(r.stockPct) + '% of his money is in cars'
-        : 'level on share · ' + (r.days==null?'':r.days + ' day' + (r.days===1?'':'s') + ' since his last car · ') +
-          Math.round(r.stockPct) + '% in cars';
-    };
-    const skipped = s.best.rank > 1 ? s.all.slice(0, s.best.rank-1).filter(function(x){ return x.free < c; }) : [];
-    out += '<div class="small-muted" style="margin-bottom:6px"><b>Buy it for ' + escapeHtml(s.best.name) + '.</b> ' +
-      (s.best.shortBy > 0.5
-        ? 'He is the furthest below a fair share of anyone who can cover ' + mzMoney(c) + '.'
-        : 'Everyone who can cover ' + mzMoney(c) + ' is level on share, and he has gone longest without a car.') +
-      (skipped.length ? ' Ahead of him ' + (skipped.length===1?'is ':'are ') +
-        skipped.map(function(x){ return escapeHtml(x.name); }).join(', ') +
-        ', but ' + (skipped.length===1?'he has':'they have') + ' not got ' + mzMoney(c) + ' free.' : '') +
-      '</div>';
-    out += line(s.best, reason(s.best), true);
-    const rest = s.canBuy.slice(1,4);
-    if(rest.length){
-      out += '<div class="small-muted" style="margin:8px 0 5px">Next in line if he is already covered</div>';
-      rest.forEach(function(r){ out += line(r, reason(r), false); });
-    }
-  } else {
-    out += '<div class="overdue-banner" style="margin-bottom:8px"><span>Nobody has ' + mzMoney(c) +
-      ' of their own cash free. Buy it with company money and give it to whoever the company owes most — ' +
-      'that clears the debt in stock instead of cash.</span></div>';
-  }
-  if(s.repay){
-    out += '<div class="small-muted" style="margin:10px 0 5px">Owed by the company — settling in stock clears it</div>';
-    out += line(s.repay, 'company owes him ' + mzMoney(s.repay.owed) + ' · ' +
-      Math.round(s.repay.stockPct) + '% of his money is in cars', false);
-  }
-  return out;
-}
-/* ---- archiving an investor ------------------------------------------------
-   An archived investor is out of the TURN ROTATION: no car is allocated to
-   them and they are not offered when a car is funded. Nothing is deleted -
-   their cars, cash entries and settlements all stay exactly as they are and
-   their page still reads normally.
---------------------------------------------------------------------------- */
-function renderMzArchived(){
-  const arch = archivedMuzaribs();
-  if(!arch.length) return '';
-  return `
-  <div class="section-title" style="margin-top:22px"><h2>Archived · ${arch.length}</h2>
-    <span class="small-muted">Out of the turn rotation — no cars are allocated to them. Their records are untouched.</span></div>
-  <div class="card" style="padding:0;">
-    <table><thead><tr><th>Investor</th><th>Archived</th><th class="num">Cash</th><th class="num">In stock</th>
-      <th class="num">Total position</th><th>Reason</th><th></th></tr></thead><tbody>
-    ${arch.map(function(m){ const p = muzaribPosition(m.id); return `
-      <tr>
-        <td style="cursor:pointer" onclick="openMuzarib('${m.id}')"><b>${escapeHtml(m.name)}</b>
-          <div class="small-muted">${p.unsold.length} active / ${p.sold.length} sold</div></td>
-        <td>${m.archived && m.archived.date ? fmtDate(m.archived.date) : '—'}</td>
-        <td class="num">${fmtMoney(p.cash)}</td>
-        <td class="num">${fmtMoney(p.tiedUp)}</td>
-        <td class="num"><b>${fmtMoney(p.total)}</b></td>
-        <td class="small-muted" style="min-width:210px">${escapeHtml((m.archived && m.archived.note) || '')}</td>
-        <td style="white-space:nowrap">${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="unarchiveMuzarib('${m.id}')">Bring back</button>`:''}</td>
-      </tr>`; }).join('')}
-    </tbody></table>
-  </div>`;
-}
-
-function openArchiveMz(id){
-  if(!isSuperAdmin()) return;
-  const m = muzarib(id); if(!m) return;
-  const p = muzaribPosition(id);
-  const warn = [];
-  if(p.unsold.length) warn.push(p.unsold.length + ' car' + (p.unsold.length===1?'':'s') + ' still in stock worth ' + fmtMoney(p.tiedUp));
-  if(Math.abs(p.cash) > 0.01) warn.push(fmtMoney(p.cash) + ' of cash still on his account');
-  openModal(`
-    <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>Archive ${escapeHtml(m.name)}</h3>
-    <p class="small-muted">He comes out of the <b>turn rotation</b> — no car will be allocated to him and he
-      will not be offered when you fund a car. He also comes off the totals at the top of this page.
-      <b>Nothing is deleted.</b> His cars, cash entries and settlements stay exactly as they are and his
-      page still reads normally. You can bring him back at any time.</p>
-    ${warn.length?`<div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px">
-      <b>He is not settled up yet</b><div class="small-muted" style="margin-top:4px">${warn.join(' · ')}.
-      You can still archive him — just worth knowing.</div></div>`:''}
-    <div class="field-row">
-      <div class="field"><label>Date</label><input id="ar_date" type="date" value="${todayISO()}"/></div>
-    </div>
-    <div class="field"><label>Reason (optional)</label><input id="ar_note" placeholder="Taken his money out, not investing for now"/></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-brand" onclick="archiveMuzarib('${id}')">Archive him</button>
-    </div>`);
-}
-
-function archiveMuzarib(id){
-  if(!isSuperAdmin()) return;
-  const m = muzarib(id); if(!m) return;
-  const date = (document.getElementById('ar_date')||{}).value || todayISO();
-  const note = ((document.getElementById('ar_note')||{}).value || '').trim();
-  m.archived = {date: date, note: note, by: (typeof currentUserName!=='undefined' ? currentUserName : '')};
-  logChange('muzarib','Archived', m.name, 'Turn rotation', 'in', 'out', note || '');
-  saveDB(); closeModal(); activeMuzaribId = null; render();
-}
-
-function unarchiveMuzarib(id){
-  if(!isSuperAdmin()) return;
-  const m = muzarib(id); if(!m) return;
-  if(!confirm(m.name + ' comes back into the turn rotation and will be allocated cars again. Carry on?')) return;
-  m.archived = null; delete m.archived;
-  logChange('muzarib','Brought back from archive', m.name, 'Turn rotation', 'out', 'in', '');
-  saveDB(); closeModal(); render();
-}
-
-function renderMzFairness(){
-  const F = mzFairness();
-  if(!F.rows.length) return '';
-  const r0 = F.rows[0];
-  return `
   <div class="section-title"><h2>Whose turn is it</h2></div>
   <div class="card">
     <div class="small-muted" style="margin-bottom:12px">
@@ -9133,7 +9328,9 @@ function renderMuzaribProfile(id){
 
   <div class="grid kpi-grid">
     <div class="card kpi"><div class="label">Cash available</div><div class="value small">${fmtMoney(p.cash)}</div>
-      <div class="sub">Buy up to ${fmtMoney(p.buyingBudget)} (${p.reservePct}% held for prep)</div></div>
+      <div class="sub">${(isManager() && p.usedByCompany > 0)
+        ? `Only ${fmtMoney(p.cashInHand)} is actually here — ${fmtMoney(p.usedByCompany)} of it is out on the business`
+        : `Buy up to ${fmtMoney(p.buyingBudget)} (${p.reservePct}% held for prep)`}</div></div>
     <div class="card kpi"><div class="label">Value in stock</div><div class="value small">${fmtMoney(p.tiedUp)}</div>
       <div class="sub">${p.unsold.length} car${p.unsold.length===1?'':'s'} at cost</div></div>
     <div class="card kpi"><div class="label">Total position</div><div class="value small">${fmtMoney(p.total)}</div>
@@ -9143,6 +9340,30 @@ function renderMuzaribProfile(id){
   </div>
 
   ${p.cash < 0 ? `<div class="overdue-banner"><span>⚠ Cash available is negative &mdash; more has been spent or withdrawn than this investor has put in. Check the capital entries below.</span></div>`:''}
+
+  ${(isManager() && p.usedByCompany > 0) ? (function(){
+    const spend = muzaribTx(id).filter(function(t){ return t.type==='spend'; })
+      .slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
+    return `
+  <div class="section-title"><h2>His cash used by the business</h2>
+    <span class="small-muted">Internal — not on his statement. What he is owed is unchanged; this is only where the money physically went.</span></div>
+  <div class="card">
+    <div class="grid kpi-grid" style="margin-bottom:12px">
+      <div class="card kpi"><div class="label">He is owed</div><div class="value small">${fmtMoney(p.cash)}</div>
+        <div class="sub">settled in stock or cash</div></div>
+      <div class="card kpi"><div class="label">Spent on the business</div><div class="value small" style="color:var(--amber)">${fmtMoney(p.usedByCompany)}</div>
+        <div class="sub">${spend.length} entr${spend.length===1?'y':'ies'}</div></div>
+      <div class="card kpi"><div class="label">Cash actually in hand</div><div class="value small" style="color:${p.cashInHand<0?'var(--red)':'inherit'}">${fmtMoney(p.cashInHand)}</div>
+        <div class="sub">what is really here to spend</div></div>
+    </div>
+    ${p.cashInHand < 0 ? `<div class="overdue-banner" style="margin:0 0 12px"><span>⚠ More of his money has been spent than came in. Check the entries below.</span></div>`:''}
+    <table><thead><tr><th>Date</th><th>What it went on</th><th>Entered by</th><th class="num">Amount</th></tr></thead>
+      <tbody>${spend.map(function(t){ return `<tr>
+        <td>${fmtDate(t.date)}</td><td>${escapeHtml(t.note||'')}</td>
+        <td>${escapeHtml(t.addedBy||'')}</td><td class="num">${fmtMoney(t.amount)}</td></tr>`; }).join('')}
+        <tr><td colspan="3" style="font-weight:700">Total</td>
+          <td class="num" style="font-weight:700">${fmtMoney(p.usedByCompany)}</td></tr></tbody></table>
+  </div>`; })() : ''}
 
   <div class="section-title"><h2>Cars in stock</h2></div>
   <div class="card" style="padding:0;">
