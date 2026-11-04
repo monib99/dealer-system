@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-04 b91</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-04 b92</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -5392,6 +5392,7 @@ const PURCHASE_DECL_DEFAULT = [
 function purchaseTerms(){ return (DB.purchaseTerms && DB.purchaseTerms.length) ? DB.purchaseTerms : PURCHASE_TERMS_DEFAULT; }
 function purchaseDeclaration(){ return (DB.purchaseDecl && DB.purchaseDecl.length) ? DB.purchaseDecl : PURCHASE_DECL_DEFAULT; }
 function purchasePrefix(){ return DB.purchasePrefix || (invoicePrefix() + '-P'); }
+function invoicePad(){ const n = Number(DB.invoicePad); return (n>0 && n<=8) ? n : 0; }
 function nextPurchaseRef(){
   const used = (DB.vehicles||[])
     .filter(function(x){ return x.purchase && x.purchase.ref; })
@@ -9198,6 +9199,220 @@ function renderCompanyAssets(){
     ${ob.legacy?`<div class="small-muted" style="margin-top:10px">Showing the older hand-typed figures. Add the partners
       and the closing stock above and it will work the leftover out from the parts instead.</div>`:''}
   </div>
+  `;
+}
+
+/* ===========================================================================
+   WHOSE TURN IS IT
+   A man's return is measured against his own money, so fairness is about the
+   PROPORTION of each investor's money that is working, not how much idle cash
+   he happens to have. Ranking on idle cash alone always favours the richest.
+   =========================================================================== */
+let mzAllocCost = '';
+
+function mzMoney(n){ return fmtMoney(Number(n)||0); }
+
+/* Days since a car was last bought with his money. null if he has never had one. */
+function mzLastAllocation(id){
+  const dates = muzaribCars(id)
+    .map(function(v){ return v.dateAdded || ''; })
+    .filter(Boolean).sort();
+  return dates.length ? dates[dates.length-1] : null;
+}
+function mzDaysSince(iso){
+  if(!iso) return null;
+  const then = new Date(iso + 'T00:00:00');
+  if(isNaN(then.getTime())) return null;
+  return Math.max(0, Math.round((Date.now() - then.getTime()) / 86400000));
+}
+
+/* Put a company car onto an investor's book. The money already spent on the
+   car does not move - only who funded it changes - so his cash in hand drops by
+   what the car cost and the same amount appears as stock against his name. */
+function openTransferToInvestor(vId){
+  if(!isManager()){ alert('Only a manager can move a car to an investor.'); return; }
+  const live = (typeof liveMuzaribs === 'function' ? liveMuzaribs() : muzaribs())
+    .filter(function(m){ return m.active !== false; });
+  if(!live.length){ alert('There are no investors on file.'); return; }
+  const free = (DB.vehicles||[]).filter(function(v){
+    return !v.sale && !vGone(v) && !(v.ownerType==='muzarib' && v.muzaribId); });
+  const chosen = vId ? (DB.vehicles||[]).find(function(x){ return x.id===vId; }) : null;
+  const list = chosen ? [chosen] : free;
+  if(!list.length){ alert('Every car in stock is already funded by an investor.'); return; }
+  openModal(`
+    <button class="close-x" onclick="closeModal()">\u2715</button>
+    <h3>Move a car to an investor</h3>
+    <div class="small-muted" style="margin-bottom:10px">What has been spent on the car stays exactly as it is.
+      Only who funded it changes: it comes off his cash and shows as his stock.</div>
+    <div class="field"><label>Car</label>
+      <select id="tv_car" onchange="transferCarChanged()">
+        ${list.map(function(v){ return '<option value="'+v.id+'">' + escapeHtml(v.reg||'')
+          + ' \u00b7 ' + escapeHtml([v.make,v.model].filter(Boolean).join(' '))
+          + ' \u00b7 ' + fmtMoney(vehicleCostTotal(v)) + '</option>'; }).join('')}
+      </select></div>
+    <div class="field"><label>Funded by</label>
+      <select id="tv_mz" onchange="transferCarChanged()">
+        ${live.map(function(m){ const q = muzaribPosition(m.id);
+          return '<option value="'+m.id+'">' + escapeHtml(m.name||'')
+            + ' \u00b7 ' + fmtMoney(q.cashInHand) + ' in hand</option>'; }).join('')}
+      </select></div>
+    <div class="small-muted" id="tv_warn" style="margin-bottom:10px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runTransferToInvestor()">Move it</button>
+    </div>`);
+  transferCarChanged();
+}
+function transferCarChanged(){
+  const box = document.getElementById('tv_warn'); if(!box) return;
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===(document.getElementById('tv_car')||{value:''}).value; });
+  const id = (document.getElementById('tv_mz')||{value:''}).value;
+  if(!v || !id){ box.innerHTML = ''; return; }
+  const cost = vehicleCostTotal(v), q = muzaribPosition(id);
+  box.innerHTML = cost > q.cashInHand
+    ? `<span style="color:var(--amber)">This car cost ${fmtMoney(cost)} but only ${fmtMoney(q.cashInHand)}
+       of his money is actually here. You can still do it \u2014 his balance will show the shortfall.</span>`
+    : `${fmtMoney(cost)} of his ${fmtMoney(q.cashInHand)} would go into this car.`;
+}
+function runTransferToInvestor(){
+  const vid = (document.getElementById('tv_car')||{value:''}).value;
+  const mid = (document.getElementById('tv_mz')||{value:''}).value;
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vid; });
+  const m = muzarib(mid);
+  if(!v || !m) return;
+  const was = v.muzaribId ? muzaribName(v.muzaribId) : 'company stock';
+  v.ownerType = 'muzarib'; v.muzaribId = mid;
+  logChange('muzarib','Moved to an investor', vehRef(v), 'Funded by', was, m.name, fmtMoney(vehicleCostTotal(v)));
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast(v.reg + ' is now funded by ' + m.name);
+}
+
+function mzFairness(){
+  const live = (typeof liveMuzaribs === 'function' ? liveMuzaribs() : muzaribs())
+    .filter(function(m){ return m.active !== false; });
+  const raw = live.map(function(m){
+    const p = muzaribPosition(m.id);
+    const last = mzLastAllocation(m.id);
+    return { id:m.id, name:m.name||'', inStock:p.tiedUp, free:p.cashInHand,
+             owed:p.usedByCompany, total:p.total, days:mzDaysSince(last), last:last };
+  });
+  const totStock = raw.reduce(function(t,r){ return t + r.inStock; }, 0);
+  const totAll   = raw.reduce(function(t,r){ return t + Math.max(0, r.total); }, 0);
+  const avgPct   = totAll > 0 ? (totStock / totAll * 100) : 0;
+
+  const rows = raw.map(function(r){
+    const stockPct = r.total > 0 ? (r.inStock / r.total * 100) : 0;
+    /* What he would hold if his money were working as hard as everyone else's. */
+    const fairShare = Math.max(0, r.total) * (avgPct / 100);
+    const shortBy   = Math.max(0, fairShare - r.inStock);
+    return Object.assign({}, r, {
+      idle: r.free + r.owed,
+      stockPct: stockPct,
+      vsAvg: stockPct - avgPct,
+      shortBy: shortBy
+    });
+  });
+
+  /* Furthest below a fair share goes first; longest wait settles a tie. */
+  rows.sort(function(a,b){
+    const d = (b.shortBy||0) - (a.shortBy||0);
+    if(Math.abs(d) > 0.5) return d;
+    return (b.days||0) - (a.days||0);
+  });
+  rows.forEach(function(r,i){
+    r.rank = i + 1;
+    r.turnWhy = r.shortBy > 1
+      ? ('behind a fair share by ' + mzMoney(r.shortBy))
+      : (r.days == null ? 'has never had a car' : 'longest wait, ' + r.days + ' days');
+  });
+
+  return { rows: rows, avgPct: avgPct,
+           tot: { stock: totStock, all: totAll,
+                  free: rows.reduce(function(t,r){ return t + r.free; }, 0),
+                  owed: rows.reduce(function(t,r){ return t + r.owed; }, 0) } };
+}
+
+/* Who should fund a car at this price. Whoever is furthest behind AND can
+   actually pay for it — being owed money is no use when a car needs buying. */
+function mzSuggest(cost){
+  const c = Number(cost) || 0;
+  const rows = mzFairness().rows;
+  if(!rows.length) return null;
+  const canPay = rows.filter(function(r){ return r.free >= c; });
+  return { pick: canPay[0] || null, first: rows[0], cost: c,
+           shortOfCash: rows.filter(function(r){ return r.free < c; }) };
+}
+
+function mzSuggestHtml(){
+  const c = Number(mzAllocCost) || 0;
+  if(!c) return '<div class="small-muted">Type what the car costs and it will name whose turn it is.</div>';
+  const sg = mzSuggest(c);
+  if(!sg || !sg.first) return '<div class="small-muted">No investors to choose between yet.</div>';
+  if(!sg.pick){
+    return `<div class="small-muted" style="background:var(--red-dim);border-radius:7px;padding:10px 12px">
+      <b>Nobody has ${mzMoney(c)} free.</b> ${escapeHtml(sg.first.name)} is next in line but has only
+      ${mzMoney(sg.first.free)} in hand${sg.first.owed>0?', with '+mzMoney(sg.first.owed)+' owed back by the company':''}.</div>`;
+  }
+  const p = sg.pick;
+  const jumped = sg.first.id !== p.id ? sg.first : null;
+  return `<div class="small-muted" style="background:var(--brand-dim);border-radius:7px;padding:10px 12px">
+    <b>${escapeHtml(p.name)}</b> should fund this one — ${escapeHtml(p.turnWhy)}, and has
+    ${mzMoney(p.free)} in hand.
+    ${jumped?`<br><span style="color:#8A5B07">${escapeHtml(jumped.name)} is further behind but only has
+      ${mzMoney(jumped.free)} free${jumped.owed>0?', with '+mzMoney(jumped.owed)+' owed back by the company':''}.</span>`:''}</div>`;
+}
+
+function mzAllocCostChanged(){
+  const el = document.getElementById('mz_alloccost');
+  mzAllocCost = el ? el.value : '';
+  const out = document.getElementById('mz_allocout');
+  if(out) out.innerHTML = mzSuggestHtml();
+}
+
+/* Investors taken out of the turn rotation. Their money and history stay
+   exactly as they were — they simply stop being offered cars. */
+function renderMzArchived(){
+  const list = (typeof archivedMuzaribs === 'function') ? archivedMuzaribs() : [];
+  if(!list.length) return '';
+  return `
+  <div class="section-title"><h2>Not in the turns</h2>
+    <span class="small-muted">Archived — still on the books, just not offered cars.</span></div>
+  <div class="card" style="padding:0">
+    <table><thead><tr><th>Investor</th><th class="num">Cash</th><th class="num">In cars</th>
+      <th class="num">Total</th>${isSuperAdmin()?'<th></th>':''}</tr></thead><tbody>
+    ${list.map(function(m){ const p = muzaribPosition(m.id); return `<tr style="cursor:pointer">
+      <td onclick="openMuzarib('${m.id}')"><b>${escapeHtml(m.name||'')}</b></td>
+      <td class="num" onclick="openMuzarib('${m.id}')">${mzMoney(p.cash)}</td>
+      <td class="num" onclick="openMuzarib('${m.id}')">${mzMoney(p.tiedUp)}</td>
+      <td class="num" onclick="openMuzarib('${m.id}')"><b>${mzMoney(p.total)}</b></td>
+      ${isSuperAdmin()?`<td class="num"><button class="btn btn-sm btn-ghost" onclick="unarchiveMuzarib('${m.id}')">↩ Bring back</button></td>`:''}
+    </tr>`; }).join('')}
+    </tbody></table>
+  </div>`;
+}
+
+function archiveMuzarib(id){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can archive an investor.'); return; }
+  const m = muzarib(id); if(!m) return;
+  if(!confirm(m.name + ' stops coming up in the turns.\n\nHis money, his cars and his history stay exactly as they are. Carry on?')) return;
+  m.archived = true;
+  logChange('muzarib','Archived', mzRef(m), 'In the turns', 'yes', 'no', '');
+  saveDB(); render();
+}
+function unarchiveMuzarib(id){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can do that.'); return; }
+  const m = muzarib(id); if(!m) return;
+  m.archived = false;
+  logChange('muzarib','Brought back into the turns', mzRef(m), 'In the turns', 'no', 'yes', '');
+  saveDB(); render();
+}
+function openArchiveMz(id){ archiveMuzarib(id); }
+
+function renderMzFairness(){
+  const F = mzFairness();
+  if(!F.rows.length) return '';
+  const r0 = F.rows[0];
+  return `
   <div class="section-title"><h2>Whose turn is it</h2></div>
   <div class="card">
     <div class="small-muted" style="margin-bottom:12px">
