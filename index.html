@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-04 b92</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-05 b95</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -9476,6 +9476,8 @@ function renderMuzaribat(){
   <div class="topbar">
     <div><h1>Muzaribat</h1><div class="date">Investor-funded stock &mdash; positions, profits and withdrawals</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${isManager()?`<button class="btn btn-ghost" onclick="printAllInvestorsReport()"
+        title="Internal only — every investor's money in and out">📊 Money in and out</button>`:''}
       ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="openRepair()">🔧 Fix the data</button>`:''}
       <button class="btn btn-brand" onclick="openMuzaribForm()">+ Add investor</button>
     </div>
@@ -9642,6 +9644,8 @@ function renderMuzaribProfile(id){
 
   <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-ghost" onclick="printMuzaribStatement('${id}')">🖨 Print statement</button>
+    ${isManager()?`<button class="btn btn-ghost" onclick="printMzSpendBreakdown('${id}')"
+      title="Internal only — shows how the business used his cash">🔒 Where his money went</button>`:''}
   </div>
   `;
 }
@@ -9876,6 +9880,165 @@ function deleteMzTx(txId){
 }
 
 /* ---------- printable statement ---------- */
+/* ===========================================================================
+   TWO INTERNAL REPORTS
+   Neither of these is for an investor's eyes. The first shows where one man's
+   money physically went, which his own statement deliberately leaves out. The
+   second puts every investor's money in and out on one sheet.
+   Both carry a header saying so, so a printed copy cannot be mistaken.
+   =========================================================================== */
+function mzReportCSS(){ return `
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:26px;color:#141A24;margin:0}
+  .ibar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .ibar button{font:inherit;font-size:13px;padding:7px 13px;border:1px solid #CBD2DC;background:#fff;
+    border-radius:7px;cursor:pointer}
+  .ibar .hint{font-size:12px;color:#6B7684}
+  .warn{border:1.5px solid #B23A24;background:#FBEDEA;color:#8C2C1B;border-radius:8px;
+    padding:10px 13px;font-size:12.5px;font-weight:600;margin-bottom:16px}
+  h1{margin:0 0 2px;font-size:21px}
+  .sub{color:#6B7684;font-size:12.5px;margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;margin:10px 0 18px;font-size:12px}
+  th{background:#141A24;color:#fff;text-align:left;padding:7px 9px;font-size:11px;
+    letter-spacing:.03em;text-transform:uppercase;font-weight:700}
+  td{padding:6px 9px;border-bottom:1px solid #E6EAF0;vertical-align:top}
+  tr:nth-child(even) td{background:#FAFBFC}
+  .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  tr.tot td{border-top:2px solid #141A24;border-bottom:none;font-weight:800;background:#fff}
+  .kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .kpi{flex:1 1 150px;border:1px solid #E6EAF0;border-radius:9px;padding:10px 12px}
+  .kpi .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#6B7684;font-weight:700}
+  .kpi .v{font-size:17px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+  .neg{color:#B23A24}
+  h2{font-size:14px;margin:20px 0 2px;padding-bottom:5px;border-bottom:1.5px solid #141A24}
+  .note{font-size:11.5px;color:#6B7684;margin:4px 0 0}
+  .foot{margin-top:22px;padding-top:9px;border-top:1px solid #E6EAF0;font-size:10.5px;color:#6B7684}
+  @media print{ .ibar{display:none} body{padding:12mm 10mm} @page{size:A4;margin:9mm} tr{break-inside:avoid} }
+`; }
+
+function mzReportWindow(title, file, inner, warn){
+  const w = window.open('','_blank');
+  if(!w){ alert('Allow pop-ups to open the report.'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+  <style>${mzReportCSS()}</style></head><body>
+  <div class="ibar">
+    <button onclick="window.print()">⬇️ Download PDF</button>
+    <button onclick="dlWord()">⬇️ Download Word</button>
+    <button onclick="window.close()">Close</button>
+    <span class="hint">For the PDF, pick <b>Save as PDF</b> as the destination in the print box.</span>
+  </div>
+  <div class="warn">INTERNAL RECORD — NOT TO BE GIVEN TO AN INVESTOR.
+    ${warn || 'This sheet shows how the business used his money. It is not his statement and does not change what he is owed.'}</div>
+  ${inner}
+  <div class="foot">${escapeHtml(DB.bizName||'')} · printed ${fmtDate(todayISO())} by ${escapeHtml(currentUserName||'')}</div>
+  </body></html>`);
+  w.document.close();
+  w.document.title = file;
+  w.dlWord = function(){ downloadAsWord(w, file); };
+}
+
+/* ---- one investor: where his money went ---------------------------------- */
+function printMzSpendBreakdown(id){
+  if(!isManager()){ alert('Only a manager can print this.'); return; }
+  const m = muzarib(id); if(!m) return;
+  const q = muzaribPosition(id);
+  const spend = muzaribTx(id).filter(function(t){ return t.type==='spend'; })
+    .slice().sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
+  if(!spend.length && q.usedByCompany === 0){
+    alert('None of ' + m.name + "'s money has been spent on the business, so there is nothing to break down.");
+    return;
+  }
+  let run = 0;
+  const rows = spend.map(function(t){
+    run += Number(t.amount)||0;
+    return `<tr><td>${fmtDate(t.date)}</td><td>${escapeHtml(t.note||'')}</td>
+      <td>${escapeHtml(t.addedBy||'')}</td>
+      <td class="num">${fmtMoney(t.amount)}</td><td class="num">${fmtMoney(run)}</td></tr>`;
+  }).join('');
+  const inner = `
+    <h1>${escapeHtml(m.name)} — where his money went</h1>
+    <div class="sub">Every pound of his cash the business has used, oldest first.</div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">He is owed</div><div class="v">${fmtMoney(q.cash)}</div></div>
+      <div class="kpi"><div class="l">Spent on the business</div><div class="v">${fmtMoney(q.usedByCompany)}</div></div>
+      <div class="kpi"><div class="l">Cash actually in hand</div>
+        <div class="v${q.cashInHand<0?' neg':''}">${fmtMoney(q.cashInHand)}</div></div>
+      <div class="kpi"><div class="l">In cars</div><div class="v">${fmtMoney(q.tiedUp)}</div></div>
+    </div>
+    <p class="note">What he is owed does not fall because the business used his cash — that is settled later in
+      stock or cash. This sheet only shows where the money physically went.</p>
+    <h2>The spending, ${spend.length} ${spend.length===1?'entry':'entries'}</h2>
+    <table><thead><tr><th>Date</th><th>What it went on</th><th>Entered by</th>
+      <th class="num">Amount</th><th class="num">Running total</th></tr></thead>
+      <tbody>${rows}
+      <tr class="tot"><td colspan="3">Total spent on the business</td>
+        <td class="num">${fmtMoney(q.usedByCompany)}</td><td></td></tr></tbody></table>`;
+  mzReportWindow('Where the money went — ' + m.name,
+    ('Spend-' + (m.name||'investor')).replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^-|-$/g,''), inner);
+}
+
+/* ---- everyone: money in and out on one sheet ----------------------------- */
+function printAllInvestorsReport(){
+  if(!isManager()){ alert('Only a manager can print this.'); return; }
+  const all = (typeof liveMuzaribs === 'function' ? liveMuzaribs() : muzaribs())
+    .concat(typeof archivedMuzaribs === 'function' ? archivedMuzaribs() : []);
+  if(!all.length){ alert('There are no investors on file.'); return; }
+  const data = all.map(function(m){
+    const q = muzaribPosition(m.id);
+    const tx = muzaribTx(m.id);
+    const sum = function(t){ return tx.filter(function(x){ return x.type===t; })
+      .reduce(function(a,x){ return a + (Number(x.amount)||0); }, 0); };
+    return { m:m, q:q, inC:sum('capital'), adj:sum('adjustment'),
+             out:sum('withdrawal'), spent:sum('spend'),
+             archived: (typeof isArchivedMz === 'function') ? isArchivedMz(m) : !!m.archived };
+  }).sort(function(a,b){ return b.q.total - a.q.total; });
+
+  const T = function(k){ return data.reduce(function(t,r){ return t + (typeof k==='function'?k(r):r[k]); }, 0); };
+  const rows = data.map(function(r){
+    return `<tr>
+      <td><b>${escapeHtml(r.m.name||'')}</b>${r.archived?' <span style="color:#6B7684;font-size:10.5px">(not in the turns)</span>':''}</td>
+      <td class="num">${fmtMoney(r.inC)}</td>
+      <td class="num">${r.adj?fmtMoney(r.adj):'—'}</td>
+      <td class="num">${r.out?'-'+fmtMoney(r.out):'—'}</td>
+      <td class="num">${r.spent?fmtMoney(r.spent):'—'}</td>
+      <td class="num">${fmtMoney(r.q.profit)}</td>
+      <td class="num">${fmtMoney(r.q.tiedUp)}</td>
+      <td class="num${r.q.cashInHand<0?' neg':''}">${fmtMoney(r.q.cashInHand)}</td>
+      <td class="num"><b>${fmtMoney(r.q.total)}</b></td></tr>`;
+  }).join('');
+  const inner = `
+    <h1>All investors — money in and out</h1>
+    <div class="sub">${data.length} investor${data.length===1?'':'s'} · as at ${fmtDate(todayISO())}</div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Money in</div><div class="v">${fmtMoney(T('inC'))}</div></div>
+      <div class="kpi"><div class="l">Taken back out</div><div class="v">${fmtMoney(T('out'))}</div></div>
+      <div class="kpi"><div class="l">Used by the business</div><div class="v">${fmtMoney(T('spent'))}</div></div>
+      <div class="kpi"><div class="l">Held in cars</div><div class="v">${fmtMoney(T(function(r){ return r.q.tiedUp; }))}</div></div>
+      <div class="kpi"><div class="l">Cash in hand</div>
+        <div class="v${T(function(r){ return r.q.cashInHand; })<0?' neg':''}">${fmtMoney(T(function(r){ return r.q.cashInHand; }))}</div></div>
+      <div class="kpi"><div class="l">Owed in total</div><div class="v">${fmtMoney(T(function(r){ return r.q.total; }))}</div></div>
+    </div>
+    <h2>Investor by investor</h2>
+    <table><thead><tr><th>Investor</th><th class="num">Money in</th><th class="num">Adjustments</th>
+      <th class="num">Taken out</th><th class="num">Used by us</th><th class="num">Profit</th>
+      <th class="num">In cars</th><th class="num">Cash in hand</th><th class="num">Position</th></tr></thead>
+      <tbody>${rows}
+      <tr class="tot"><td>Total</td>
+        <td class="num">${fmtMoney(T('inC'))}</td>
+        <td class="num">${fmtMoney(T('adj'))}</td>
+        <td class="num">-${fmtMoney(T('out'))}</td>
+        <td class="num">${fmtMoney(T('spent'))}</td>
+        <td class="num">${fmtMoney(T(function(r){ return r.q.profit; }))}</td>
+        <td class="num">${fmtMoney(T(function(r){ return r.q.tiedUp; }))}</td>
+        <td class="num">${fmtMoney(T(function(r){ return r.q.cashInHand; }))}</td>
+        <td class="num">${fmtMoney(T(function(r){ return r.q.total; }))}</td></tr></tbody></table>
+    <p class="note"><b>Money in</b> is capital put in. <b>Used by us</b> is his cash the business spent on itself —
+      it lowers the cash in hand but not what he is owed, because it is settled later in stock or cash.
+      <b>Position</b> is what he is owed plus what is held in his cars.</p>`;
+  mzReportWindow('All investors — money in and out', 'Investors-money-in-and-out', inner,
+    'Every investor on one sheet, with what each is owed. None of it changes anyone’s position \u2014 it is a management view only.');
+}
+
 function printMuzaribStatement(id){
   const m = muzarib(id), p = muzaribPosition(id);
   const mo = mzMonth || todayISO().slice(0,7);
@@ -10977,6 +11140,100 @@ function cbApplyToVehicle(r, add){
   const cur = Number(v.costs[key])||0;
   v.costs[key] = Math.max(0, cur + (add ? (Number(r.amount)||0) : -(Number(r.amount)||0)));
 }
+/* ---------------------------------------------------------------------------
+   Day book money-out paid with an investor's cash.
+   The day book and Team & Pay used to be two separate ledgers: spending an
+   investor's money here left no trace there, and nothing came off his cash.
+   One entry now writes to all three places, and unwinds cleanly if it is
+   edited or deleted.
+   --------------------------------------------------------------------------- */
+function cbFundedLabel(r){
+  if(!r) return '';
+  if(r.muzaribId){ const m = muzarib(r.muzaribId); return m ? m.name : 'an investor'; }
+  if(r.fundedBy === 'float')   return 'Company float';
+  if(r.fundedBy === 'company') return 'Company';
+  return '';
+}
+function cbFundingOptions(sel, dir){
+  const live = (typeof liveMuzaribs === 'function' ? liveMuzaribs() : muzaribs())
+    .filter(function(m){ return m.active !== false; });
+  const cur = sel || 'company';
+  const out = dir !== 'in';
+  const head = out
+    ? ['<option value="company"' + (cur==='company'?' selected':'') + '>The company\u2019s own money</option>',
+       '<option value="float"' + (cur==='float'?' selected':'') + '>The company float</option>']
+    : ['<option value="company"' + (cur==='company'?' selected':'') + '>The company \u2014 takings, a sale, a refund</option>'];
+  return head.concat(live.map(function(m){
+    const q = muzaribPosition(m.id);
+    return '<option value="mz:' + m.id + '"' + (cur===('mz:'+m.id)?' selected':'') + '>'
+      + escapeHtml(m.name||'')
+      + (out ? ' \u00b7 ' + fmtMoney(q.cashInHand) + ' in hand'
+             : ' \u2014 money he is putting in')
+      + '</option>';
+  })).join('');
+}
+/* Which way round the question reads, so the label matches the direction. */
+function cbFundLabelFor(dir){ return dir === 'in' ? 'Where it came from' : 'Whose money'; }
+function cbFundDirChanged(prefix){
+  const dirEl = document.getElementById(prefix + 'dir');
+  const selEl = document.getElementById(prefix + 'funded');
+  const labEl = document.getElementById(prefix + 'fundlabel');
+  if(!dirEl || !selEl) return;
+  const dir = dirEl.value === 'out' ? 'out' : 'in';
+  selEl.innerHTML = cbFundingOptions(selEl.value, dir);
+  if(labEl) labEl.textContent = cbFundLabelFor(dir);
+}
+
+/* Put the entry into Team & Pay, and onto the investor if that is whose money
+   it was. Called with on=false first when editing, so nothing is counted twice. */
+function cbApplyToPayLog(r, on){
+  if(!r) return;
+  DB.expenses = DB.expenses || [];
+  DB.muzaribTx = DB.muzaribTx || [];
+  /* take the old one away whatever happens */
+  const old = DB.expenses.find(function(e){ return e.cbRowId === r.id; });
+  if(old){
+    if(old.mzTxId) DB.muzaribTx = DB.muzaribTx.filter(function(t){ return t.id !== old.mzTxId; });
+    DB.expenses = DB.expenses.filter(function(e){ return e.cbRowId !== r.id; });
+  }
+  /* money in from an investor was recorded as capital - take that away too */
+  if(r.mzCapTxId){
+    DB.muzaribTx = DB.muzaribTx.filter(function(t){ return t.id !== r.mzCapTxId; });
+    delete r.mzCapTxId;
+  }
+  if(!on) return;
+  const mzIn = (r.fundedBy||'').indexOf('mz:')===0 ? r.fundedBy.slice(3) : null;
+  if(r.dir === 'in'){
+    /* Cash an investor is putting in. It goes on his capital, where it raises
+       both what he is owed and the cash he has here. It is not an expense. */
+    if(!mzIn) return;
+    const tx = {id:nextId('mztx'), muzaribId:mzIn, type:'capital',
+      amount: Number(r.amount)||0, date: r.date || todayISO(),
+      method: r.method==='bank' ? 'Bank transfer' : 'Cash',
+      note: (r.note || r.cat || 'Money in') + ' \u00b7 from the day book',
+      addedBy: r.who || r.createdBy || currentUserName || ''};
+    DB.muzaribTx.push(tx);
+    r.mzCapTxId = tx.id;
+    return;
+  }
+  const mzId = mzIn;
+  if(!mzId && r.fundedBy !== 'float') return; // the company's own money needs no entry
+  const car = r.vehicleId ? (DB.vehicles||[]).find(function(v){ return v.id===r.vehicleId; }) : null;
+  const expense = {
+    id: nextId('exp'), employee: r.who || r.createdBy || currentUserName || '',
+    userEmail: currentUserEmail, date: r.date, amount: Number(r.amount)||0,
+    note: (r.note || r.cat || 'Day book entry') + (car ? ' \u00b7 ' + (car.reg||'') : '') + ' \u00b7 from the day book',
+    fundedBy: r.fundedBy, muzaribId: mzId,
+    status: mzId ? 'investor' : 'float',
+    paidAmount: 0, payments: [], photoId: null,
+    vehicleId: r.vehicleId || null, cbRowId: r.id
+  };
+  DB.expenses.push(expense);
+  /* syncExpenseToInvestor already knows not to charge him twice when the money
+     went on one of his own cars — that is already in the car's cost. */
+  if(mzId && typeof syncExpenseToInvestor === 'function') syncExpenseToInvestor(expense);
+}
+
 function cbLooksDuplicate(r){
   /* the same car, same money, same day already logged as a staff spend */
   if(!r.vehicleId) return null;
@@ -10997,8 +11254,15 @@ function cbAdd(){
     amount: Math.abs(amount), method: v('cb_method')==='bank' ? 'bank' : 'cash',
     cat: v('cb_cat')||'Other', vehicleId: v('cb_veh')||'', costType: v('cb_costtype')||'other',
     who: v('cb_who'), note: v('cb_note'),
+    fundedBy: v('cb_funded') || 'company',
     createdBy: currentUserName||'', createdAt: new Date().toISOString()
   };
+  row.muzaribId = row.fundedBy.indexOf('mz:')===0 ? row.fundedBy.slice(3) : null;
+  if(row.muzaribId && dir==='out'){
+    const q = muzaribPosition(row.muzaribId);
+    if(row.amount > q.cashInHand && !confirm('That is more than the ' + fmtMoney(q.cashInHand)
+        + ' of ' + muzaribName(row.muzaribId) + "'s money actually here.\n\nLog it anyway?")) return;
+  }
   const dup = cbLooksDuplicate(row);
   if(dup && !confirm('A staff spend of ' + fmtMoney(dup.amount) + ' on that car is already logged for that day' +
       (dup.employee ? ' by ' + dup.employee : '') + '.\n\nThis would be counted twice. Add it anyway?')) return;
@@ -11006,6 +11270,7 @@ function cbAdd(){
   row.onVehicle = !!(row.vehicleId && row.dir==='out' && toCar && toCar.checked);
   (DB.cashbook = DB.cashbook||[]).push(row);
   if(row.onVehicle) cbApplyToVehicle(row, true);
+  cbApplyToPayLog(row, true);
   if(typeof logChange === 'function'){
     logChange('money','Day book entry', {id:row.id,label:(row.note||row.cat)},
       row.dir==='out'?'Out':'In', '', fmtMoney(row.amount), row.method);
@@ -11032,6 +11297,8 @@ function cbEdit(id){
       The change is recorded with the old figure beside the new one.</div>
     <div class="field-row">
       <div class="field"><label>Date</label><input id="ce_date" type="date" value="${escapeAttr(r.date||todayISO())}"/></div>
+      <div class="field" style="flex:0 0 250px"><label id="ce_fundlabel">${cbFundLabelFor(r.dir)}</label>
+        <select id="ce_funded">${cbFundingOptions(r.fundedBy||'company', r.dir)}</select></div>
       <div class="field"><label>In or out</label><select id="ce_dir" onchange="cbEditDirChanged()">
         <option value="in" ${r.dir!=='out'?'selected':''}>Money in</option>
         <option value="out" ${r.dir==='out'?'selected':''}>Money out</option></select></div>
@@ -11070,6 +11337,7 @@ function cbEdit(id){
 }
 
 function cbEditDirChanged(){
+  try{ cbFundDirChanged('ce_'); }catch(e){}
   const dir = (document.getElementById('ce_dir')||{}).value;
   const wrap = document.getElementById('ce_carwrap');
   if(wrap) wrap.style.display = dir==='out' ? 'block' : 'none';
@@ -11084,10 +11352,13 @@ function cbSaveEdit(id){
   const v = function(i){ const el=document.getElementById(i); return el ? String(el.value).trim() : ''; };
   const amount = Number(v('ce_amt'))||0;
   if(!amount){ alert('Put an amount in.'); return; }
-  /* take the old figure off the car before anything changes */
+  /* take the old figure off the car, and out of the pay log, before anything
+     changes — both are put back from the new values at the end */
   if(r.onVehicle) cbApplyToVehicle(r, false);
+  cbApplyToPayLog(r, false);
   const before = {date:r.date, dir:r.dir, amount:Number(r.amount)||0, method:r.method,
-                  cat:r.cat, note:r.note, vehicleId:r.vehicleId};
+                  cat:r.cat, note:r.note, vehicleId:r.vehicleId,
+                  fundedBy:r.fundedBy, muzaribId:r.muzaribId};
   const dir = v('ce_dir')==='out' ? 'out' : 'in';
   const toCar = document.getElementById('ce_tocar');
   r.date = v('ce_date')||r.date;
@@ -11100,9 +11371,12 @@ function cbSaveEdit(id){
   r.vehicleId = dir==='out' ? (v('ce_veh')||'') : '';
   r.costType = v('ce_costtype')||'other';
   r.onVehicle = !!(r.vehicleId && dir==='out' && toCar && toCar.checked);
+  r.fundedBy = v('ce_funded') || r.fundedBy || 'company';
+  r.muzaribId = r.fundedBy.indexOf('mz:')===0 ? r.fundedBy.slice(3) : null;
   r.editedBy = currentUserName||'';
   r.editedAt = new Date().toISOString();
   if(r.onVehicle) cbApplyToVehicle(r, true);
+  cbApplyToPayLog(r, true);
   const changed = [];
   if(before.amount !== r.amount) changed.push('amount ' + fmtMoney(before.amount) + ' \u2192 ' + fmtMoney(r.amount));
   if(before.dir !== r.dir) changed.push((before.dir==='out'?'out':'in') + ' \u2192 ' + (r.dir==='out'?'out':'in'));
@@ -11111,6 +11385,8 @@ function cbSaveEdit(id){
   if(before.cat !== r.cat) changed.push((before.cat||'') + ' \u2192 ' + (r.cat||''));
   if((before.vehicleId||'') !== (r.vehicleId||'')) changed.push('car ' + (before.vehicleId?cbVehLabel(before.vehicleId):'none') + ' \u2192 ' + (r.vehicleId?cbVehLabel(r.vehicleId):'none'));
   if((before.note||'') !== (r.note||'')) changed.push('note changed');
+  if((before.fundedBy||'company') !== (r.fundedBy||'company'))
+    changed.push('whose money: ' + (cbFundedLabel(before)||'the company') + ' → ' + (cbFundedLabel(r)||'the company'));
   if(typeof logChange === 'function'){
     logChange('money','Changed a day book entry', {id:r.id,label:(r.note||r.cat)},
       'Was', fmtMoney(before.amount) + ' ' + (before.dir==='out'?'out':'in'),
@@ -11127,6 +11403,7 @@ function cbDelete(id){
   if(!r) return;
   if(!confirm('Remove this entry?' + (r.onVehicle ? '\n\nIt will also come back off the car’s costs.' : ''))) return;
   if(r.onVehicle) cbApplyToVehicle(r, false);
+  cbApplyToPayLog(r, false);
   DB.cashbook = (DB.cashbook||[]).filter(function(x){ return x.id!==id; });
   saveDB(); render();
 }
@@ -11151,6 +11428,7 @@ function cbOpeningModal(){
     '<button class="btn btn-brand" onclick="cbSaveOpening()">Save</button></div>');
 }
 function cbDirChanged(){
+  try{ cbFundDirChanged('cb_'); }catch(e){}
   const d = (document.getElementById('cb_dir')||{}).value;
   const sel = document.getElementById('cb_cat');
   if(sel) sel.innerHTML = cbCats(d).map(function(c){ return '<option>'+c+'</option>'; }).join('');
@@ -11355,6 +11633,8 @@ function renderCashbook(){
       <div class="field" style="flex:0 0 180px"><label>What for</label>
         <select id="cb_cat">${CB_IN_CATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
       <div class="field" style="flex:0 0 150px"><label>Who</label><input id="cb_who" placeholder="optional"/></div>
+      <div class="field" style="flex:0 0 260px" id="cb_fundwrap"><label id="cb_fundlabel">Where it came from</label>
+        <select id="cb_funded">${cbFundingOptions('company','in')}</select></div>
     </div>
     <div class="field-row" style="align-items:flex-end">
       <div class="field"><label>Note</label><input id="cb_note" placeholder="what it was — be specific enough to recognise it in a month"/></div>
@@ -11406,6 +11686,7 @@ function renderCashbook(){
           <td><span class="tag ${r.method==='bank'?'tag-blue':'tag-grey'}">${r.method==='bank'?'Bank':'Cash'}</span></td>
           <td><b>${escapeHtml(r.note||r.cat||'')}</b>
             ${veh?`<div class="small-muted">on ${escapeHtml(veh)}${r.onVehicle?' · added to its costs':''}</div>`:''}
+            ${(out && r.muzaribId)?`<div class="small-muted" style="color:#8A5B07">${escapeHtml(cbFundedLabel(r))}'s money · in Team &amp; Pay</div>`:''}
             ${r.who?`<div class="small-muted">${escapeHtml(r.who)}</div>`:''}
             ${r.fromCsv?'<div class="small-muted">from the bank file</div>':''}</td>
           <td><span class="tag ${out?'tag-amber':'tag-green'}">${escapeHtml(r.cat||'Other')}</span></td>
