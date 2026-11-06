@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-06 b101</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-06 b102</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -2308,6 +2308,9 @@ function fmTradeSale(){
   fmOpen(fmShell('Trade Sale Invoice — Sold as Seen','Trade buyers only', body));
 }
 
+const RES_FALLBACK_NAME  = 'Car Express';            // the trading name, as it goes on paper
+const RES_FALLBACK_EMAIL = 'contact@carexpress.co';
+const RES_FALLBACK_WEB   = 'www.carexpress.co';
 const RES_FALLBACK_ADR = 'Fletcher Way, Hemel Hempstead HP2 5SE';
 const RES_FALLBACK_TEL = '020 8191 4945';   // the company line, not anyone's mobile
 const RES_FALLBACK_HOURS = 'Mon–Sat 9:00–18:00, Sun 9:00–16:00';
@@ -2318,11 +2321,11 @@ const RES_FALLBACK_HOURS = 'Mon–Sat 9:00–18:00, Sun 9:00–16:00';
 function bizContact(){
   const st = (DB.site || {});
   return {
-    name:  DB.invoiceLegalName || DB.bizName || '',
+    name:  DB.invoiceLegalName || RES_FALLBACK_NAME || DB.bizName || '',
     addr:  DB.invoiceAddress || st.address || RES_FALLBACK_ADR || '',
     phone: DB.invoicePhone   || st.phone   || RES_FALLBACK_TEL || '',
-    email: DB.invoiceEmail   || st.email   || '',
-    web:   DB.invoiceWeb     || st.web     || st.website || '',
+    email: DB.invoiceEmail   || st.email   || RES_FALLBACK_EMAIL || '',
+    web:   DB.invoiceWeb     || st.web     || st.website || RES_FALLBACK_WEB || '',
     vat:   DB.invoiceVatNo   || '',
     cono:  DB.invoiceCompanyNo || ''
   };
@@ -5733,7 +5736,7 @@ function printInvoice(vId, draftSale){
 </div>
 
 ${DB.invoiceAdr?`<div class="foot" style="text-align:left">If we cannot settle a complaint between us, you may refer it to ${e(DB.invoiceAdr)}.</div>`:''}
-<div class="foot">${e(DB.invoiceLegalName||DB.bizName||'')}${DB.invoiceCompanyNo?' · Company No '+e(DB.invoiceCompanyNo):''}${DB.invoiceVatNo?' · VAT No '+e(DB.invoiceVatNo):''}${DB.invoiceFooter?' · '+e(DB.invoiceFooter):''}</div>
+<div class="foot">${e(bc.name)}${bc.cono?' · Company No '+e(bc.cono):''}${bc.vat?' · VAT No '+e(bc.vat):''}${bc.addr?' · '+e(bc.addr):''}${bc.phone?' · '+e(bc.phone):''}${bc.email?' · '+e(bc.email):''}${bc.web?' · '+e(bc.web):''}${DB.invoiceFooter?' · '+e(DB.invoiceFooter):''}</div>
 </body></html>`;
 
   const invFile = ((isDraft?'Proforma-':'Invoice-') + (s.invoiceRef||v.reg||''))
@@ -6232,7 +6235,7 @@ function taskReport(scope){
     <div class="kpi"><div class="l">Overdue</div><div class="v" style="color:${late?'#A32F18':'#246B4C'}">${late}</div></div>
   </div>
   ${rows.length ? names.map(section).join('') : '<div class="empty">No tasks in this period.</div>'}
-  <div class="foot">${e(DB.invoiceLegalName||DB.bizName||'')}</div>
+  <div class="foot">${e(bizContact().name)}</div>
   </body></html>`;
 
   const win = window.open('','_blank');
@@ -9937,7 +9940,7 @@ function mzReportWindow(title, file, inner, warn){
   <div class="warn">INTERNAL RECORD — NOT TO BE GIVEN TO AN INVESTOR.
     ${warn || 'This sheet shows how the business used his money. It is not his statement and does not change what he is owed.'}</div>
   ${inner}
-  <div class="foot">${escapeHtml(DB.bizName||'')} · printed ${fmtDate(todayISO())} by ${escapeHtml(currentUserName||'')}</div>
+  <div class="foot">${escapeHtml(bizContact().name)} · printed ${fmtDate(todayISO())} by ${escapeHtml(currentUserName||'')}</div>
   </body></html>`);
   w.document.close();
   w.document.title = file;
