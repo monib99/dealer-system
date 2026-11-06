@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-06 b98</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-06 b99</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3816,6 +3816,12 @@ function vehicleOverviewTab(v,cost,margin){
       ${v.motExpiry?`<span class="tag ${isOverdue(v.motExpiry)?'tag-red':'tag-grey'}">MOT expires ${fmtDate(v.motExpiry)}</span>`:''}
     </div>
     <div class="field-row">
+      <div class="field"><label>MOT expires</label>
+        <input type="date" value="${v.motExpiry||''}"
+          onchange="updateVehicleField('${v.id}','motExpiry',this.value)"/>
+        <div class="small-muted" style="margin-top:4px;">Prints on the invoice. Filling the details from the
+          registration sets this for you — type it in here when the lookup has not found one.</div>
+      </div>
       <div class="field"><label>Engine code</label>
         <div style="display:flex;gap:6px;">
           <input value="${v.engineCode||''}" placeholder="e.g. B16DTH" onchange="updateVehicleField('${v.id}','engineCode',this.value)" style="flex:1;"/>
