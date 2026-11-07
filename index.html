@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-06 b102</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-07 b107</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -2309,7 +2309,7 @@ function fmTradeSale(){
 }
 
 const RES_FALLBACK_NAME  = 'Car Express';            // the trading name, as it goes on paper
-const RES_FALLBACK_EMAIL = 'contact@carexpress.co';
+const RES_FALLBACK_EMAIL = 'info@carexpress.co';
 const RES_FALLBACK_WEB   = 'www.carexpress.co';
 const RES_FALLBACK_ADR = 'Fletcher Way, Hemel Hempstead HP2 5SE';
 const RES_FALLBACK_TEL = '020 8191 4945';   // the company line, not anyone's mobile
@@ -3629,16 +3629,152 @@ async function refreshVehicleData(vid){
       : 'Nothing new to add — the details already on file were kept.');
   }catch(e){ alert('Could not refresh: ' + (e.message||e)); }
 }
+/* ===========================================================================
+   A CAR GOING ONTO AN INVESTOR'S BOOK: WHOSE MONEY BOUGHT IT?
+
+   There are two completely different things this can mean, and they pull his
+   cash in opposite directions:
+
+     bought with his cash held here  -> cash becomes stock. Nothing is added.
+                                        Cash in hand falls by the car's cost.
+     he brought the car in himself   -> the car IS a contribution. Capital
+                                        rises by its cost, so cash in hand
+                                        does not move at all.
+
+   Until now every route assumed the first, which pushed an investor's cash
+   negative whenever he physically handed a car over. The capital entry is
+   tagged with the car, so moving the car off his book takes it away again.
+   =========================================================================== */
+function carCapitalTx(vId, mzId){
+  return (DB.muzaribTx||[]).find(function(t){
+    return t.type==='capital' && t.carInId===vId && (!mzId || t.muzaribId===mzId); });
+}
+function dropCarCapital(vId){
+  const t = carCapitalTx(vId);
+  if(!t) return null;
+  DB.muzaribTx = DB.muzaribTx.filter(function(x){ return x.id !== t.id; });
+  return t;
+}
+function addCarCapital(v, mzId, when){
+  const cost = vehicleCostTotal(v);
+  if(cost <= 0) return null;
+  const tx = {id:nextId('mztx'), muzaribId:mzId, type:'capital', amount:cost,
+    date: when || v.dateAdded || todayISO(), method:'Car put in', carInId: v.id,
+    note: (v.reg||'') + ' ' + [v.make,v.model].filter(Boolean).join(' ') + ' — car he brought in, at cost',
+    addedBy: currentUserName||''};
+  DB.muzaribTx = DB.muzaribTx || [];
+  DB.muzaribTx.push(tx);
+  return tx;
+}
+
+/* Cars already on his book from before the question above existed: none of them
+   carry a capital entry, so each one is quietly holding his cash down. */
+function carsWithoutCapital(mzId){
+  return muzaribCars(mzId).filter(function(v){
+    return vehicleCostTotal(v) > 0 && !carCapitalTx(v.id, mzId); });
+}
+function openCarsBroughtIn(mzId){
+  if(!isManager()){ alert('Only a manager can change this.'); return; }
+  const m = muzarib(mzId); if(!m) return;
+  const list = carsWithoutCapital(mzId);
+  if(!list.length){ alert('Every car on ' + m.name + "'s book already says where it came from."); return; }
+  const q = muzaribPosition(mzId);
+  openModal(`
+    <button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Which of these did ${escapeHtml(m.name)} bring in himself?</h3>
+    <div class="small-muted" style="margin-bottom:10px">A car bought with his money held here takes his cash down —
+      that is right. A car he physically brought in is a contribution, so it should put the same amount on his
+      capital and leave his cash where it was. Tick the ones he handed over.</div>
+    <table><thead><tr><th></th><th>Car</th><th>Added</th><th class="num">At cost</th></tr></thead><tbody>
+    ${list.map(function(v,i){ return `<tr>
+      <td><input type="checkbox" id="cbi_${i}" data-v="${v.id}" style="width:17px;height:17px"/></td>
+      <td><b>${escapeHtml(v.reg||'')}</b><div class="small-muted">${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}</div></td>
+      <td>${v.dateAdded?fmtDate(v.dateAdded):'—'}</td>
+      <td class="num">${fmtMoney(vehicleCostTotal(v))}</td></tr>`; }).join('')}
+    </tbody></table>
+    <div class="small-muted" style="margin-top:10px">Cash in hand now:
+      <b style="color:${q.cashInHand<0?'var(--red)':'inherit'}">${fmtMoney(q.cashInHand)}</b>
+      <span id="cbi_after"></span></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runCarsBroughtIn('${mzId}')">Save</button>
+    </div>`);
+}
+function runCarsBroughtIn(mzId){
+  const m = muzarib(mzId); if(!m) return;
+  let n = 0, total = 0;
+  [].forEach.call(document.querySelectorAll('[id^="cbi_"]'), function(box){
+    if(!box.checked || !box.dataset || !box.dataset.v) return;
+    const v = (DB.vehicles||[]).find(function(x){ return x.id===box.dataset.v; });
+    if(!v || carCapitalTx(v.id, mzId)) return;
+    const tx = addCarCapital(v, mzId);
+    if(tx){ n++; total += tx.amount; }
+  });
+  if(!n){ alert('Nothing was ticked.'); return; }
+  logChange('muzarib','Cars he brought in', mzRef(m), 'Capital', '', fmtMoney(total),
+    n + (n===1?' car':' cars') + ' recorded as brought in, not bought with his cash');
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast(fmtMoney(total) + ' added to ' + m.name + "'s capital");
+}
+
+/* Asks the question once, then calls back with true if he brought the car in. */
+function askCarFunding(v, mzId, then){
+  const m = muzarib(mzId); if(!m){ then(false); return; }
+  const cost = vehicleCostTotal(v);
+  const q = muzaribPosition(mzId);
+  window.__carFundingThen = then;
+  openModal(`
+    <button class="close-x" onclick="closeModal();__carFundingDone(null)">✕</button>
+    <h3>${escapeHtml(v.reg||'this car')} — whose money bought it?</h3>
+    <div class="small-muted" style="margin-bottom:12px">It is going onto <b>${escapeHtml(m.name)}</b>'s book at
+      <b>${fmtMoney(cost)}</b>. These two mean different things to his balance, so it is worth getting right.</div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <button class="btn btn-ghost" style="text-align:left;height:auto;padding:11px 13px;white-space:normal"
+        onclick="__carFundingDone(false)">
+        <b>Bought with his money we already hold</b><br>
+        <span class="small-muted">His cash turns into stock. Cash in hand falls from
+        ${fmtMoney(q.cashInHand)} to ${fmtMoney(q.cashInHand - cost)}.</span></button>
+      <button class="btn btn-ghost" style="text-align:left;height:auto;padding:11px 13px;white-space:normal"
+        onclick="__carFundingDone(true)">
+        <b>He brought the car in himself</b><br>
+        <span class="small-muted">The car is his contribution, so ${fmtMoney(cost)} goes on as capital and his
+        cash in hand stays at ${fmtMoney(q.cashInHand)}.</span></button>
+    </div>`);
+}
+function __carFundingDone(brought){
+  closeModal();
+  const then = window.__carFundingThen;
+  window.__carFundingThen = null;
+  if(then && brought !== null) then(!!brought);
+  else render();
+}
+
 function setVehicleOwner(vid, val){
   const v = DB.vehicles.find(x=>x.id===vid); if(!v) return;
   if(v.sale && !confirm('This car has already been sold. Changing who funded it will move the settlement to a different account.\n\nContinue?')) { render(); return; }
   const wasOwner = isMuzaribCar(v) ? muzaribName(v.muzaribId) : 'Company stock';
-  if(val.startsWith('mz:')){ v.ownerType='muzarib'; v.muzaribId = val.slice(3); }
-  else { v.ownerType='company'; v.muzaribId = null; }
-  const nowOwner = isMuzaribCar(v) ? muzaribName(v.muzaribId) : 'Company stock';
-  logChange('muzarib','Moved car', vehRef(v), 'Funded by', wasOwner, nowOwner,
-    fmtMoney(vehicleCostTotal(v)) + ' of value moved between accounts');
-  saveDB(); renderVehicleDetail();
+  const wasMz = v.muzaribId || null;
+  const finish = function(nowOwner){
+    logChange('muzarib','Moved car', vehRef(v), 'Funded by', wasOwner, nowOwner,
+      fmtMoney(vehicleCostTotal(v)) + ' of value moved between accounts');
+    saveDB(); renderVehicleDetail();
+  };
+  /* leaving an investor: any capital recorded for bringing it in goes with it */
+  const dropped = dropCarCapital(v.id);
+  if(!val.startsWith('mz:')){
+    v.ownerType='company'; v.muzaribId = null;
+    finish('Company stock'); return;
+  }
+  const mzId = val.slice(3);
+  v.ownerType='muzarib'; v.muzaribId = mzId;
+  if(wasMz === mzId && dropped){        // same investor, nothing really changed
+    DB.muzaribTx.push(dropped);
+    finish(muzaribName(mzId)); return;
+  }
+  askCarFunding(v, mzId, function(brought){
+    if(brought) addCarCapital(v, mzId);
+    finish(muzaribName(mzId));
+  });
 }
 function exportStockCSV(){
   const rows = [['Reg','Make','Model','Year','Status','Purchase','Delivery','Service','MOT','Bodywork','Mechanical','AutoTrader Boost','Fuel','Other','Total Cost','Asking Price','Sold Price','Margin']];
@@ -6480,6 +6616,140 @@ function hsOut(){ return HS_SPEND.filter(function(x){ return x.k==='out'; }).red
 function hsIn(){  return HS_SPEND.filter(function(x){ return x.k==='in';  }).reduce(function(t,x){ return t+x.a; }, 0); }
 function hsNet(){ return hsOut() - hsIn(); }
 
+/* ===========================================================================
+   Monib's own costs up to 13 September 2026, from his written summary.
+   Anything he entered in here himself from 14 September onwards is already
+   recorded, so every line is checked against what is on the system before
+   anything is written.
+   =========================================================================== */
+const MB_SPEND = [{"n":"Coffee table","a":15.0,"g":"Furniture","d":""},{"n":"Chairs","a":40.0,"g":"Furniture","d":""},{"n":"Golf injectors — Mirwais","a":60.0,"g":"Garage","d":""},{"n":"Fuel — Mirwais","a":10.0,"g":"Fuel & travel","d":""},{"n":"EE dongle bills, 9 months","a":328.5,"g":"Running costs","d":""},{"n":"Window regulator — Nissan Juke","a":35.0,"g":"Parts","d":""},{"n":"Wing mirror — Astra","a":35.0,"g":"Parts","d":""},{"n":"Jumah wages — Abdurrahman's friend","a":100.0,"g":"Wages","d":""},{"n":"Abdurrahman","a":60.0,"g":"Abdurrahman","d":""},{"n":"Cash to Mirwais for garage expenses","a":307.0,"g":"Garage","d":""},{"n":"Head & valve skimming — orange Mokka","a":180.0,"g":"Garage","d":""},{"n":"Fuel filter housing — Astra SL66","a":100.0,"g":"Parts","d":""},{"n":"Abdurrahman for gloves","a":40.0,"g":"Abdurrahman","d":""},{"n":"Abdurrahman","a":500.0,"g":"Abdurrahman","d":"2026-08-18"},{"n":"Electrician — Mini Cooper","a":150.0,"g":"Garage","d":""},{"n":"Loan to Autofix, by bank","a":500.0,"g":"Autofix loan","d":"2026-08-18"},{"n":"Loan to Autofix, by bank","a":50.0,"g":"Autofix loan","d":""},{"n":"Loan to Autofix, by bank","a":100.0,"g":"Autofix loan","d":""},{"n":"Loan to Autofix, by bank","a":100.0,"g":"Autofix loan","d":""},{"n":"Loan to Autofix, by bank","a":50.0,"g":"Autofix loan","d":""},{"n":"Loan to Autofix, by bank","a":100.0,"g":"Autofix loan","d":""},{"n":"Loan from Maxx Discount","a":500.0,"g":"Maxx loan","d":""},{"n":"Loan from Maxx Discount","a":192.0,"g":"Maxx loan","d":""},{"n":"Loan from Maxx Discount, additional","a":500.0,"g":"Maxx loan","d":""},{"n":"Engine Corsa + piston and rings, cash","a":580.0,"g":"Garage","d":""},{"n":"Muzammil — 13 hours","a":100.0,"g":"Wages","d":""},{"n":"Musawwir — 7 hours","a":50.0,"g":"Wages","d":""},{"n":"Musawwir — previous balance","a":178.77,"g":"Wages","d":""},{"n":"DS3 — remap, MOT and CV boot","a":350.0,"g":"Garage","d":""},{"n":"DS3 — timing belt","a":120.0,"g":"Garage","d":""},{"n":"Mirwais tickets","a":499.0,"g":"Mirwais","d":""},{"n":"Fuel — DS3","a":15.0,"g":"Fuel & travel","d":""},{"n":"Fuel — DS3","a":30.0,"g":"Fuel & travel","d":""},{"n":"Fuel — Suzuki Vitara (PX car)","a":25.0,"g":"Fuel & travel","d":""},{"n":"Fuel — Qashqai 64","a":20.0,"g":"Fuel & travel","d":""},{"n":"Fuel — Mercedes-Benz","a":20.0,"g":"Fuel & travel","d":""},{"n":"Fuel — gallons, 2 at £10","a":20.0,"g":"Fuel & travel","d":""},{"n":"Uber — Abdurrahman","a":18.0,"g":"Fuel & travel","d":""},{"n":"Uber — Mirwais","a":44.0,"g":"Fuel & travel","d":"2026-09-04"},{"n":"Uber — Mirwais","a":35.96,"g":"Fuel & travel","d":"2026-09-04"}];
+const MB_CUTOFF = '2026-09-13';
+
+function mbKey(t){ return String(t||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+
+/* Does the system already hold this payment? Same money is the strong signal;
+   wording is a weaker one, so both are shown and the person decides. */
+function mbAlreadyThere(line){
+  const amt = Number(line.a)||0;
+  const want = mbKey(line.n);
+  const hits = [];
+  (DB.expenses||[]).forEach(function(e){
+    if(Math.abs((Number(e.amount)||0) - amt) > 0.005) return;
+    const note = mbKey(e.note);
+    const wordy = want.length > 5 && (note.indexOf(want.slice(0,10)) >= 0 || want.indexOf(note.slice(0,10)) >= 0);
+    hits.push({where:'Team & Pay', note:e.note||'', date:e.date||'', who:e.employee||'', close:wordy});
+  });
+  (DB.cashbook||[]).forEach(function(r){
+    if(r.dir !== 'out') return;
+    if(Math.abs((Number(r.amount)||0) - amt) > 0.005) return;
+    const note = mbKey(r.note || r.cat);
+    const wordy = want.length > 5 && (note.indexOf(want.slice(0,10)) >= 0 || want.indexOf(note.slice(0,10)) >= 0);
+    hits.push({where:'Day book', note:(r.note||r.cat||''), date:r.date||'', who:(r.who||r.createdBy||''), close:wordy});
+  });
+  return hits;
+}
+
+function mbTotals(){
+  const t = {own:0, maxx:0, autofix:0, all:0};
+  MB_SPEND.forEach(function(x){
+    t.all += x.a;
+    if(x.g === 'Maxx loan') t.maxx += x.a;
+    else { t.own += x.a; if(x.g === 'Autofix loan') t.autofix += x.a; }
+  });
+  return t;
+}
+
+function openMbImport(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can bring this in.'); return; }
+  if(DB.mbSpendDone && !confirm('This was brought in on ' + fmtDate(DB.mbSpendDone) +
+    '.\n\nDoing it again would double every line. Carry on?')) return;
+  const t = mbTotals();
+  let dupes = 0;
+  const rows = MB_SPEND.map(function(x, i){
+    const hits = mbAlreadyThere(x);
+    const strong = hits.some(function(h){ return h.close; });
+    if(hits.length) dupes++;
+    const on = !strong;
+    return `<tr>
+      <td><input type="checkbox" id="mb_${i}" ${on?'checked':''}/></td>
+      <td>${escapeHtml(x.n)}${x.d?`<div class="small-muted">${fmtDate(x.d)}</div>`:''}</td>
+      <td><span class="tag">${escapeHtml(x.g)}</span></td>
+      <td class="num">${fmtMoney(x.a)}</td>
+      <td>${hits.length?`<span class="small-muted" style="color:${strong?'var(--red)':'var(--amber)'}">
+        ${strong?'<b>Looks like it is already in</b>':'Same amount already on the system'}
+        ${hits.slice(0,2).map(function(h){ return '<div>'+escapeHtml(h.where)+(h.date?' \u00b7 '+fmtDate(h.date):'')+
+          (h.note?' \u00b7 '+escapeHtml(h.note.slice(0,42)):'')+'</div>'; }).join('')}</span>`:''}</td>
+    </tr>`;
+  }).join('');
+  openModal(`
+    <button class="close-x" onclick="closeModal()">\u2715</button>
+    <h3>Monib's own costs, up to 13 September 2026</h3>
+    <div class="small-muted" style="margin-bottom:10px">${MB_SPEND.length} lines, ${fmtMoney(t.all)} in total.
+      Every one has been checked against Team &amp; Pay and the day book. ${dupes
+        ? '<b>'+dupes+' already have a payment of the same amount on the system</b> \u2014 those are flagged, and the ones that also match by wording are unticked for you.'
+        : 'None of them match anything already recorded.'}</div>
+    <div class="section-title" style="margin-top:4px"><h2>Two things that are not his own spending</h2></div>
+    <label style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="mb_maxx" checked style="width:17px;height:17px;margin-top:2px"/>
+      <span><b>Keep the ${fmtMoney(t.maxx)} from Maxx Discount out of his capital.</b> It is money Maxx lent, so the
+      business owes Maxx, not Monib. Entered as a note on the record rather than as his money.</span></label>
+    <label style="display:flex;align-items:flex-start;gap:8px;margin:6px 0 10px;font-size:13.5px;cursor:pointer">
+      <input type="checkbox" id="mb_autofix" checked style="width:17px;height:17px;margin-top:2px"/>
+      <span><b>Mark the ${fmtMoney(t.autofix)} sent to Autofix as a loan.</b> It still counts as his money going out,
+      but it is money Autofix owes back, not a cost. It is labelled so on his record.</span></label>
+    <div style="max-height:44vh;overflow:auto">
+      <table><thead><tr><th></th><th>What it was</th><th>Kind</th><th class="num">Amount</th><th>Already on the system?</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runMbImport()">Bring these in</button>
+    </div>`);
+}
+
+function runMbImport(){
+  if(!isSuperAdmin()) return;
+  const skipMaxx = (document.getElementById('mb_maxx')||{}).checked;
+  const asLoan   = (document.getElementById('mb_autofix')||{}).checked;
+  if(!DB.expenses) DB.expenses = [];
+  let n = 0, own = 0, maxx = 0, loan = 0;
+  MB_SPEND.forEach(function(x, i){
+    const box = document.getElementById('mb_' + i);
+    if(!box || !box.checked) return;
+    if(x.g === 'Maxx loan'){
+      maxx += x.a;
+      if(skipMaxx){
+        DB.expenses.push({id:nextId('exp'), employee:'Maxx Discount', userEmail:'',
+          date: x.d || MB_CUTOFF, amount: x.a,
+          note: x.n + ' \u00b7 lent to the business, owed back to Maxx Discount',
+          fundedBy:'own', muzaribId:null, status:'unpaid', paidAmount:0, payments:[],
+          photoId:null, fromMbSummary:true});
+        n++;
+        return;
+      }
+    }
+    const isLoan = (x.g === 'Autofix loan');
+    if(isLoan) loan += x.a;
+    DB.expenses.push({id:nextId('exp'), employee:'Monib', userEmail:currentUserEmail,
+      date: x.d || MB_CUTOFF, amount: x.a,
+      note: x.n + (isLoan && asLoan ? ' \u00b7 a loan to Autofix, owed back' : '') + ' \u00b7 from his own summary',
+      fundedBy:'own', muzaribId:null, status:'unpaid', paidAmount:0, payments:[],
+      photoId:null, fromMbSummary:true, costGroup:x.g, isLoan: isLoan && asLoan});
+    own += x.a; n++;
+  });
+  if(!n){ alert('Nothing was ticked.'); return; }
+  DB.mbSpendDone = todayISO();
+  logChange('expense','Monib\u2019s own costs entered', 'Monib', 'Spent', '', fmtMoney(own),
+    n + ' lines up to 13 Sep 2026');
+  saveDB(); closeModal(); render();
+  openModal(`<button class="close-x" onclick="closeModal()">\u2715</button>
+    <h3>Brought in</h3>
+    <p>${n} line${n===1?'':'s'} recorded. <b>${fmtMoney(own)}</b> of Monib's own money${
+      loan?`, of which <b>${fmtMoney(loan)}</b> is marked as a loan to Autofix rather than a cost`:''}.</p>
+    ${(maxx && skipMaxx)?`<p class="small-muted">${fmtMoney(maxx)} from Maxx Discount is on the record as owed to
+      Maxx, not as Monib's money.</p>`:''}
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Done</button></div>`);
+}
+
 function openSpendImport(){
   if(!isSuperAdmin()){ alert('Only a Super Admin can bring in a spend record.'); return; }
   if(DB.hsSpendDone){
@@ -6634,6 +6904,8 @@ function renderTeam(){
     <div><h1>Team &amp; Pay</h1><div class="date">Staff, company spend and payroll ${isManager()?'':'· showing your own records'}</div></div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openSpendImport()">📒 Enter the spend record</button>`:''}
+      ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openMbImport()">🧾 Monib's own costs</button>`:''}
+      ${isManager() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openPersonSpend()">👤 What one person has spent</button>`:''}
       ${isManager() && teamView==='overview'?`<button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>`:''}
     </div>
   </div>
@@ -6666,7 +6938,7 @@ function renderTeamOverview(){
     <div class="card" style="padding:0;margin-bottom:20px;">
       ${rows.length===0?'<div class="empty">No spend logged yet.</div>':`
       <table><thead><tr><th>Employee</th><th>Total logged</th><th>Paid back</th><th>Outstanding</th></tr></thead><tbody>
-      ${rows.map(([name,v])=>`<tr><td>${name}</td><td>${fmtMoney(v.total)}</td><td>${fmtMoney(v.paid)}</td>
+      ${rows.map(([name,v])=>`<tr><td>${name} <a class="link" style="font-weight:400" onclick="printPersonSpend('${String(name).replace(/'/g,"\\'")}')">see every payment</a>${v.balance>0.004?` · <a class="link" style="font-weight:400" onclick="openBulkRepay('${String(name).replace(/'/g,"\\'")}')">pay back in one go</a>`:''}</td><td>${fmtMoney(v.total)}</td><td>${fmtMoney(v.paid)}</td>
         <td style="font-weight:700;color:${v.balance>0?'var(--red)':'var(--green)'}">${fmtMoney(v.balance)}</td></tr>`).join('')}
       <tr style="border-top:2px solid var(--ink)"><td style="font-weight:700;">Grand total owed</td><td></td><td></td>
         <td style="font-weight:700;font-size:16px;color:${grandTotal>0?'var(--red)':'var(--green)'}">${fmtMoney(grandTotal)}</td></tr>
@@ -6711,6 +6983,7 @@ function renderTeamOverview(){
 
   <div class="section-title"><h2>Company spend by staff</h2>
     <span style="display:flex;gap:8px;flex-wrap:wrap">
+      ${isManager()?`<button class="btn btn-ghost btn-sm" onclick="printAllStaffSpend()">📊 Who paid what</button>`:''}
       ${isSuperAdmin()?`<button class="btn btn-ghost btn-sm" onclick="openCashIn()">⬇ Cash in</button>`:''}
       <button class="btn btn-amber btn-sm" onclick="openAddExpense()">+ Log my spend</button>
     </span>
@@ -7288,6 +7561,118 @@ async function saveExpense(){
     else { alert("The spend was logged, but the receipt photo couldn't be saved. Error: " + (res.error||'unknown')); }
   }
 }
+/* ===========================================================================
+   PAYING SOMEBODY BACK IN ONE GO
+   Nobody settles fifteen receipts one at a time. Put in the lump sum and it is
+   spread over what is owed, oldest first, part-paying whatever it runs out on.
+   Only money out of their own pocket is included: a bill they paid with an
+   investor's cash or the company float was never owed to them.
+   =========================================================================== */
+function staffOwedRows(name){
+  const who = String(name||'').trim().toLowerCase();
+  return (DB.expenses||[]).filter(function(e){
+    if(String(e.employee||'').trim().toLowerCase() !== who) return false;
+    if(e.muzaribId || e.fundedBy === 'float' || e.fundedBy === 'company') return false;
+    return expenseBalance(e) > 0.004;
+  }).sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
+}
+function staffOwedTotal(name){
+  return staffOwedRows(name).reduce(function(t,e){ return t + expenseBalance(e); }, 0);
+}
+
+/* Works out which receipts a given lump sum would clear. */
+function bulkPlan(name, amount){
+  let left = Number(amount)||0;
+  return staffOwedRows(name).map(function(e){
+    const bal = expenseBalance(e);
+    const take = Math.min(left, bal);
+    left = Math.round((left - take) * 100) / 100;
+    return { e:e, bal:bal, take:take, clears: take >= bal - 0.004 };
+  });
+}
+
+function openBulkRepay(name){
+  if(!isManager()){ alert('Only a manager can record a payment.'); return; }
+  const rows = staffOwedRows(name);
+  if(!rows.length){ alert(name + ' is not owed anything at the moment.'); return; }
+  const owed = staffOwedTotal(name);
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Pay ${escapeHtml(name)} back</h3>
+    <div class="small-muted" style="margin-bottom:10px">
+      ${rows.length} receipt${rows.length===1?'':'s'} outstanding, <b>${fmtMoney(owed)}</b> in total.
+      Put in what you are paying and it will be spread over them oldest first.</div>
+    <div class="field-row">
+      <div class="field"><label>Paying now (£)</label>
+        <input id="bp_amount" type="number" step="0.01" value="${owed.toFixed(2)}" oninput="bulkRepayPreview('${escapeAttr(name)}')"/></div>
+      <div class="field"><label>Method</label>
+        <select id="bp_method"><option>Bank</option><option>Cash</option></select></div>
+      <div class="field"><label>Date</label><input id="bp_date" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div id="bp_preview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runBulkRepay('${escapeAttr(name)}')">Record the payment</button>
+    </div>`);
+  bulkRepayPreview(name);
+}
+
+function bulkRepayPreview(name){
+  const box = document.getElementById('bp_preview'); if(!box) return;
+  const amt = Number((document.getElementById('bp_amount')||{value:0}).value) || 0;
+  const plan = bulkPlan(name, amt);
+  const owed = staffOwedTotal(name);
+  const used = plan.reduce(function(t,r){ return t + r.take; }, 0);
+  const over = amt - used;
+  box.innerHTML = `
+    <div style="max-height:34vh;overflow:auto">
+    <table><thead><tr><th>Date</th><th>What it was</th><th class="num">Owed</th>
+      <th class="num">This payment</th><th class="num">Left owing</th></tr></thead><tbody>
+    ${plan.map(function(r){ return `<tr${r.take<=0?' style="opacity:.45"':''}>
+      <td>${fmtDate(r.e.date)}</td><td>${escapeHtml((r.e.note||'company spend').slice(0,46))}</td>
+      <td class="num">${fmtMoney(r.bal)}</td>
+      <td class="num"${r.take>0?' style="font-weight:700"':''}>${r.take>0?fmtMoney(r.take):'—'}</td>
+      <td class="num">${fmtMoney(r.bal - r.take)}</td></tr>`; }).join('')}
+    </tbody></table></div>
+    <div class="small-muted" style="margin-top:8px">
+      ${fmtMoney(used)} of ${fmtMoney(owed)} settled ·
+      <b>${fmtMoney(owed - used)}</b> would still be owed after this.
+      ${over > 0.004 ? `<br><span style="color:var(--amber)">That is ${fmtMoney(over)} more than he is owed —
+        only ${fmtMoney(used)} will be recorded.</span>` : ''}
+      ${plan.filter(function(r){ return r.take>0 && !r.clears; }).length
+        ? '<br>One receipt will be left partly paid.' : ''}</div>`;
+}
+
+function runBulkRepay(name){
+  if(!isManager()) return;
+  const amt = Number((document.getElementById('bp_amount')||{value:0}).value) || 0;
+  if(amt <= 0){ alert('Enter an amount greater than zero.'); return; }
+  const date = (document.getElementById('bp_date')||{value:''}).value || todayISO();
+  const method = (document.getElementById('bp_method')||{value:'Bank'}).value;
+  const plan = bulkPlan(name, amt).filter(function(r){ return r.take > 0.004; });
+  if(!plan.length){ alert(name + ' is not owed anything.'); return; }
+  const batch = nextId('pay');
+  let used = 0;
+  plan.forEach(function(r){
+    const e = r.e;
+    if(!e.payments) e.payments = [];
+    e.payments.push({date:date, amount:r.take, method:method, batch:batch, bulk:true});
+    e.paidAmount = expensePaidAmount(e) + r.take;
+    e.status = e.paidAmount >= Number(e.amount) - 0.004 ? 'paid' : 'partial';
+    used += r.take;
+  });
+  const left = staffOwedTotal(name);
+  logChange('money','Paid staff back', {id:batch, label:name}, 'Paid', '', fmtMoney(used),
+    plan.length + ' receipt' + (plan.length===1?'':'s') + ' by ' + method.toLowerCase() +
+    ' · ' + fmtMoney(left) + ' still owed');
+  saveDB(); closeModal(); render();
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Paid ${escapeHtml(name)} ${fmtMoney(used)}</h3>
+    <p>${plan.filter(function(r){ return r.clears; }).length} receipt${plan.filter(function(r){ return r.clears; }).length===1?'':'s'} settled in full${
+      plan.filter(function(r){ return !r.clears; }).length ? ', one left partly paid' : ''}.</p>
+    <p>${left > 0.004 ? `<b>${fmtMoney(left)}</b> still owed to him.` : 'Nothing else owed to him.'}</p>
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Done</button></div>`);
+}
+
 function openRecordPayment(id){
   if(!isManager()) return;
   const e = DB.expenses.find(x=>x.id===id); if(!e) return;
@@ -9291,10 +9676,16 @@ function runTransferToInvestor(){
   const m = muzarib(mid);
   if(!v || !m) return;
   const was = v.muzaribId ? muzaribName(v.muzaribId) : 'company stock';
+  dropCarCapital(v.id);
   v.ownerType = 'muzarib'; v.muzaribId = mid;
-  logChange('muzarib','Moved to an investor', vehRef(v), 'Funded by', was, m.name, fmtMoney(vehicleCostTotal(v)));
-  saveDB(); closeModal(); render();
-  if(typeof wbToast === 'function') wbToast(v.reg + ' is now funded by ' + m.name);
+  closeModal();
+  askCarFunding(v, mid, function(brought){
+    if(brought) addCarCapital(v, mid);
+    logChange('muzarib','Moved to an investor', vehRef(v), 'Funded by', was, m.name,
+      fmtMoney(vehicleCostTotal(v)) + (brought ? ' · car he brought in, added to his capital' : ' · bought with his money'));
+    saveDB(); render();
+    if(typeof wbToast === 'function') wbToast(v.reg + ' is now funded by ' + m.name);
+  });
 }
 
 function mzFairness(){
@@ -9583,7 +9974,14 @@ function renderMuzaribProfile(id){
       <div class="card kpi"><div class="label">Cash actually in hand</div><div class="value small" style="color:${p.cashInHand<0?'var(--red)':'inherit'}">${fmtMoney(p.cashInHand)}</div>
         <div class="sub">what is really here to spend</div></div>
     </div>
-    ${p.cashInHand < 0 ? `<div class="overdue-banner" style="margin:0 0 12px"><span>⚠ More of his money has been spent than came in. Check the entries below.</span></div>`:''}
+    ${p.cashInHand < 0 ? `<div class="overdue-banner" style="margin:0 0 12px;display:block">
+      <div><b>⚠ His cash in hand is below zero.</b> That happens when more has gone out than he has put in —
+      or when a car he physically brought in was recorded as though it was bought with his money.</div>
+      ${carsWithoutCapital(id).length ? `<div style="margin-top:7px">
+        ${carsWithoutCapital(id).length} of his ${muzaribCars(id).length === 1 ? 'car does' : 'cars do'} not say where
+        ${carsWithoutCapital(id).length === 1 ? 'it' : 'they'} came from.
+        <a class="link" onclick="openCarsBroughtIn('${id}')">Say which he brought in</a></div>`:''}
+    </div>`:''}
     <table><thead><tr><th>Date</th><th>What it went on</th><th>Entered by</th><th class="num">Amount</th></tr></thead>
       <tbody>${spend.map(function(t){ return `<tr>
         <td>${fmtDate(t.date)}</td><td>${escapeHtml(t.note||'')}</td>
@@ -9945,6 +10343,185 @@ function mzReportWindow(title, file, inner, warn){
   w.document.close();
   w.document.title = file;
   w.dlWord = function(){ downloadAsWord(w, file); };
+}
+
+/* ---- one person: everything they have spent ------------------------------
+   Pulls from both ledgers. A day book entry paid with an investor's money
+   already writes itself into Team & Pay, so those rows are skipped here or the
+   same payment would be counted twice. --------------------------------------- */
+function personSpendRows(name){
+  const who = String(name||'').trim().toLowerCase();
+  if(!who) return [];
+  const rows = [];
+  (DB.expenses||[]).forEach(function(e){
+    if(String(e.employee||'').trim().toLowerCase() !== who) return;
+    /* Only money out of their own pocket is owed back. Paying a builder with an
+       investor's cash does not make the business owe the person who handed it over. */
+    const ownMoney = !e.muzaribId && e.fundedBy !== 'float' && e.fundedBy !== 'company';
+    rows.push({ date:e.date, what:e.note||'(no note)', funded:expenseFundingLabel(e),
+                amount:Number(e.amount)||0, owedBack: ownMoney ? expenseBalance(e) : 0,
+                own: ownMoney, where:'Team & Pay', mz:e.muzaribId||null });
+  });
+  const linked = {};
+  (DB.expenses||[]).forEach(function(e){ if(e.cbRowId) linked[e.cbRowId] = 1; });
+  (DB.cashbook||[]).forEach(function(r){
+    if(r.dir !== 'out' || linked[r.id]) return;
+    const nm = String(r.who || r.createdBy || '').trim().toLowerCase();
+    if(nm !== who) return;
+    rows.push({ date:r.date, what:(r.note||r.cat||'Day book entry'), funded:(cbFundedLabel(r)||'Company'),
+                amount:Number(r.amount)||0, owedBack:0, where:'Day book', mz:r.muzaribId||null });
+  });
+  rows.sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
+  return rows;
+}
+
+function personNames(){
+  const seen = {};
+  (DB.team||[]).forEach(function(t){ if(t.name) seen[t.name] = 1; });
+  (DB.expenses||[]).forEach(function(e){ if(e.employee) seen[e.employee] = 1; });
+  (DB.cashbook||[]).forEach(function(r){ const n = r.who || r.createdBy; if(n) seen[n] = 1; });
+  return Object.keys(seen).sort();
+}
+
+/* Everyone at once: who paid what, how much has come back, what is still owed,
+   and then each person's own payments underneath. One sheet answers the lot. */
+function printAllStaffSpend(){
+  if(!isManager()){ alert('Only a manager can see this.'); return; }
+  const names = personNames().filter(function(n){ return personSpendRows(n).length; });
+  if(!names.length){ alert('Nobody has any spend recorded.'); return; }
+
+  const people = names.map(function(n){
+    const rows = personSpendRows(n);
+    const paid = rows.reduce(function(t,r){ return t + r.amount; }, 0);
+    const ownRows = rows.filter(function(r){ return r.own; });
+    const own  = ownRows.reduce(function(t,r){ return t + r.amount; }, 0);
+    const owed = rows.reduce(function(t,r){ return t + r.owedBack; }, 0);
+    return { name:n, rows:rows, paid:paid, own:own, owed:owed, back: own - owed };
+  }).sort(function(a,b){ return b.owed - a.owed || b.paid - a.paid; });
+
+  const T = function(k){ return people.reduce(function(t,x){ return t + x[k]; }, 0); };
+  const summary = people.map(function(x){
+    return `<tr>
+      <td><b>${escapeHtml(x.name)}</b></td>
+      <td class="num">${x.rows.length}</td>
+      <td class="num">${fmtMoney(x.paid)}</td>
+      <td class="num">${x.own?fmtMoney(x.own):'—'}</td>
+      <td class="num">${x.back?fmtMoney(x.back):'—'}</td>
+      <td class="num"${x.owed>0?' style="color:#B23A24;font-weight:700"':''}>${x.owed?fmtMoney(x.owed):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  const detail = people.map(function(x){
+    let run = 0;
+    const body = x.rows.map(function(r){
+      run += r.amount;
+      return `<tr><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.what)}</td>
+        <td>${escapeHtml(r.funded)}</td>
+        <td class="num">${fmtMoney(r.amount)}</td>
+        <td class="num">${r.owedBack?fmtMoney(r.owedBack):'—'}</td>
+        <td class="num">${fmtMoney(run)}</td></tr>`;
+    }).join('');
+    return `
+    <h2>${escapeHtml(x.name)}</h2>
+    <div class="note" style="margin:0 0 6px">${x.rows.length} payment${x.rows.length===1?'':'s'} ·
+      ${fmtMoney(x.paid)} paid out${x.own?` · ${fmtMoney(x.own)} of it his own money`:''}${
+      x.owed>0?` · <b style="color:#B23A24">${fmtMoney(x.owed)} still owed back to him</b>`:
+      (x.own?' · all repaid':'')}</div>
+    <table><thead><tr><th>Date</th><th>What it went on</th><th>Whose money</th>
+      <th class="num">Amount</th><th class="num">Owed back</th><th class="num">Running</th></tr></thead>
+      <tbody>${body}
+      <tr class="tot"><td colspan="3">Total</td><td class="num">${fmtMoney(x.paid)}</td>
+        <td class="num">${x.owed?fmtMoney(x.owed):'—'}</td><td></td></tr></tbody></table>`;
+  }).join('');
+
+  const inner = `
+    <h1>Who paid what</h1>
+    <div class="sub">${people.length} people · as at ${fmtDate(todayISO())}</div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Paid out in total</div><div class="v">${fmtMoney(T('paid'))}</div></div>
+      <div class="kpi"><div class="l">Out of their own pockets</div><div class="v">${fmtMoney(T('own'))}</div></div>
+      <div class="kpi"><div class="l">Paid back so far</div><div class="v">${fmtMoney(T('back'))}</div></div>
+      <div class="kpi"><div class="l">Still owed to staff</div>
+        <div class="v${T('owed')>0?' neg':''}">${fmtMoney(T('owed'))}</div></div>
+    </div>
+    <h2>Everyone at a glance</h2>
+    <table><thead><tr><th>Person</th><th class="num">Payments</th><th class="num">Paid out</th>
+      <th class="num">Own money</th><th class="num">Paid back</th><th class="num">Still owed</th></tr></thead>
+      <tbody>${summary}
+      <tr class="tot"><td>Total</td><td class="num">${people.reduce(function(t,x){ return t+x.rows.length; },0)}</td>
+        <td class="num">${fmtMoney(T('paid'))}</td><td class="num">${fmtMoney(T('own'))}</td>
+        <td class="num">${fmtMoney(T('back'))}</td><td class="num">${fmtMoney(T('owed'))}</td></tr></tbody></table>
+    <p class="note"><b>Paid out</b> is everything that passed through their hands. <b>Own money</b> is the part that
+      came out of their own pocket — paying a bill with an investor's cash or the company float is not money the
+      business owes them. <b>Still owed</b> is what is left to repay of their own money.</p>
+    ${detail}`;
+
+  mzReportWindow('Who paid what', 'Who-paid-what', inner,
+    'Every member of staff, what they have paid out, whose money it was, and what is still owed back to them.');
+}
+
+function openPersonSpend(){
+  if(!isManager()){ alert('Only a manager can see what everyone has spent.'); return; }
+  const names = personNames();
+  if(!names.length){ alert('Nobody has spent anything yet.'); return; }
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Money spent by one person</h3>
+    <div class="small-muted" style="margin-bottom:10px">Everything they have paid out, from Team &amp; Pay and the
+      day book, with whose money each payment came from.</div>
+    <div class="field"><label>Who</label><select id="ps_who">
+      ${names.map(function(n){ return '<option'+((currentUserName===n)?' selected':'')+'>'+escapeHtml(n)+'</option>'; }).join('')}
+    </select></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="printPersonSpend((document.getElementById('ps_who')||{value:''}).value)">Open it</button>
+    </div>`);
+}
+
+function printPersonSpend(name){
+  if(!isManager()) return;
+  const rows = personSpendRows(name);
+  if(!rows.length){ alert('Nothing is recorded against ' + name + '.'); return; }
+  closeModal();
+  let run = 0;
+  const body = rows.map(function(r){
+    run += r.amount;
+    return `<tr><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.what)}</td>
+      <td>${escapeHtml(r.funded)}</td><td>${escapeHtml(r.where)}</td>
+      <td class="num">${fmtMoney(r.amount)}</td><td class="num">${fmtMoney(run)}</td></tr>`;
+  }).join('');
+
+  const total  = rows.reduce(function(t,r){ return t + r.amount; }, 0);
+  const owed   = rows.reduce(function(t,r){ return t + r.owedBack; }, 0);
+  const byFund = {};
+  rows.forEach(function(r){ byFund[r.funded] = (byFund[r.funded]||0) + r.amount; });
+  const fundRows = Object.keys(byFund).sort(function(a,b){ return byFund[b]-byFund[a]; })
+    .map(function(k){ return `<tr><td>${escapeHtml(k)}</td><td class="num">${fmtMoney(byFund[k])}</td></tr>`; }).join('');
+
+  const inner = `
+    <h1>${escapeHtml(name)} — money paid out</h1>
+    <div class="sub">${rows.length} ${rows.length===1?'payment':'payments'} · as at ${fmtDate(todayISO())}</div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Total paid out</div><div class="v">${fmtMoney(total)}</div></div>
+      <div class="kpi"><div class="l">Out of their own pocket</div>
+        <div class="v">${fmtMoney(rows.reduce(function(t,r){ return t + (r.own ? r.amount : 0); }, 0))}</div></div>
+      <div class="kpi"><div class="l">Still owed back to them</div>
+        <div class="v${owed>0?' neg':''}">${fmtMoney(owed)}</div>
+        <div class="l" style="font-weight:400;text-transform:none;letter-spacing:0;margin-top:3px">of their own money, not yet repaid</div></div>
+    </div>
+    <h2>Whose money it was</h2>
+    <table><thead><tr><th>Funded by</th><th class="num">Amount</th></tr></thead>
+      <tbody>${fundRows}
+      <tr class="tot"><td>Total</td><td class="num">${fmtMoney(total)}</td></tr></tbody></table>
+    <h2>Every payment</h2>
+    <table><thead><tr><th>Date</th><th>What it went on</th><th>Whose money</th><th>Where logged</th>
+      <th class="num">Amount</th><th class="num">Running total</th></tr></thead>
+      <tbody>${body}
+      <tr class="tot"><td colspan="4">Total</td><td class="num">${fmtMoney(total)}</td><td></td></tr></tbody></table>
+    <p class="note">Paying something does not mean it was their money. <b>Whose money</b> says where each payment
+      came from; only the rows funded by their own money are owed back to them.</p>`;
+  mzReportWindow('Money paid out — ' + name,
+    ('Spend-' + name).replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^-|-$/g,''), inner,
+    'What one member of the team has paid out, and whose money each payment came from. A management view, not a statement for anyone.');
 }
 
 /* ---- one investor: where his money went ---------------------------------- */
@@ -12370,7 +12947,7 @@ function renderSbSettings(S){
       <div class="field"><label>WhatsApp <span class="small-muted">starts with 44, no + or spaces</span></label><input id="st_wa" value="${escapeAttr(st.whatsapp||'')}" placeholder="447508848893" onchange="saveSiteSettings()"/>
         <div class="small-muted" style="margin-top:4px;color:${waOk?'var(--green)':'var(--amber)'}">${st.whatsapp?(waOk?'✓ Looks right':'Check this: UK numbers look like 447508848893'):'Needed for the Enquire buttons'}</div></div>
     </div>
-    <div class="field"><label>Email</label><input id="st_email" value="${escapeAttr(st.email||'')}" placeholder="contact@carexpress.co" onchange="saveSiteSettings()"/></div>
+    <div class="field"><label>Email</label><input id="st_email" value="${escapeAttr(st.email||'')}" placeholder="info@carexpress.co" onchange="saveSiteSettings()"/></div>
   </div>
 
   <div class="wb-card2">
