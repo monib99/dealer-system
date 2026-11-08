@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b122</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b124</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3745,8 +3745,11 @@ function askCarFunding(v, mzId, then){
         <div class="small-muted" style="margin:4px 0 8px">The car is his contribution, so his cash in hand stays at
           ${fmtMoney(q.cashInHand)}. Credit him only what <b>he</b> paid — anything the company spends on it
           afterwards comes back to the company when it sells.</div>
-        <div class="field"><label>What he paid for it (£)</label>
-          <input id="cf_credit" type="number" step="0.01" value="${vehiclePurchasePrice(v)||''}"/></div>
+        <div class="field"><label>What he paid for it, all in (£)</label>
+          <input id="cf_credit" type="number" step="0.01" value="${vehiclePurchasePrice(v)||''}"/>
+          <div class="small-muted" style="margin-top:4px">The price he paid, <b>plus anything else he paid for on
+            it himself</b> — a gearbox, parts, work. Not what the business paid.
+            Total in this car so far: ${fmtMoney(vehicleCostTotal(v))}.</div></div>
         <button class="btn btn-brand" style="width:100%;margin-top:8px"
           onclick="__carFundingDone(true)">Put it on his book</button>
       </div>
@@ -9844,6 +9847,69 @@ function runOwnPocketSetup(name){
   saveDB(); closeModal(); render();
   alert(name + ' now has his own page. He is owed ' + fmtMoney(muzaribPosition(m.id).cash) + '.');
 }
+/* ---- Showing the working behind "he is owed" ---------------------------
+   One big number with no sum behind it is impossible to check, and when it
+   looks wrong there is nothing to point at. This lists every part that goes
+   into it, in the same order the arithmetic runs, so a figure that is out can
+   be traced to the line that put it there. */
+function owedBreakdown(id){
+  const p = muzaribPosition(id);
+  const tx = muzaribTx(id);
+  const sum = function(l){ return l.reduce(function(s,t){ return s+(Number(t.amount)||0); },0); };
+  const capSpend = tx.filter(function(t){ return t.type==='capital' && t.fromSpendId; });
+  const capCar   = tx.filter(function(t){ return t.type==='capital' && t.carInId; });
+  const capOther = tx.filter(function(t){ return t.type==='capital' && !t.fromSpendId && !t.carInId; });
+  const adjs     = tx.filter(function(t){ return t.type==='adjustment'; });
+  const wds      = tx.filter(function(t){ return t.type==='withdrawal'; });
+  const spend    = tx.filter(function(t){ return t.type==='spend'; });
+  const rows = [];
+  if(capSpend.length) rows.push({l:'What he paid for himself', n:capSpend.length+' entries', v:sum(capSpend)});
+  capOther.forEach(function(t){ rows.push({l:escapeHtml(t.note||t.method||'Capital in'),
+    n:fmtDate(t.date), v:Number(t.amount)||0}); });
+  /* A car he handed in is credited to him AND sits in his stock, so the two
+     cancel out while he still holds it. Showing both lines reads like the car
+     has been deducted from him, which it has not. One netted line instead. */
+  const carHeld = p.unsold.filter(isBroughtInCar).reduce(function(s,v){ return s+vehicleInvestorCost(v); },0);
+  const carNet  = Math.round((sum(capCar) - carHeld)*100)/100;
+  if(capCar.length) rows.push({l:'Cars he handed in',
+    n:capCar.length+' car'+(capCar.length===1?'':'s') + (carHeld ? ' · ' + fmtMoney(carHeld) +
+      ' of it still on the forecourt, so neither added nor taken off' : ''),
+    v:carNet});
+  adjs.forEach(function(t){ rows.push({l:escapeHtml(t.note||'Adjustment'), n:fmtDate(t.date), v:Number(t.amount)||0}); });
+  wds.forEach(function(t){ rows.push({l:'Paid back to him · '+escapeHtml(t.note||''), n:fmtDate(t.date), v:-(Number(t.amount)||0)}); });
+  /* Only cars bought with his money come off here. One he handed in was
+     netted off above, and taking it off again would charge him for his own car. */
+  const boughtWithHis = p.tiedUp - carHeld;
+  if(boughtWithHis > 0.004) rows.push({l:'Bought for him with his money',
+    n:(p.unsold.length - p.unsold.filter(isBroughtInCar).length)+' car(s) on the forecourt', v:-boughtWithHis});
+  if(p.profit)    rows.push({l:'Profit earned on his sold cars', n:'', v:p.profit});
+  if(p.scrapLoss) rows.push({l:'Written off', n:'scrapped', v:-p.scrapLoss});
+  if(p.returnLoss)rows.push({l:'Lost on cars returned', n:'', v:-p.returnLoss});
+  const total = rows.reduce(function(s,r){ return s+r.v; }, 0);
+  return {rows:rows, total:Math.round(total*100)/100, p:p,
+          spendTotal:sum(spend), capSpendTotal:sum(capSpend)};
+}
+function openOwedBreakdown(id){
+  const b = owedBreakdown(id); const m = muzarib(id) || {};
+  const gap = Math.round((b.spendTotal - b.capSpendTotal)*100)/100;
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>How ${escapeHtml(m.name||'this')} figure is made up</h3>
+    <div class="small-muted" style="margin-bottom:11px">Every part of what he is owed, in the order it is added up.</div>
+    <table><tbody>
+      ${b.rows.map(function(r){ return `<tr><td>${r.l}${r.n?`<div class="small-muted">${r.n}</div>`:''}</td>
+        <td style="text-align:right;font-weight:700;color:${r.v<0?'var(--red)':'inherit'};white-space:nowrap">${
+          (r.v<0?'− ':'')+fmtMoney(Math.abs(r.v))}</td></tr>`; }).join('')}
+      <tr><td><b>He is owed</b></td>
+        <td style="text-align:right;font-weight:700">${fmtMoney(b.total)}</td></tr>
+    </tbody></table>
+    ${Math.abs(gap) > 0.004 ? `<div class="card" style="box-shadow:none;padding:11px 13px;margin-top:11px;">
+      <b style="color:var(--amber)">His spending and his capital do not match</b>
+      <div class="small-muted" style="margin-top:4px">
+        He has spent <b>${fmtMoney(b.spendTotal)}</b> but only <b>${fmtMoney(b.capSpendTotal)}</b> of that has gone on
+        as capital — a difference of <b>${fmtMoney(Math.abs(gap))}</b>. That happens when the spend list was
+        corrected after it was converted. Run <b>Rebuild his account</b> again to pick up the rest.</div></div>`:''}
+    <div class="modal-actions"><button class="btn btn-brand" onclick="closeModal()">Close</button></div>`);
+}
 function muzaribPosition(id){
   const m = muzarib(id) || {};
   const cars = muzaribCars(id);
@@ -10612,12 +10678,15 @@ function renderMuzaribProfile(id){
       ${m.archived.note?'<br><b>Reason:</b> '+escapeHtml(m.archived.note):''}</div></div>`:''}
 
   <div class="grid kpi-grid">
-    ${p.noCash ? `<div class="card kpi"><div class="label">${p.payBack ? 'Owed back to him' : 'Stock to buy for him'}</div>
+    ${p.noCash ? `<div class="card kpi"><div class="label">${p.payBack ? 'Owed back to him' : 'Stock to buy for him'}
+        <a href="#" onclick="openOwedBreakdown('${id}');return false" style="float:right;font-weight:400">how?</a></div>
       <div class="value small">${fmtMoney(p.cash)}</div>
       <div class="sub">${p.payBack
         ? 'He paid this out of his own pocket — we owe him the money back'
         : 'No cash came in — we settle this by buying cars to this value'}</div></div>`
-    : `<div class="card kpi"><div class="label">Cash owed to him</div><div class="value small">${fmtMoney(p.cash)}</div>
+    : `<div class="card kpi"><div class="label">Cash owed to him
+        <a href="#" onclick="openOwedBreakdown('${id}');return false" style="float:right;font-weight:400">how?</a></div>
+      <div class="value small">${fmtMoney(p.cash)}</div>
       <div class="sub">What we owe him on the cash side — the stock below is on top</div></div>
     ${isManager() ? `<div class="card kpi"><div class="label">Cash I can spend</div>
       <div class="value small"${p.cashInHand < 0 ? ' style="color:var(--red)"':''}>${fmtMoney(p.cashInHand)}</div>
@@ -10897,8 +10966,9 @@ function openEditMzTx(txId){
       <div class="field"><label>Date</label><input id="mte_date" type="date" value="${t.date||todayISO()}"/></div>
     </div>
     ${t.carInId ? `<div class="small-muted" style="margin-bottom:10px;">
-        This is a car he handed in. The amount above is <b>what he paid for it</b> — not what the car has cost
-        since. Anything the company spent on it comes back to the company when it sells, so keep it out of here.</div>`
+        This is a car he handed in. The amount above is <b>everything he paid for it himself</b> — the price
+        plus any parts or work he paid for out of his own pocket. What the <i>business</i> paid stays out of here
+        and comes back to the business when the car sells.</div>`
       : (t.type==='capital' ? `<div class="field"><label>Did cash actually arrive?</label>
       <select id="mte_kind">
         <option value="cash" ${capitalKind(t)==='cash'?'selected':''}>Yes — real money handed over</option>
