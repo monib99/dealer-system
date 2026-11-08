@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b128</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b129</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3769,8 +3769,11 @@ function __carFundingDone(brought){
   closeModal();
   const then = window.__carFundingThen;
   window.__carFundingThen = null;
-  if(then && brought !== null) then(!!brought);
-  else render();
+  if(then && brought !== null){ then(!!brought); return; }
+  /* Closed without answering - undo whatever was applied in anticipation. */
+  const undo = window.__carFundingCancel;
+  window.__carFundingCancel = null;
+  if(undo) undo(); else render();
 }
 
 function setVehicleOwner(vid, val){
@@ -3787,15 +3790,30 @@ function setVehicleOwner(vid, val){
   const dropped = dropCarCapital(v.id);
   if(!val.startsWith('mz:')){
     v.ownerType='company'; v.muzaribId = null;
+    delete v.boughtWithInvestorCash;
     finish('Company stock'); return;
   }
   const mzId = val.slice(3);
+  /* Everything below is applied before the "whose money?" question is answered.
+     If that box is closed without an answer nothing is saved, so the change has
+     to be put back - otherwise the screen shows a move that was never written,
+     and the next refresh silently undoes it. */
+  const prev = {ownerType: v.ownerType, muzaribId: v.muzaribId,
+                bought: v.boughtWithInvestorCash};
   v.ownerType='muzarib'; v.muzaribId = mzId;
   if(wasMz === mzId && dropped){        // same investor, nothing really changed
     DB.muzaribTx.push(dropped);
     finish(muzaribName(mzId)); return;
   }
+  window.__carFundingCancel = function(){
+    v.ownerType = prev.ownerType; v.muzaribId = prev.muzaribId;
+    if(prev.bought) v.boughtWithInvestorCash = prev.bought;
+    else delete v.boughtWithInvestorCash;
+    if(dropped){ DB.muzaribTx = DB.muzaribTx || []; DB.muzaribTx.push(dropped); }
+    render();
+  };
   askCarFunding(v, mzId, function(brought){
+    window.__carFundingCancel = null;
     if(brought){ addCarCapital(v, mzId, null, window.__carFundingCredit); delete v.boughtWithInvestorCash; }
     else v.boughtWithInvestorCash = true;
     finish(muzaribName(mzId));
