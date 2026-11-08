@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-07 b107</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b116</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3655,12 +3655,18 @@ function dropCarCapital(vId){
   DB.muzaribTx = DB.muzaribTx.filter(function(x){ return x.id !== t.id; });
   return t;
 }
-function addCarCapital(v, mzId, when){
-  const cost = vehicleCostTotal(v);
+/* What he actually paid for the car. Anything the company spent on it after
+   that - a gearbox, a service, bodywork - is the company's money and comes back
+   to the company when the car sells, so it must never go on his book. */
+function vehiclePurchasePrice(v){ return Number((v.costs||{}).purchase)||0; }
+
+function addCarCapital(v, mzId, when, credit){
+  const cost = (credit === undefined || credit === null || credit === '')
+    ? vehiclePurchasePrice(v) : (Number(credit)||0);
   if(cost <= 0) return null;
   const tx = {id:nextId('mztx'), muzaribId:mzId, type:'capital', amount:cost,
     date: when || v.dateAdded || todayISO(), method:'Car put in', carInId: v.id,
-    note: (v.reg||'') + ' ' + [v.make,v.model].filter(Boolean).join(' ') + ' — car he brought in, at cost',
+    note: (v.reg||'') + ' ' + [v.make,v.model].filter(Boolean).join(' ') + ' — car he brought in',
     addedBy: currentUserName||''};
   DB.muzaribTx = DB.muzaribTx || [];
   DB.muzaribTx.push(tx);
@@ -3734,14 +3740,22 @@ function askCarFunding(v, mzId, then){
         <b>Bought with his money we already hold</b><br>
         <span class="small-muted">His cash turns into stock. Cash in hand falls from
         ${fmtMoney(q.cashInHand)} to ${fmtMoney(q.cashInHand - cost)}.</span></button>
-      <button class="btn btn-ghost" style="text-align:left;height:auto;padding:11px 13px;white-space:normal"
-        onclick="__carFundingDone(true)">
-        <b>He brought the car in himself</b><br>
-        <span class="small-muted">The car is his contribution, so ${fmtMoney(cost)} goes on as capital and his
-        cash in hand stays at ${fmtMoney(q.cashInHand)}.</span></button>
+      <div class="card" style="box-shadow:none;padding:11px 13px;">
+        <b>He brought the car in himself</b>
+        <div class="small-muted" style="margin:4px 0 8px">The car is his contribution, so his cash in hand stays at
+          ${fmtMoney(q.cashInHand)}. Credit him only what <b>he</b> paid — anything the company spends on it
+          afterwards comes back to the company when it sells.</div>
+        <div class="field"><label>What he paid for it (£)</label>
+          <input id="cf_credit" type="number" step="0.01" value="${vehiclePurchasePrice(v)||''}"/></div>
+        <button class="btn btn-brand" style="width:100%;margin-top:8px"
+          onclick="__carFundingDone(true)">Put it on his book</button>
+      </div>
     </div>`);
 }
 function __carFundingDone(brought){
+  const el = document.getElementById('cf_credit');
+  window.__carFundingCredit = (brought && el) ? (Number(el.value)||0) : null;
+  if(brought && window.__carFundingCredit <= 0){ alert('Enter what he paid for the car.'); return; }
   closeModal();
   const then = window.__carFundingThen;
   window.__carFundingThen = null;
@@ -3772,7 +3786,7 @@ function setVehicleOwner(vid, val){
     finish(muzaribName(mzId)); return;
   }
   askCarFunding(v, mzId, function(brought){
-    if(brought) addCarCapital(v, mzId);
+    if(brought) addCarCapital(v, mzId, null, window.__carFundingCredit);
     finish(muzaribName(mzId));
   });
 }
@@ -6905,6 +6919,7 @@ function renderTeam(){
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openSpendImport()">📒 Enter the spend record</button>`:''}
       ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openMbImport()">🧾 Monib's own costs</button>`:''}
+      ${isSuperAdmin() && teamView==='overview' && hsInvestor()?`<button class="btn btn-ghost" onclick="openHsFix()">🧾 Correct Haji Sahib's list</button>`:''}
       ${isManager() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openPersonSpend()">👤 What one person has spent</button>`:''}
       ${isManager() && teamView==='overview'?`<button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>`:''}
     </div>
@@ -7139,7 +7154,7 @@ function expenseFundingChanged(){
     const p = m ? muzaribPosition(m.id) : null;
     note.innerHTML = m
       ? `Out of the cash <strong>${escapeHtml(m.name)}</strong> handed over — <strong>${fmtMoney(p.cashInHand)}</strong> still in hand.
-         <br>Internal only: what he is owed stays <strong>${fmtMoney(p.cash + p.tiedUp)}</strong>. You settle it by giving him stock.`
+         <br>Internal only: what he is owed stays <strong>${fmtMoney(p.cash + p.tiedUp)}</strong>. You settle it by buying cars for him.`
       : '';
   } else if(v==='float'){
     const f = floatPosition(currentUserEmail);
@@ -9204,6 +9219,173 @@ function muzaribVisibleTx(id){ return muzaribTx(id).filter(t=>t.type!=='spend');
 function muzaribTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id); }
 
 /* The whole financial position, derived live. */
+/* What one car is worth on the INVESTOR's book.
+
+   A car he bought with his cash is worth everything that went into it, because
+   every penny of it was his. A car he physically handed over is worth only what
+   he was credited for it - the purchase price agreed when it came in. Any prep,
+   service or bodywork after that was paid out of business money, so it is not
+   his and must not inflate what we owe him. */
+function vehicleInvestorCost(v){
+  const t = carCapitalTx(v.id);
+  return t ? (Number(t.amount)||0) : vehicleCostTotal(v);
+}
+/* True when this car came in as stock rather than being bought with his cash. */
+function isBroughtInCar(v){ return !!carCapitalTx(v.id); }
+
+/* Capital arrives in three different shapes and they are NOT interchangeable:
+     cash  - real money handed over. This is what there is to buy cars with.
+     owed  - a balance carried over (e.g. from the old business). No cash ever
+             arrived. We need to buy cars to the same value for him.
+     stock - a car he handed in. Again no cash; the car itself is the credit. */
+function capitalKind(t){
+  if(t.carInId) return 'stock';
+  return t.kind === 'owed' ? 'owed' : 'cash';
+}
+const CAPITAL_KINDS = {
+  cash : {label:'Cash in',                 hint:'Real money handed over - available to buy cars with'},
+  owed : {label:'Capital in from the old business', hint:'No cash arrived - we need to buy cars to the same value'},
+  stock: {label:'Car handed in',           hint:'Set automatically when a car is brought in'}
+};
+
+
+/* ---- Haji Sahib's list, as he last wrote it out ------------------------
+   Two figures on his sheet do not agree with his own subtotals. The sheet is
+   his record, so the written figure is what goes in by default - the balancing
+   figure is offered beside it and he decides, line by line. Lights and ceiling
+   tiles were never entered at all.
+   The 600 from Zahid and the 2,000 from Apex stay on his capital page as
+   adjustments and are NOT deducted here as well. */
+const HS_LINES = [
+  /* `only` is the guard: a line is offered for correction solely when its
+     amount is already one of these. Without it the separate £500 Mirwaise
+     payment matches the name and gets overwritten with the wages figure. */
+  {re:/tyre/i,    name:'Tyres outstanding', written:1300, balance:1700, only:[1300,1700]},
+  {re:/mirwais/i, name:'Mirwaise',          written:2416, balance:2414, only:[2500,2416,2414]}
+];
+const HS_ADD = [ {n:'Lights', a:266}, {n:'Ceiling tiles', a:88} ];
+
+function hsInvestor(){
+  return (DB.muzaribs||[]).find(function(m){ return /haji/i.test(m.name||''); });
+}
+function hsPlan(){
+  const m = hsInvestor(); if(!m) return null;
+  const rows = (DB.expenses||[]).filter(function(e){ return e.muzaribId === m.id; });
+  const picks = [], adds = [], already = [];
+  rows.forEach(function(e){
+    HS_LINES.forEach(function(L){
+      const amt = Number(e.amount)||0;
+      const inRange = L.only.some(function(v){ return Math.abs(v-amt) < 0.005; });
+      if(L.re.test(e.note||'') && inRange) picks.push({e:e, L:L});
+    });
+  });
+  HS_ADD.forEach(function(x){
+    const word = x.n.toLowerCase().split(' ')[0];
+    const dup = rows.some(function(e){
+      return Math.abs((Number(e.amount)||0)-x.a) < 0.005 && (e.note||'').toLowerCase().indexOf(word) >= 0; });
+    if(dup) already.push(x.n + ' already there'); else adds.push(x);
+  });
+  const now = rows.reduce(function(s,e){ return s+(Number(e.amount)||0); },0);
+  return {m:m, rows:rows, picks:picks, adds:adds, already:already, now:now};
+}
+/* What is actually ticked in the open form. */
+function hsChosen(){
+  const p = hsPlan(); if(!p) return null;
+  const changes = [];
+  p.picks.forEach(function(pk, i){
+    const sel = document.getElementById('hs_p'+i);
+    const want = sel ? Number(sel.value) : pk.L.written;
+    const have = Number(pk.e.amount)||0;
+    if(Math.abs(want-have) > 0.005) changes.push({e:pk.e, to:want});
+  });
+  const delta = changes.reduce(function(s,c){ return s + (c.to - (Number(c.e.amount)||0)); },0)
+              + p.adds.reduce(function(s,a){ return s+a.a; },0);
+  return {p:p, changes:changes, delta: Math.round(delta*100)/100,
+          after: Math.round((p.now+delta)*100)/100};
+}
+function hsRecalc(){
+  const c = hsChosen(); if(!c) return;
+  const box = document.getElementById('hs_sum'); if(!box) return;
+  box.innerHTML = `<div class="k"><span class="muted">His spend now</span><b>${fmtMoney(c.p.now)}</b></div>
+    <div class="k"><span class="muted">Change</span><b>${(c.delta<0?'− ':'')+fmtMoney(Math.abs(c.delta))}</b></div>
+    <div class="k"><span class="muted">After</span><b>${fmtMoney(c.after)}</b></div>`;
+}
+function openHsFix(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can do this.'); return; }
+  const p = hsPlan();
+  if(!p){ alert('No investor with "Haji" in the name was found.'); return; }
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Correct ${escapeHtml(p.m.name)}'s spend list</h3>
+    <div class="small-muted" style="margin-bottom:12px">Each line is set to the figure <b>written on his sheet</b>.
+      Where his own subtotals need a different figure, that is offered beside it — your choice.
+      The £600 from Zahid and £2,000 from Apex stay on his capital page and are not touched.</div>
+    ${p.picks.length ? `<table><thead><tr><th>Entry</th><th>Now</th><th>Set to</th></tr></thead><tbody>
+      ${p.picks.map(function(pk,i){ return `<tr>
+        <td>${escapeHtml(pk.e.note||pk.L.name)}</td>
+        <td style="text-align:right">${fmtMoney(Number(pk.e.amount)||0)}</td>
+        <td style="text-align:right"><select id="hs_p${i}" onchange="hsRecalc()" style="min-width:150px">
+          <option value="${pk.L.written}">${fmtMoney(pk.L.written)} — as written</option>
+          <option value="${pk.L.balance}">${fmtMoney(pk.L.balance)} — balances his subtotal</option>
+          <option value="${Number(pk.e.amount)||0}">${fmtMoney(Number(pk.e.amount)||0)} — leave as is</option>
+        </select></td></tr>`; }).join('')}
+      ${p.adds.map(function(a){ return `<tr><td>${escapeHtml(a.n)}<div class="small-muted">missing — will be added</div></td>
+        <td style="text-align:right" class="small-muted">—</td>
+        <td style="text-align:right"><b>${fmtMoney(a.a)}</b></td></tr>`; }).join('')}
+      </tbody></table>` : `<div class="empty">Nothing to change.</div>`}
+    ${p.already.length ? `<div class="small-muted" style="margin-top:9px">Already there: ${p.already.map(escapeHtml).join(' · ')}</div>`:''}
+    <div class="card" style="box-shadow:none;padding:11px 13px;margin-top:12px" id="hs_sum"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runHsFix()">Apply</button></div>`);
+  hsRecalc();
+}
+function runHsFix(){
+  if(!isSuperAdmin()) return;
+  const c = hsChosen(); if(!c) return;
+  if(!c.changes.length && !c.p.adds.length){ alert('Nothing to change.'); return; }
+  captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB))});
+  c.changes.forEach(function(x){
+    const was = Number(x.e.amount)||0;
+    x.e.amount = x.to;
+    const tx = (DB.muzaribTx||[]).find(function(t){ return t.id === x.e.mzTxId; });
+    if(tx) tx.amount = x.to;
+    logChange('money','Corrected spend for', mzRef(c.p.m), (x.e.note||''),
+      fmtMoney(was), fmtMoney(x.to), 'from his written list');
+  });
+  c.p.adds.forEach(function(a){
+    const e = {id:nextId('exp'), employee:'Monib', userEmail:currentUserEmail,
+      date:'2026-11-04', amount:a.a, note:a.n + " · from Haji Sahib's money",
+      fundedBy:'mz:'+c.p.m.id, muzaribId:c.p.m.id, status:'unpaid', paidAmount:0, payments:[],
+      photoId:null, fromHsList:true};
+    DB.expenses.push(e);
+    syncExpenseToInvestor(e);
+    logChange('money','Added spend for', mzRef(c.p.m), a.n, '', fmtMoney(a.a), 'from his written list');
+  });
+  saveDB(); closeModal(); render();
+  alert('Done. His spend is now ' + fmtMoney(hsPlan().now) + '.');
+}
+
+/* Some investors never handed over cash at all - their whole position came
+   across as value from an earlier business. Rather than editing each entry,
+   this marks the lot in one go. Cars handed in are left alone: they are
+   already stock, not cash. */
+function markAllCapitalCarried(id){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can do this.'); return; }
+  const m = muzarib(id); if(!m) return;
+  const rows = muzaribTx(id).filter(function(t){
+    return t.type==='capital' && !t.carInId && capitalKind(t)==='cash'; });
+  if(!rows.length){ alert('Every capital entry is already marked as carried over.'); return; }
+  const total = rows.reduce(function(s,t){ return s+(Number(t.amount)||0); },0);
+  if(!confirm('Mark ' + rows.length + ' capital ' + (rows.length===1?'entry':'entries') +
+      ' totalling ' + fmtMoney(total) + ' as value carried over, with no cash arriving?\n\n' +
+      'What he is owed does not change. It stops showing as money to spend, and becomes ' +
+      'stock we owe him.')) return;
+  captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB))});
+  rows.forEach(function(t){ t.kind = 'owed'; });
+  logChange('money','Marked capital as carried over for', mzRef(m), 'Capital',
+    fmtMoney(total) + ' as cash', fmtMoney(total) + ' as value carried over',
+    'No cash arrived \u2014 settled by buying stock');
+  saveDB(); render();
+}
 function muzaribPosition(id){
   const m = muzarib(id) || {};
   const cars = muzaribCars(id);
@@ -9212,19 +9394,29 @@ function muzaribPosition(id){
   const scrapped = cars.filter(v=>v.status==='scrap' && !v.sale);
 
   const tx = muzaribTx(id);
-  const capital     = tx.filter(t=>t.type==='capital').reduce((s,t)=>s+(Number(t.amount)||0),0);
+  const capTx       = tx.filter(t=>t.type==='capital');
+  const sumTx       = function(list){ return list.reduce(function(s,t){ return s+(Number(t.amount)||0); },0); };
+  const capital     = sumTx(capTx);
+  /* Only the cash slice is money we can actually spend. */
+  const capitalCash  = sumTx(capTx.filter(function(t){ return capitalKind(t)==='cash';  }));
+  const capitalOwed  = sumTx(capTx.filter(function(t){ return capitalKind(t)==='owed';  }));
+  const capitalStock = sumTx(capTx.filter(function(t){ return capitalKind(t)==='stock'; }));
   const withdrawn   = tx.filter(t=>t.type==='withdrawal').reduce((s,t)=>s+(Number(t.amount)||0),0);
   const spentFor    = tx.filter(t=>t.type==='spend').reduce((s,t)=>s+(Number(t.amount)||0),0);
   const adjustments = tx.filter(t=>t.type==='adjustment').reduce((s,t)=>s+(Number(t.amount)||0),0);
 
-  const tiedUp   = unsold.reduce((s,v)=>s+vehicleCostTotal(v),0);   // money currently in cars
-  const scrapLoss= scrapped.reduce((s,v)=>s+vehicleCostTotal(v),0); // written off
+  const tiedUp   = unsold.reduce((s,v)=>s+vehicleInvestorCost(v),0); // his money currently in cars
+  /* Cars he handed in never consumed any of his cash, so they must not be
+     deducted from what he has left to spend. */
+  const tiedUpStock = unsold.filter(isBroughtInCar).reduce((s,v)=>s+vehicleInvestorCost(v),0);
+  const tiedUpCash  = tiedUp - tiedUpStock;
+  const scrapLoss= scrapped.reduce((s,v)=>s+vehicleInvestorCost(v),0); // written off
   /* Cars handed back to the supplier. A return is not a sale: no admin charge
      is taken and no profit is split. Whatever did not come back is a straight
      loss to the investor, because it was his money that paid for the car. */
   const returned = cars.filter(v=>v.returned && v.returned.kind==='supplier' && !v.sale);
   const returnRefund = returned.reduce((s,v)=>s+vReturnRefund(v),0);
-  const returnLoss   = returned.reduce((s,v)=>s+Math.max(0, vehicleCostTotal(v)-vReturnRefund(v)),0);
+  const returnLoss   = returned.reduce((s,v)=>s+Math.max(0, vehicleInvestorCost(v)-vReturnRefund(v)),0);
   let profit = 0, adminPaid = 0, companyShare = 0, grossTotal = 0;
   sold.forEach(v=>{ const s = carSettlement(v);
     profit += s.investor; adminPaid += s.admin; companyShare += s.company; grossTotal += s.gross; });
@@ -9233,12 +9425,23 @@ function muzaribPosition(id){
      business — that is settled by giving him stock, so it stays internal. */
   const cash = capital + adjustments + profit - withdrawn - tiedUp - scrapLoss - returnLoss;
   const usedByCompany = spentFor;          // internal only
-  const cashInHand    = cash - usedByCompany;  // physical cash still sitting here
+  /* Real spendable cash. Starts from the CASH he handed over - not from a
+     balance carried over and not from a car he brought in, because neither of
+     those ever put a penny in the till - then takes off what has already gone
+     out on cars bought with his cash and on business costs. */
+  const cashInHand = capitalCash + adjustments + profit - withdrawn
+                   - tiedUpCash - scrapLoss - returnLoss - usedByCompany;
+  const owedAsStock = capitalOwed;         // we owe him this much in stock, not cash
   const reservePct = Number(m.reservePct ?? 10);
-  const buyingBudget = Math.max(0, cash * (1 - reservePct/100));
+  const buyingBudget = Math.max(0, cashInHand * (1 - reservePct/100));
 
   return {
     capital, withdrawn, spentFor, usedByCompany, cashInHand,
+    capitalCash, capitalOwed, capitalStock, tiedUpStock, tiedUpCash, owedAsStock,
+    /* No cash ever came in from him - everything on his book is value carried
+       over or a car handed in. There is nothing of his to spend, so the whole
+       balance is an obligation to buy him stock. */
+    noCash: capital > 0 && capitalCash <= 0.004,
     adjustments, profit, adminPaid, companyShare, grossTotal,
     tiedUp, scrapLoss, cash, buyingBudget, reservePct,
     returnRefund, returnLoss,
@@ -9680,7 +9883,7 @@ function runTransferToInvestor(){
   v.ownerType = 'muzarib'; v.muzaribId = mid;
   closeModal();
   askCarFunding(v, mid, function(brought){
-    if(brought) addCarCapital(v, mid);
+    if(brought) addCarCapital(v, mid, null, window.__carFundingCredit);
     logChange('muzarib','Moved to an investor', vehRef(v), 'Funded by', was, m.name,
       fmtMoney(vehicleCostTotal(v)) + (brought ? ' · car he brought in, added to his capital' : ' · bought with his money'));
     saveDB(); render();
@@ -9888,12 +10091,12 @@ function renderMuzaribat(){
   <div class="grid kpi-grid">
     <div class="card kpi"><div class="label">Investors</div><div class="value">${list.length}</div><div class="sub">${t.cars} cars funded now</div></div>
     <div class="card kpi"><div class="label">Capital held</div><div class="value small">${fmtMoney(t.capital)}</div><div class="sub">Total invested to date</div></div>
-    <div class="card kpi"><div class="label">Cash available</div><div class="value small">${fmtMoney(t.cash)}</div><div class="sub">Ready to buy stock</div></div>
+    <div class="card kpi"><div class="label">Cash owed</div><div class="value small">${fmtMoney(t.cash)}</div><div class="sub">Ready to buy stock</div></div>
     <div class="card kpi"><div class="label">Company earned</div><div class="value small">${fmtMoney(t.company)}</div><div class="sub">Admin + our share</div></div>
   </div>
 
   <div class="card" style="padding:0;">
-    <table><thead><tr><th>Investor</th><th>Cash available</th><th>In stock</th><th>Total position</th><th>Profit paid</th><th>Cars</th></tr></thead><tbody>
+    <table><thead><tr><th>Investor</th><th>Cash owed</th><th>In stock</th><th>Total position</th><th>Profit paid</th><th>Cars</th></tr></thead><tbody>
     ${list.filter(function(m){ return !isArchivedMz(m); }).map(m=>{ const p = muzaribPosition(m.id); return `
       <tr style="cursor:pointer" onclick="openMuzarib('${m.id}')">
         <td><b>${escapeHtml(m.name)}</b>${m.active===false?' <span class="tag tag-grey">Inactive</span>':''}
@@ -9931,6 +10134,9 @@ function renderMuzaribProfile(id){
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn btn-brand" onclick="openMzTx('${id}','capital')">+ Capital in</button>
+      ${isSuperAdmin() && !p.noCash && p.capitalCash > 0
+        ? `<button class="btn btn-ghost" onclick="markAllCapitalCarried('${id}')"
+             title="He handed over no cash — his whole position came across as value">No cash came in</button>` : ''}
       <button class="btn btn-ghost" onclick="openMzTx('${id}','withdrawal')">Withdraw</button>
       <button class="btn btn-ghost" onclick="openMuzaribForm('${id}')">Edit</button>
       ${isSuperAdmin() ? (isArchivedMz(m)
@@ -9945,21 +10151,43 @@ function renderMuzaribProfile(id){
       ${m.archived.note?'<br><b>Reason:</b> '+escapeHtml(m.archived.note):''}</div></div>`:''}
 
   <div class="grid kpi-grid">
-    <div class="card kpi"><div class="label">Cash available</div><div class="value small">${fmtMoney(p.cash)}</div>
-      <div class="sub">${(isManager() && p.usedByCompany > 0)
-        ? `Only ${fmtMoney(p.cashInHand)} is actually here — ${fmtMoney(p.usedByCompany)} of it is out on the business`
-        : `Buy up to ${fmtMoney(p.buyingBudget)} (${p.reservePct}% held for prep)`}</div></div>
+    ${p.noCash ? `<div class="card kpi"><div class="label">Stock to buy for him</div>
+      <div class="value small">${fmtMoney(p.cash)}</div>
+      <div class="sub">No cash came in — we settle this by buying cars to this value</div></div>`
+    : `<div class="card kpi"><div class="label">Cash owed to him</div><div class="value small">${fmtMoney(p.cash)}</div>
+      <div class="sub">What we owe him on the cash side — the stock below is on top</div></div>
+    ${isManager() ? `<div class="card kpi"><div class="label">Cash I can spend</div>
+      <div class="value small"${p.cashInHand < 0 ? ' style="color:var(--red)"':''}>${fmtMoney(p.cashInHand)}</div>
+      <div class="sub">${p.cashInHand < 0
+          ? `Overdrawn — more of his cash has gone out than he put in`
+          : `Of his ${fmtMoney(p.capitalCash)} cash in` +
+            (p.usedByCompany > 0 ? `, ${fmtMoney(p.usedByCompany)} is out on the business` : '')}</div></div>` : ''}`}
     <div class="card kpi"><div class="label">Value in stock</div><div class="value small">${fmtMoney(p.tiedUp)}</div>
-      <div class="sub">${p.unsold.length} car${p.unsold.length===1?'':'s'} at cost</div></div>
+      <div class="sub">${p.unsold.length} car${p.unsold.length===1?'':'s'}${p.tiedUpStock > 0
+        ? ' — a car he handed in counts at its purchase price only' : ' at cost'}</div></div>
     <div class="card kpi"><div class="label">Total position</div><div class="value small">${fmtMoney(p.total)}</div>
       <div class="sub">Cash + stock</div></div>
     <div class="card kpi"><div class="label">Profit earned</div><div class="value small" style="color:var(--green)">${fmtMoney(p.profit)}</div>
       <div class="sub">${p.capital?p.returnPct.toFixed(1)+'% on capital':'&mdash;'}</div></div>
   </div>
 
-  ${p.cash < 0 ? `<div class="overdue-banner"><span>⚠ Cash available is negative &mdash; more has been spent or withdrawn than this investor has put in. Check the capital entries below.</span></div>`:''}
+  ${(isManager() && (p.owedAsStock > 0 || p.capitalStock > 0)) ? `<div class="card" style="box-shadow:none;padding:14px;margin-bottom:12px;">
+    <b>Capital in that was not cash</b>
+    <div class="small-muted" style="margin-top:4px;">${p.noCash
+      ? 'Nothing he put in arrived as cash, so there is none of his money to spend. The whole balance is settled by buying him cars.'
+      : 'No money arrived for these, so they are part of what we owe him but <b>not</b> part of what there is to spend.'}</div>
+    <table style="margin-top:10px"><tbody>
+      ${p.owedAsStock > 0 ? `<tr><td>Capital in from the old business</td>
+        <td style="text-align:right"><b>${fmtMoney(p.owedAsStock)}</b></td>
+        <td class="small-muted">we need to buy cars to the same value</td></tr>`:''}
+      ${p.capitalStock > 0 ? `<tr><td>Cars he handed in</td>
+        <td style="text-align:right"><b>${fmtMoney(p.capitalStock)}</b></td>
+        <td class="small-muted">counted at the purchase price — the company paid the prep and takes it back when the car sells</td></tr>`:''}
+    </tbody></table></div>`:''}
 
-  ${(isManager() && p.usedByCompany > 0) ? (function(){
+  ${p.cash < 0 ? `<div class="overdue-banner"><span>⚠ His cash balance is negative &mdash; more has been spent or withdrawn than this investor has put in. Check the capital entries below.</span></div>`:''}
+
+  ${(isManager() && p.usedByCompany > 0 && !p.noCash) ? (function(){
     const spend = muzaribTx(id).filter(function(t){ return t.type==='spend'; })
       .slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
     return `
@@ -10034,7 +10262,8 @@ function renderMuzaribProfile(id){
     ${tx.map(t=>`<tr>
       <td>${fmtDate(t.date)}</td>
       <td><span class="tag ${t.type==='capital'?'tag-green':(t.type==='withdrawal'?'tag-amber':(t.type==='spend'?'tag-blue':'tag-grey'))}">${MZ_TX_TYPES[t.type].label}</span></td>
-      <td>${escapeHtml(t.note||'')}</td>
+      <td>${escapeHtml(t.note||'')}${t.type==='capital' && capitalKind(t)!=='cash'
+        ? ` <span class="tag tag-grey" title="No cash arrived for this">${capitalKind(t)==='stock'?'car handed in':'from the old business'}</span>`:''}</td>
       <td>${t.method ? escapeHtml(t.method) : '—'}</td>
       <td style="font-weight:700;color:${t.type==='withdrawal'?'var(--red)':'inherit'}">${t.type==='withdrawal'?'&minus; ':''}${fmtMoney(Math.abs(t.amount))}</td>
       <td style="white-space:nowrap">
@@ -10200,6 +10429,15 @@ function openEditMzTx(txId){
       <div class="field"><label>Amount (£)</label><input id="mte_amt" type="number" step="0.01" value="${Number(t.amount)||0}"/></div>
       <div class="field"><label>Date</label><input id="mte_date" type="date" value="${t.date||todayISO()}"/></div>
     </div>
+    ${t.carInId ? `<div class="small-muted" style="margin-bottom:10px;">
+        This is a car he handed in. The amount above is <b>what he paid for it</b> — not what the car has cost
+        since. Anything the company spent on it comes back to the company when it sells, so keep it out of here.</div>`
+      : (t.type==='capital' ? `<div class="field"><label>Did cash actually arrive?</label>
+      <select id="mte_kind">
+        <option value="cash" ${capitalKind(t)==='cash'?'selected':''}>Yes — real money handed over</option>
+        <option value="owed" ${capitalKind(t)==='owed'?'selected':''}>No — capital in from the old business</option>
+      </select>
+      <div class="small-muted" style="margin-top:4px">Only money that actually arrived counts towards what there is to buy cars with.</div></div>` : '')}
     <div class="field"><label>Paid by</label>
       <select id="mte_method">
         ${['Bank transfer','Cash','Card','Other','Spend log'].map(x=>`<option ${((t.method||'')===x)?'selected':''}>${x}</option>`).join('')}
@@ -10219,7 +10457,11 @@ function saveEditMzTx(txId){
   const newType = t.type==='spend' ? 'spend' : (val('mte_type') || t.type);
 
   captureUndo({t:'mzTxEdit', id:t.id, before:{amount:was.amount, type:was.type, date:was.date,
-               method:t.method, note:t.note}});
+               method:t.method, note:t.note, kind:t.kind}});
+  const kindEl = document.getElementById('mte_kind');
+  if(kindEl && newType==='capital' && !t.carInId){
+    if(kindEl.value === 'owed') t.kind = 'owed'; else delete t.kind;
+  }
   t.amount = amt;
   t.type   = newType;
   t.date   = val('mte_date') || t.date;
@@ -10237,17 +10479,32 @@ function saveEditMzTx(txId){
     'Cash in hand now ' + fmtMoney(muzaribPosition(t.muzaribId).cashInHand));
   saveDB(); closeModal(); render();
 }
+/* Explains, in the capital form, what the chosen kind actually does. */
+function mzKindHint(){
+  const sel = document.getElementById('mtx_kind'), box = document.getElementById('mtx_kind_hint');
+  if(!sel || !box) return;
+  box.innerHTML = sel.value === 'owed'
+    ? 'No cash came in for this, so it will <b>not</b> show as money to spend. We need to buy cars to the same value for him.'
+    : 'Counts towards what he has to buy cars with.';
+}
 function openMzTx(id, type){
   const isW = type==='withdrawal';
   const p = muzaribPosition(id);
   openModal(`
     <button class="close-x" onclick="closeModal()">✕</button>
     <h3>${isW?'Record a withdrawal':'Add capital'}</h3>
-    ${isW?`<div class="small-muted" style="margin-bottom:10px;">Cash available: <b>${fmtMoney(p.cash)}</b></div>`:''}
+    ${isW?`<div class="small-muted" style="margin-bottom:10px;">Cash owed: <b>${fmtMoney(p.cash)}</b></div>`:''}
     <div class="field-row">
       <div class="field"><label>Amount (£) *</label><input id="mtx_amt" type="number" step="0.01"/></div>
       <div class="field"><label>Date</label><input id="mtx_date" type="date" value="${todayISO()}"/></div>
     </div>
+    ${isW?'':`<div class="field"><label>What kind *</label>
+      <select id="mtx_kind" onchange="mzKindHint()">
+        <option value="cash">Cash in — real money handed over</option>
+        <option value="owed">From the old business — no cash arrived</option>
+      </select>
+      <div class="small-muted" id="mtx_kind_hint" style="margin-top:4px">
+        Counts towards what he has to buy cars with.</div></div>`}
     <div class="field"><label>Paid by</label><select id="mtx_method"><option>Bank transfer</option><option>Cash</option><option>Other</option></select></div>
     <div class="field"><label>Note</label><input id="mtx_note" placeholder="${isW?'e.g. requested withdrawal':'e.g. additional investment'}"/></div>
     <div class="modal-actions">
@@ -10260,14 +10517,17 @@ function saveMzTx(id, type){
   if(amt<=0){ alert('Enter an amount greater than zero'); return; }
   if(type==='withdrawal'){
     const p = muzaribPosition(id);
-    if(amt > p.cash && !confirm(`This is more than the ${fmtMoney(p.cash)} cash available.\n\nRecord it anyway? The balance will go negative.`)) return;
+    if(amt > p.cash && !confirm(`This is more than the ${fmtMoney(p.cash)} we owe him.\n\nRecord it anyway? The balance will go negative.`)) return;
   }
   if(!DB.muzaribTx) DB.muzaribTx = [];
   const method = document.getElementById('mtx_method').value;
   const note = document.getElementById('mtx_note').value.trim();
+  const kindEl = document.getElementById('mtx_kind');
+  const kind = (type==='capital' && kindEl) ? kindEl.value : null;
   const newTx = {id:nextId('mztx'), muzaribId:id, type, amount:amt,
     date: document.getElementById('mtx_date').value || todayISO(),
     method, note, addedBy: currentUserName};
+  if(kind === 'owed') newTx.kind = 'owed';
   DB.muzaribTx.push(newTx);
   const m = muzarib(id);
   captureUndo({t:'mzTxAdd', id:newTx.id});
@@ -10646,7 +10906,7 @@ function printMuzaribStatement(id){
   <h1>${escapeHtml(DB.bizName||'')}</h1>
   <div class="muted">Muzaribat statement — ${escapeHtml(m.name)} — ${monthLabel(mo)}</div>
   <div class="kpis">
-    <div class="k"><span class="muted">Cash available</span><b>${fmtMoney(p.cash)}</b></div>
+    <div class="k"><span class="muted">Cash owed</span><b>${fmtMoney(p.cash)}</b></div>
     <div class="k"><span class="muted">Value in stock</span><b>${fmtMoney(p.tiedUp)}</b></div>
     <div class="k"><span class="muted">Total position</span><b>${fmtMoney(p.total)}</b></div>
     <div class="k"><span class="muted">Profit this month</span><b>${fmtMoney(s.investor)}</b></div>
