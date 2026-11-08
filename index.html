@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b119</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b120</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -6920,6 +6920,7 @@ function renderTeam(){
       ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openSpendImport()">📒 Enter the spend record</button>`:''}
       ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openMbImport()">🧾 Monib's own costs</button>`:''}
       ${isSuperAdmin() && teamView==='overview' && hsInvestor()?`<button class="btn btn-ghost" onclick="openHsFix()">🧾 Correct Haji Sahib's list</button>`:''}
+      ${isSuperAdmin() && teamView==='overview' && hsInvestor()?`<button class="btn btn-ghost" onclick="openHsRebuild()">🔧 Rebuild Haji Sahib's account</button>`:''}
       ${isSuperAdmin() && teamView==='overview' && ownMoneyRows('Monib').length?`<button class="btn btn-ghost" onclick="openOwnPocketSetup('Monib')">👤 Give Monib his own page</button>`:''}
       ${isManager() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openPersonSpend()">👤 What one person has spent</button>`:''}
       ${isManager() && teamView==='overview'?`<button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>`:''}
@@ -7202,7 +7203,7 @@ function investorCashLedger(id){
   const out = [];
   muzaribTx(id).forEach(t=>{
     const amt = Number(t.amount)||0;
-    if(t.type==='capital')    out.push({date:t.date, what:'Cash in from '+(m.name||'investor'), detail:(t.method||'')+(t.note?' · '+t.note:''), amount:+amt, kind:'in'});
+    if(t.type==='capital')    out.push({date:t.date, what:(t.method==='Paid direct'?'Paid by him direct':'Cash in from '+(m.name||'investor')), detail:(t.method||'')+(t.note?' · '+t.note:''), amount:+amt, kind:'in'});
     if(t.type==='withdrawal') out.push({date:t.date, what:'Paid back to '+(m.name||'investor'), detail:(t.method||'')+(t.note?' · '+t.note:''), amount:-amt, kind:'out'});
     if(t.type==='spend')      out.push({date:t.date, what:'Used for our own costs', detail:t.note||'', amount:-amt, kind:'ours'});
     if(t.type==='adjustment') out.push({date:t.date, what:'Adjustment', detail:t.note||'', amount:+amt, kind:'in'});
@@ -9265,6 +9266,137 @@ const HS_LINES = [
 ];
 const HS_ADD = [ {n:'Lights', a:266}, {n:'Ceiling tiles', a:88} ];
 
+/* ---- Rebuilding an investor who paid for things himself -----------------
+   Haji Sahib never handed cash over for the business to spend. He paid the
+   suppliers directly, so the spend list IS what he put in. Recording a
+   separate lump of "cash in" on top of that list counts the same money twice
+   and invents a cash balance that never existed.
+   This puts it right: every payment becomes capital in (paid direct), money
+   that came back to him is deducted, the old-business balance stays, and the
+   car he handed in stays as stock. There is no cash in hand, because no cash
+   ever arrived. */
+function hsRebuildParts(){
+  const m = hsInvestor(); if(!m) return null;
+  const tx = muzaribTx(m.id);
+  const sum = function(l){ return l.reduce(function(s,t){ return s+(Number(t.amount)||0); },0); };
+  const spend = tx.filter(function(t){ return t.type==='spend'; });
+  const done  = spend.filter(function(t){ return !!t.asCapitalId; });
+  const todo  = spend.filter(function(t){ return !t.asCapitalId; });
+  /* Money that came back to him. A positive one has not been corrected yet;
+     a negative one already has, and both must read the same in the preview,
+     or re-opening the form shows a figure that was already applied. */
+  const back    = tx.filter(function(t){ return t.type==='adjustment' && (Number(t.amount)||0) > 0; });
+  const backFix = tx.filter(function(t){ return t.type==='adjustment' && (Number(t.amount)||0) < 0; });
+  const caps  = tx.filter(function(t){ return t.type==='capital' && !t.carInId && !t.fromSpendId; });
+  const cars  = tx.filter(function(t){ return t.type==='capital' && t.carInId; });
+  return {m:m, spend:spend, todo:todo, done:done, back:back, caps:caps, cars:cars,
+          spendTotal: sum(spend), backTotal: sum(back) - sum(backFix),
+          carTotal: sum(cars), sum:sum};
+}
+function hsRebuildPreview(){
+  const p = hsRebuildParts(); if(!p) return;
+  const box = document.getElementById('hr_sum'); if(!box) return;
+  let keep = 0;
+  p.caps.forEach(function(t,i){
+    const sel = document.getElementById('hr_c'+i);
+    if(sel && sel.value === 'old') keep += (Number(t.amount)||0);
+  });
+  const owed = Math.round((p.spendTotal - p.backTotal + keep)*100)/100;
+  box.innerHTML =
+    `<div class="k"><span class="muted">What he paid out</span><b>${fmtMoney(p.spendTotal)}</b></div>
+     <div class="k"><span class="muted">Less what came back to him</span><b>− ${fmtMoney(p.backTotal)}</b></div>
+     <div class="k"><span class="muted">Net from his own spending</span><b>${fmtMoney(p.spendTotal-p.backTotal)}</b></div>
+     <div class="k"><span class="muted">Capital in from the old business</span><b>${fmtMoney(keep)}</b></div>
+     <div class="k" style="border-top:1px solid var(--line);margin-top:5px;padding-top:5px">
+       <span class="muted"><b>Owed to him — to be settled in cars</b></span><b>${fmtMoney(owed)}</b></div>
+     <div class="k"><span class="muted">His car, at what he paid</span><b>${fmtMoney(p.carTotal)}</b></div>
+     <div class="k"><span class="muted">Total position</span><b>${fmtMoney(Math.round((owed+p.carTotal)*100)/100)}</b></div>
+     <div class="k"><span class="muted">Cash in hand</span><b>£0.00</b></div>`;
+}
+function openHsRebuild(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can do this.'); return; }
+  const p = hsRebuildParts();
+  if(!p){ alert('No investor with "Haji" in the name was found.'); return; }
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Rebuild ${escapeHtml(p.m.name)}'s account</h3>
+    <div class="small-muted" style="margin-bottom:12px">He paid the suppliers himself, so his spending <b>is</b> what
+      he put in. Any separate "cash in" on top of it counts the same money twice. Nothing is deleted without you
+      saying so below, and the whole thing can be undone.</div>
+
+    <div class="card" style="box-shadow:none;padding:11px 13px;margin-bottom:11px">
+      <b>His spending becomes capital in</b>
+      <div class="k" style="margin-top:5px"><span class="muted">${p.todo.length} payment${p.todo.length===1?'':'s'}
+        to convert</span><b>${fmtMoney(p.sum(p.todo))}</b></div>
+      ${p.done.length?`<div class="k"><span class="muted">${p.done.length} already converted</span>
+        <b>${fmtMoney(p.sum(p.done))}</b></div>`:''}
+    </div>
+
+    ${p.back.length?`<div class="card" style="box-shadow:none;padding:11px 13px;margin-bottom:11px">
+      <b>Money that came back to him</b>
+      <div class="small-muted" style="margin:3px 0 6px">These are on his record as additions, which makes us owe him
+        more. They came back <i>to</i> him, so they must come off.</div>
+      ${p.back.map(function(t){ return `<div class="k"><span class="muted">${escapeHtml(t.note||'Adjustment')}</span>
+        <b>− ${fmtMoney(Number(t.amount)||0)}</b></div>`; }).join('')}
+    </div>`:''}
+
+    ${p.caps.length?`<div class="card" style="box-shadow:none;padding:11px 13px;margin-bottom:11px">
+      <b>What is each of these?</b>
+      <div class="small-muted" style="margin:3px 0 7px">These are the lump "capital in" entries on his record.</div>
+      ${p.caps.map(function(t,i){ return `<div style="margin-top:7px">
+        <div class="k"><span class="muted">${escapeHtml(t.note||t.method||'Capital in')}
+          · ${fmtDate(t.date)}</span><b>${fmtMoney(Number(t.amount)||0)}</b></div>
+        <select id="hr_c${i}" onchange="hsRebuildPreview()" style="width:100%;margin-top:3px">
+          <option value="old">Capital in from the old business — keep it</option>
+          <option value="drop">The same money as his spending — remove it</option>
+          <option value="leave">Leave it exactly as it is</option>
+        </select></div>`; }).join('')}
+    </div>`:''}
+
+    <div class="card" style="box-shadow:none;padding:11px 13px" id="hr_sum"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runHsRebuild()">Rebuild his account</button></div>`);
+  hsRebuildPreview();
+}
+function runHsRebuild(){
+  if(!isSuperAdmin()) return;
+  const p = hsRebuildParts(); if(!p) return;
+  captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB))});
+  /* 1. every payment he made becomes capital in, paid direct */
+  p.todo.forEach(function(t){
+    const cap = {id:nextId('mztx'), muzaribId:p.m.id, type:'capital', kind:'owed',
+      amount:Number(t.amount)||0, date:t.date||todayISO(), method:'Paid direct',
+      note:(t.note||'Payment') + ' — he paid this himself', fromSpendId:t.id,
+      addedBy:currentUserName};
+    DB.muzaribTx.push(cap);
+    t.asCapitalId = cap.id;
+  });
+  /* 2. money that came back to him must reduce, not increase, what he is owed */
+  p.back.forEach(function(t){
+    const was = Number(t.amount)||0;
+    t.amount = -was;
+    t.note = (t.note||'Adjustment') + ' — came back to him';
+    logChange('money','Corrected adjustment for', mzRef(p.m), (t.note||''),
+      fmtMoney(was), '− ' + fmtMoney(was), 'money that came back to him');
+  });
+  /* 3. whatever he said about each lump capital entry */
+  const drop = [];
+  p.caps.forEach(function(t,i){
+    const sel = document.getElementById('hr_c'+i);
+    const v = sel ? sel.value : 'old';
+    if(v === 'drop') drop.push(t.id);
+    else if(v === 'old') t.kind = 'owed';
+  });
+  if(drop.length){
+    DB.muzaribTx = DB.muzaribTx.filter(function(t){ return drop.indexOf(t.id) < 0; });
+    logChange('money','Removed duplicate capital for', mzRef(p.m), 'Capital',
+      drop.length + ' entries', '', 'the same money as his own spending');
+  }
+  /* 4. he is settled in cars, and no cash ever arrived */
+  p.m.settleBy = 'stock'; p.m.ownPocket = true;
+  saveDB(); closeModal(); render();
+  const q = muzaribPosition(p.m.id);
+  alert('Done. He is owed ' + fmtMoney(q.cash) + ', with ' + fmtMoney(q.tiedUp) + ' of that already in his car.');
+}
 function hsInvestor(){
   return (DB.muzaribs||[]).find(function(m){ return /haji/i.test(m.name||''); });
 }
