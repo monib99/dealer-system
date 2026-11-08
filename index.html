@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b120</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b122</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -7010,7 +7010,7 @@ function renderTeamOverview(){
   <div class="card" style="padding:0;">
     ${spendShown(myExpenses).length===0?'<div class="empty">Nothing logged for this.</div>':`
     <table><thead><tr><th>Date</th><th>Employee</th><th>Paid from</th><th>Note</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Receipt</th><th>Status</th><th></th></tr></thead><tbody>
-    ${spendShown(myExpenses).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>{
+    ${spendWindowed(spendShown(myExpenses)).map(e=>{
       const notOwed = !!e.muzaribId || e.fundedBy==='company' || e.fundedBy==='float';
       const bal = notOwed ? 0 : expenseBalance(e), status = expenseStatusLabel(e);
       const statusTag = notOwed
@@ -7027,21 +7027,43 @@ function renderTeamOverview(){
         ${(isManager()||e.userEmail===currentUserEmail)?`<button class="btn btn-sm btn-danger" onclick="deleteExpense('${e.id}')">✕</button>`:''}</td>
       </tr>`;
     }).join('')}
-    </tbody></table>`}
+    </tbody></table>${spendMoreBar(spendShown(myExpenses))}`}
   </div>
 
   ${attendanceSection()}
 
   ${isManager() ? `
   <div class="section-title"><h2>Payroll</h2><button class="btn btn-brand btn-sm" onclick="openAddPayroll()">+ Add pay record</button></div>
+  ${(function(){
+    const people = payrollPeople().filter(function(n){ return payOwedTotal(n) > 0.004; });
+    if(!people.length) return '';
+    const total = people.reduce(function(s,n){ return s + payOwedTotal(n); }, 0);
+    return `<div class="card" style="box-shadow:none;padding:14px;margin-bottom:12px;">
+      <b>Salary we still owe</b>
+      <div class="small-muted" style="margin-top:3px">Pay records that were not settled in full. This is what has
+        built up month by month.</div>
+      <table style="margin-top:9px"><tbody>
+        ${people.map(function(n){ const rows = payOwedRows(n); return `<tr>
+          <td>${escapeHtml(n)}</td>
+          <td class="small-muted">${rows.length} month${rows.length===1?'':'s'} · from ${escapeHtml(rows[0].period||'')}</td>
+          <td style="text-align:right;font-weight:700;color:var(--red)">${fmtMoney(payOwedTotal(n))}</td></tr>`; }).join('')}
+        <tr><td colspan="2"><b>Total</b></td>
+          <td style="text-align:right;font-weight:700;color:var(--red)">${fmtMoney(total)}</td></tr>
+      </tbody></table></div>`;
+  })()}
   <div class="card" style="padding:0;">
     ${DB.payroll.length===0?'<div class="empty">No payroll records yet.</div>':`
-    <table><thead><tr><th>Employee</th><th>Period</th><th>Days worked</th><th>Day rate</th><th>Gross pay</th><th>Deductions</th><th>Cash paid</th><th>Bank paid</th><th>Balance</th><th></th></tr></thead><tbody>
-    ${DB.payroll.slice().sort((a,b)=>b.period.localeCompare(a.period)).map(p=>{
-      const gross = Number(p.daysWorked)*Number(p.dayRate);
-      const balance = gross - Number(p.deductions||0) - Number(p.cashPaid||0) - Number(p.bankPaid||0);
-      return `<tr><td>${p.employee}</td><td>${p.period}</td><td>${p.daysWorked}</td><td>${fmtMoney(p.dayRate)}</td><td>${fmtMoney(gross)}</td><td>${fmtMoney(p.deductions)}</td><td>${fmtMoney(p.cashPaid)}</td><td>${fmtMoney(p.bankPaid)}</td>
-      <td style="font-weight:700;color:${balance>0?'var(--red)':'var(--green)'}">${fmtMoney(balance)}</td>
+    <table><thead><tr><th>Employee</th><th>Period</th><th>Days</th><th>Day rate</th><th>Salary</th><th>Commission</th><th>Money back</th><th>Deductions</th><th>Due</th><th>Paid</th><th>Still owed</th><th></th></tr></thead><tbody>
+    ${DB.payroll.slice().sort((a,b)=>String(b.period||'').localeCompare(String(a.period||''))).map(p=>{
+      const balance = payBalance(p);
+      return `<tr><td>${escapeHtml(p.employee||'')}</td><td>${p.period||''}</td><td>${p.daysWorked||0}</td>
+      <td>${fmtMoney(p.dayRate)}</td><td>${fmtMoney(payGross(p))}</td>
+      <td>${payCommission(p) ? fmtMoney(payCommission(p)) + ' <span class="small-muted">' + (p.carsSold||0) + ' × ' + fmtMoney(p.commissionRate) + '</span>' : '—'}</td>
+      <td>${payReimburse(p) ? fmtMoney(payReimburse(p)) : '—'}</td>
+      <td>${payDeductions(p) ? fmtMoney(payDeductions(p)) : '—'}</td>
+      <td><b>${fmtMoney(payDue(p))}</b></td>
+      <td>${fmtMoney(payPaid(p))}</td>
+      <td style="font-weight:700;color:${balance>0.004?'var(--red)':'var(--green)'}">${balance>0.004?fmtMoney(balance):'settled'}</td>
       <td><button class="btn btn-sm btn-danger" onclick="deletePayroll('${p.id}')">✕</button></td></tr>`;
     }).join('')}
     </tbody></table>`}
@@ -7049,12 +7071,15 @@ function renderTeamOverview(){
   <div class="section-title"><h2>My pay history</h2></div>
   <div class="card" style="padding:0;">
     ${myPayroll.length===0?'<div class="empty">No pay records yet — your manager adds these.</div>':`
-    <table><thead><tr><th>Period</th><th>Days worked</th><th>Day rate</th><th>Gross pay</th><th>Balance</th></tr></thead><tbody>
-    ${myPayroll.slice().sort((a,b)=>b.period.localeCompare(a.period)).map(p=>{
-      const gross = Number(p.daysWorked)*Number(p.dayRate);
-      const balance = gross - Number(p.deductions||0) - Number(p.cashPaid||0) - Number(p.bankPaid||0);
-      return `<tr><td>${p.period}</td><td>${p.daysWorked}</td><td>${fmtMoney(p.dayRate)}</td><td>${fmtMoney(gross)}</td>
-      <td style="font-weight:700;color:${balance>0?'var(--red)':'var(--green)'}">${fmtMoney(balance)}</td></tr>`;
+    <table><thead><tr><th>Period</th><th>Days</th><th>Day rate</th><th>Salary</th><th>Commission</th><th>Money back</th><th>Due</th><th>Paid</th><th>Still owed</th></tr></thead><tbody>
+    ${myPayroll.slice().sort((a,b)=>String(b.period||'').localeCompare(String(a.period||''))).map(p=>{
+      const balance = payBalance(p);
+      return `<tr><td>${p.period||''}</td><td>${p.daysWorked||0}</td><td>${fmtMoney(p.dayRate)}</td>
+      <td>${fmtMoney(payGross(p))}</td>
+      <td>${payCommission(p)?fmtMoney(payCommission(p)):'—'}</td>
+      <td>${payReimburse(p)?fmtMoney(payReimburse(p)):'—'}</td>
+      <td><b>${fmtMoney(payDue(p))}</b></td><td>${fmtMoney(payPaid(p))}</td>
+      <td style="font-weight:700;color:${balance>0.004?'var(--red)':'var(--green)'}">${balance>0.004?fmtMoney(balance):'settled'}</td></tr>`;
     }).join('')}
     </tbody></table>`}
   </div>`}
@@ -7436,6 +7461,35 @@ function saveCashIn(){
   saveDB(); closeModal(); render();
 }
 /* The filter row, with what is left in whichever pot is selected. */
+/* ---- Keeping the spend list short --------------------------------------
+   The list runs to hundreds of rows, and scrolling to the bottom of it to
+   reach anything is painful. Show the last fortnight, then open it up a
+   fortnight at a time on request. The filter chips and the totals above still
+   cover everything, so narrowing the view never hides money. */
+let spendDays = 14;
+function spendWindowed(list){
+  const all = (list||[]).slice().sort(function(a,b){
+    return String(b.date||'').localeCompare(String(a.date||'')); });
+  if(spendDays === 0) return all;                      // 0 means show the lot
+  const cut = new Date(Date.now() - spendDays*86400000).toISOString().slice(0,10);
+  const inWindow = all.filter(function(e){ return String(e.date||'') >= cut; });
+  /* An empty fortnight would look like no records at all, so never show
+     nothing when there is something older to see. */
+  return inWindow.length ? inWindow : all.slice(0, 20);
+}
+function spendMoreBar(list){
+  const all = (list||[]).length;
+  const shown = spendWindowed(list).length;
+  if(shown >= all) return spendDays === 0 && all > 40
+    ? `<div style="padding:11px 13px;text-align:center;border-top:1px solid var(--line)">
+         <button class="btn btn-sm btn-ghost" onclick="spendDays=14;render()">Show just the last 14 days</button></div>`
+    : '';
+  return `<div style="padding:11px 13px;text-align:center;border-top:1px solid var(--line)">
+      <span class="small-muted">Showing the last ${spendDays} days — ${shown} of ${all}</span><br>
+      <button class="btn btn-sm btn-ghost" style="margin-top:6px" onclick="spendDays+=14;render()">See more</button>
+      <button class="btn btn-sm btn-ghost" style="margin-top:6px" onclick="spendDays=0;render()">Show all ${all}</button>
+    </div>`;
+}
 function spendSourceChips(list){
   const chips = [['all','Everything']];
   const have = new Set(list.map(expenseSourceKey));
@@ -7444,7 +7498,11 @@ function spendSourceChips(list){
   if(have.has('company')||spendSource==='company') chips.push(['company','Company']);
   muzaribs().forEach(m=>{
     const k='mz:'+m.id, p=muzaribPosition(m.id);
-    if(have.has(k) || p.capital>0) chips.push([k, m.name+' · '+fmtMoney(p.cashInHand)+' left']);
+    /* An investor whose capital never arrived as cash has nothing left to
+       spend, whatever the arithmetic on his balance says. Saying "x left"
+       there invites someone to spend money that was never there. */
+    const label = p.noCash ? 'no cash' : fmtMoney(p.cashInHand)+' left';
+    if(have.has(k) || p.capital>0) chips.push([k, m.name+' · '+label]);
   });
   return `<div class="chip-row" style="margin:0 0 10px;">
     ${chips.map(([k,l])=>`<div class="chip ${spendSource===k?'active':''}" onclick="spendSource='${k}';render()">${escapeHtml(l)}</div>`).join('')}
@@ -7459,7 +7517,8 @@ function spendSourceSummary(list){
     <strong>${escapeHtml(m.name)}</strong> &mdash; handed over ${fmtMoney(p.capital)} ·
     ${fmtMoney(spent)} spent on the ${list.length} item${list.length===1?'':'s'} below ·
     ${fmtMoney(p.tiedUp)} turned into his stock ·
-    <strong style="color:${p.cashInHand<0?'var(--red)':'var(--green)'}">${fmtMoney(p.cashInHand)} left in hand</strong>
+    <strong style="color:${p.noCash?'var(--muted)':(p.cashInHand<0?'var(--red)':'var(--green)')}">${
+      p.noCash ? 'no cash of his to spend' : fmtMoney(p.cashInHand)+' left in hand'}</strong>
     <button class="btn btn-sm btn-ghost" style="margin-left:8px" onclick="openInvestorCashRecord('${m.id}')">Full cash record</button>
   </div>`;
 }
@@ -7748,6 +7807,56 @@ function openIssuePhoto(vId, issueId){
   const url = getPhotoUrl(i.photoId); if(url) window.open(url);
 }
 
+/* ---- What a pay record actually comes to -------------------------------
+   Pay is no longer just days x rate. Someone may earn commission on the cars
+   he sold, and may be getting back money he spent on the business out of his
+   own pocket. He may also be paid only part of it, with the rest carried as
+   salary we still owe - which is the position with Zack and Moneeb. */
+function payGross(p){ return (Number(p.daysWorked)||0) * (Number(p.dayRate)||0); }
+function payCommission(p){ return (Number(p.carsSold)||0) * (Number(p.commissionRate)||0); }
+function payReimburse(p){ return Number(p.reimbursement)||0; }
+function payDeductions(p){ return Number(p.deductions)||0; }
+function payDue(p){
+  return Math.round((payGross(p) + payCommission(p) + payReimburse(p) - payDeductions(p))*100)/100;
+}
+function payPaid(p){ return (Number(p.cashPaid)||0) + (Number(p.bankPaid)||0); }
+function payBalance(p){ return Math.round((payDue(p) - payPaid(p))*100)/100; }
+/* Salary still owed to one person across every month, oldest first. The
+   figure he needs when he is paying commission now and the basic later. */
+function payOwedRows(name){
+  return (DB.payroll||[]).filter(function(p){
+    return sameName(p.employee, name) && payBalance(p) > 0.004;
+  }).sort(function(a,b){ return String(a.period||'').localeCompare(String(b.period||'')); });
+}
+function payOwedTotal(name){
+  return payOwedRows(name).reduce(function(s,p){ return s + payBalance(p); }, 0);
+}
+function payrollPeople(){
+  const seen = {};
+  (DB.payroll||[]).forEach(function(p){ if(p.employee) seen[canonName(p.employee)] = 1; });
+  return Object.keys(seen).sort();
+}
+/* Live total on the add-pay form, so part payment is never a guess. */
+function payFormCalc(){
+  const v = function(id){ return Number((document.getElementById(id)||{value:0}).value)||0; };
+  const gross = v('p_days') * v('p_rate');
+  const comm  = v('p_cars') * v('p_comm');
+  const reim  = v('p_reim');
+  const due   = Math.round((gross + comm + reim - v('p_ded'))*100)/100;
+  const paid  = v('p_cash') + v('p_bank');
+  const bal   = Math.round((due - paid)*100)/100;
+  const box = document.getElementById('p_sum'); if(!box) return;
+  box.innerHTML =
+    `<div class="k"><span class="muted">Salary · ${v('p_days')} days at ${fmtMoney(v('p_rate'))}</span><b>${fmtMoney(gross)}</b></div>` +
+    (comm ? `<div class="k"><span class="muted">Commission · ${v('p_cars')} car${v('p_cars')===1?'':'s'} at ${fmtMoney(v('p_comm'))}</span><b>${fmtMoney(comm)}</b></div>`:'') +
+    (reim ? `<div class="k"><span class="muted">Money back for what he spent</span><b>${fmtMoney(reim)}</b></div>`:'') +
+    (v('p_ded') ? `<div class="k"><span class="muted">Less deductions / advances</span><b>− ${fmtMoney(v('p_ded'))}</b></div>`:'') +
+    `<div class="k" style="border-top:1px solid var(--line);margin-top:5px;padding-top:5px">
+       <span class="muted"><b>Total due</b></span><b>${fmtMoney(due)}</b></div>
+     <div class="k"><span class="muted">Being paid now</span><b>${fmtMoney(paid)}</b></div>
+     <div class="k"><span class="muted"><b>${bal > 0.004 ? 'Still owed to him' : (bal < -0.004 ? 'Overpaid' : 'Settled in full')}</b></span>
+       <b style="color:${bal > 0.004 ? 'var(--red)' : 'var(--green)'}">${fmtMoney(Math.abs(bal))}</b></div>`;
+}
 function openAddPayroll(){
   if(!isManager()) return;
   const thisMonth = todayISO().slice(0,7);
@@ -7757,27 +7866,83 @@ function openAddPayroll(){
       <div class="field"><label>Period (month)</label><input id="p_period" type="month" value="${thisMonth}"/></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Days worked</label><input id="p_days" type="number"/></div>
-      <div class="field"><label>Day rate (£)</label><input id="p_rate" type="number" value="${(DB.team[0]||{}).dayRate||0}"/></div>
-      <div class="field"><label>Deductions / advances (£)</label><input id="p_ded" type="number" value="0"/></div>
+      <div class="field"><label>Days worked</label><input id="p_days" type="number" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Day rate (£)</label><input id="p_rate" type="number" value="${(DB.team[0]||{}).dayRate||0}" oninput="payFormCalc()"/></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Cash paid (£)</label><input id="p_cash" type="number" value="0"/></div>
-      <div class="field"><label>Bank paid (£)</label><input id="p_bank" type="number" value="0"/></div>
+      <div class="field"><label>Cars sold</label><input id="p_cars" type="number" value="0" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Commission per car (£)</label><input id="p_comm" type="number" value="0" oninput="payFormCalc()"/></div>
     </div>
+    <div class="field"><label>Money back for what he spent (£)</label>
+      <input id="p_reim" type="number" value="0" oninput="payFormCalc()"/>
+      <div class="small-muted" id="p_reim_hint" style="margin-top:4px"></div>
+      <label style="display:block;margin-top:5px"><input type="checkbox" id="p_reim_mark" checked>
+        Also mark his receipts as paid back, oldest first</label></div>
+    <div class="field-row">
+      <div class="field"><label>Deductions / advances (£)</label><input id="p_ded" type="number" value="0" oninput="payFormCalc()"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Cash paid (£)</label><input id="p_cash" type="number" value="0" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Bank paid (£)</label><input id="p_bank" type="number" value="0" oninput="payFormCalc()"/></div>
+    </div>
+    <div class="small-muted" style="margin:2px 0 8px">Leave these at zero, or pay part — whatever is left shows below
+      as still owed and carries forward.</div>
+    <div class="card" style="box-shadow:none;padding:11px 13px" id="p_sum"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="savePayroll()">Save</button></div>`);
+  prefillRate();
 }
-function prefillRate(){ const sel=document.getElementById('p_emp'); document.getElementById('p_rate').value = sel.selectedOptions[0].dataset.rate||0; }
+function prefillRate(){
+  const sel = document.getElementById('p_emp'); if(!sel) return;
+  const r = document.getElementById('p_rate'); if(r) r.value = sel.selectedOptions[0].dataset.rate||0;
+  const name = sel.value;
+  const hint = document.getElementById('p_reim_hint');
+  if(hint){
+    const owed = typeof staffOwedTotal==='function' ? staffOwedTotal(name) : 0;
+    const back = payOwedTotal(name);
+    hint.innerHTML = (owed > 0.004
+        ? 'He is owed <b>' + fmtMoney(owed) + '</b> for things he bought out of his own pocket.'
+        : 'Nothing outstanding from his own receipts.')
+      + (back > 0.004 ? '<br>Salary still owed from earlier months: <b>' + fmtMoney(back) + '</b>.' : '');
+  }
+  payFormCalc();
+}
 function savePayroll(){
   if(!isManager()) return;
   const sel = document.getElementById('p_emp');
   const employee = sel.value; if(!employee){alert('Add a team member first');return;}
   const userEmail = sel.selectedOptions[0].dataset.email || null;
-  const rec = {id:nextId('pay'), employee, userEmail, period:document.getElementById('p_period').value, daysWorked:Number(document.getElementById('p_days').value)||0, dayRate:Number(document.getElementById('p_rate').value)||0, deductions:Number(document.getElementById('p_ded').value)||0, cashPaid:Number(document.getElementById('p_cash').value)||0, bankPaid:Number(document.getElementById('p_bank').value)||0};
+  const num = function(id){ return Number((document.getElementById(id)||{value:0}).value)||0; };
+  const rec = {id:nextId('pay'), employee, userEmail,
+    period: document.getElementById('p_period').value,
+    daysWorked: num('p_days'), dayRate: num('p_rate'),
+    carsSold: num('p_cars'), commissionRate: num('p_comm'),
+    reimbursement: num('p_reim'), deductions: num('p_ded'),
+    cashPaid: num('p_cash'), bankPaid: num('p_bank')};
   DB.payroll.push(rec);
+  /* Paying him back for his own receipts has to settle those receipts too, or
+     the same debt sits in the pay record and in the Owed-by-employee table. */
+  const mark = document.getElementById('p_reim_mark');
+  if(rec.reimbursement > 0.004 && mark && mark.checked && typeof bulkPlan === 'function'){
+    const plan = bulkPlan(employee, rec.reimbursement);
+    let used = 0;
+    plan.forEach(function(r){
+      if(r.take <= 0.004) return;
+      r.e.payments = r.e.payments || [];
+      r.e.payments.push({date: todayISO(), amount: r.take, method:'Payroll',
+                         batch: rec.id, viaPayroll:true});
+      r.e.paidAmount = (Number(r.e.paidAmount)||0) + r.take;
+      r.e.status = r.clears ? 'paid' : 'partial';
+      used += r.take;
+    });
+    if(used > 0.004) rec.reimbursedReceipts = Math.round(used*100)/100;
+  }
   logChange('money','Added payroll for', {id:rec.id, label:employee}, 'Paid', '',
-    fmtMoney((rec.cashPaid||0)+(rec.bankPaid||0)),
-    rec.period + ' · ' + rec.daysWorked + ' days' + (rec.deductions?' · deductions '+fmtMoney(rec.deductions):''));
+    fmtMoney(payPaid(rec)),
+    rec.period + ' · ' + rec.daysWorked + ' days'
+      + (payCommission(rec) ? ' · commission ' + fmtMoney(payCommission(rec)) + ' on ' + rec.carsSold + ' cars' : '')
+      + (rec.reimbursement ? ' · money back ' + fmtMoney(rec.reimbursement) : '')
+      + (rec.deductions ? ' · deductions ' + fmtMoney(rec.deductions) : '')
+      + ' · still owed ' + fmtMoney(payBalance(rec)));
   saveDB(); closeModal(); render();
 }
 function deletePayroll(id){
@@ -9311,7 +9476,12 @@ function hsRebuildPreview(){
        <span class="muted"><b>Owed to him — to be settled in cars</b></span><b>${fmtMoney(owed)}</b></div>
      <div class="k"><span class="muted">His car, at what he paid</span><b>${fmtMoney(p.carTotal)}</b></div>
      <div class="k"><span class="muted">Total position</span><b>${fmtMoney(Math.round((owed+p.carTotal)*100)/100)}</b></div>
-     <div class="k"><span class="muted">Cash in hand</span><b>£0.00</b></div>`;
+     <div class="k"><span class="muted">Cash in hand</span><b>£0.00</b></div>` +
+    (keep >= (p.spendTotal - p.backTotal) - 1
+      ? `<div class="small-muted" style="margin-top:7px;color:var(--red)">
+          <b>Check this.</b> The old-business figure is as big as his whole spending list. If one of the entries above
+          is really the same money as his spending, set it to <b>remove it</b> — otherwise the list is counted twice.
+         </div>` : '');
 }
 function openHsRebuild(){
   if(!isSuperAdmin()){ alert('Only a Super Admin can do this.'); return; }
@@ -9342,12 +9512,22 @@ function openHsRebuild(){
     ${p.caps.length?`<div class="card" style="box-shadow:none;padding:11px 13px;margin-bottom:11px">
       <b>What is each of these?</b>
       <div class="small-muted" style="margin:3px 0 7px">These are the lump "capital in" entries on his record.</div>
-      ${p.caps.map(function(t,i){ return `<div style="margin-top:7px">
+      ${p.caps.map(function(t,i){
+        const amt = Number(t.amount)||0;
+        /* An entry that comes to the same as his spending IS his spending,
+           written down a second time. Keeping it would count the list twice,
+           so that is never the safe default. */
+        const dup = Math.abs(amt - p.spendTotal) < 1
+                 || Math.abs(amt - (p.spendTotal - p.backTotal)) < 1
+                 || /spent on the business|his spending|spend list/i.test(t.note||'');
+        return `<div style="margin-top:7px">
         <div class="k"><span class="muted">${escapeHtml(t.note||t.method||'Capital in')}
-          · ${fmtDate(t.date)}</span><b>${fmtMoney(Number(t.amount)||0)}</b></div>
+          · ${fmtDate(t.date)}</span><b>${fmtMoney(amt)}</b></div>
+        ${dup?`<div class="small-muted" style="color:var(--amber);margin-top:2px">
+          This comes to the same as his spending — almost certainly the same money written down twice.</div>`:''}
         <select id="hr_c${i}" onchange="hsRebuildPreview()" style="width:100%;margin-top:3px">
-          <option value="old">Capital in from the old business — keep it</option>
-          <option value="drop">The same money as his spending — remove it</option>
+          <option value="drop" ${dup?'selected':''}>The same money as his spending — remove it</option>
+          <option value="old" ${dup?'':'selected'}>Capital in from the old business — keep it</option>
           <option value="leave">Leave it exactly as it is</option>
         </select></div>`; }).join('')}
     </div>`:''}
