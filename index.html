@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b130</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b133</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -6677,7 +6677,7 @@ function hsNet(){ return hsOut() - hsIn(); }
    recorded, so every line is checked against what is on the system before
    anything is written.
    =========================================================================== */
-const MB_SPEND = [{"n": "Coffee table", "a": 15.0, "g": "Furniture", "d": ""}, {"n": "Chairs", "a": 40.0, "g": "Furniture", "d": ""}, {"n": "Golf injectors — Mirwais", "a": 60.0, "g": "Garage", "d": ""}, {"n": "Fuel — Mirwais", "a": 10.0, "g": "Fuel & travel", "d": ""}, {"n": "EE dongle bills, 9 months", "a": 328.5, "g": "Running costs", "d": ""}, {"n": "Window regulator — Nissan Juke", "a": 35.0, "g": "Parts", "d": ""}, {"n": "Wing mirror — Astra", "a": 35.0, "g": "Parts", "d": ""}, {"n": "Jumah wages — Abdurrahman's friend", "a": 100.0, "g": "Wages", "d": ""}, {"n": "Abdurrahman", "a": 60.0, "g": "Abdurrahman", "d": ""}, {"n": "Cash to Mirwais for garage expenses", "a": 307.0, "g": "Garage", "d": ""}, {"n": "Head & valve skimming — orange Mokka", "a": 180.0, "g": "Garage", "d": ""}, {"n": "Fuel filter housing — Astra SL66", "a": 100.0, "g": "Parts", "d": ""}, {"n": "Abdurrahman for gloves", "a": 40.0, "g": "Abdurrahman", "d": ""}, {"n": "Abdurrahman", "a": 500.0, "g": "Abdurrahman", "d": "2026-08-18"}, {"n": "Electrician — Mini Cooper", "a": 150.0, "g": "Garage", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 500.0, "g": "Autofix loan", "d": "2026-08-18"}, {"n": "Loan to Autofix, by bank", "a": 50.0, "g": "Autofix loan", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 100.0, "g": "Autofix loan", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 100.0, "g": "Autofix loan", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 50.0, "g": "Autofix loan", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 100.0, "g": "Autofix loan", "d": ""}, {"n": "Loan from Maxx Discount", "a": 500.0, "g": "Maxx loan", "d": ""}, {"n": "Loan from Maxx Discount", "a": 192.0, "g": "Maxx loan", "d": ""}, {"n": "Loan from Maxx Discount, additional", "a": 500.0, "g": "Maxx loan", "d": ""}, {"n": "Engine Corsa + piston and rings, cash", "a": 580.0, "g": "Garage", "d": ""}, {"n": "Muzammil — 13 hours", "a": 100.0, "g": "Wages", "d": ""}, {"n": "Musawwir — 7 hours", "a": 50.0, "g": "Wages", "d": ""}, {"n": "Musawwir — previous balance", "a": 178.77, "g": "Wages", "d": ""}, {"n": "DS3 — remap, MOT and CV boot", "a": 350.0, "g": "Garage", "d": ""}, {"n": "DS3 — timing belt", "a": 120.0, "g": "Garage", "d": ""}, {"n": "Mirwais tickets", "a": 499.0, "g": "Mirwais", "d": ""}, {"n": "Fuel — DS3", "a": 15.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — DS3", "a": 30.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — Suzuki Vitara (PX car)", "a": 25.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — Qashqai 64", "a": 20.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — Mercedes-Benz", "a": 20.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — gallons, 2 at £10", "a": 20.0, "g": "Fuel & travel", "d": ""}, {"n": "Uber — Abdurrahman", "a": 18.0, "g": "Fuel & travel", "d": ""}, {"n": "Uber — Mirwais", "a": 44.0, "g": "Fuel & travel", "d": "2026-09-04"}, {"n": "Uber — Mirwais", "a": 35.96, "g": "Fuel & travel", "d": "2026-09-04"}, {"n": "Ford Fiesta for Mirwais", "a": 300.0, "g": "Mirwais", "d": ""}];
+const MB_SPEND = [{"n": "Coffee table", "a": 15.0, "g": "Furniture", "d": ""}, {"n": "Chairs", "a": 40.0, "g": "Furniture", "d": ""}, {"n": "Golf injectors — Mirwais", "a": 60.0, "g": "Garage", "d": ""}, {"n": "Fuel — Mirwais", "a": 10.0, "g": "Fuel & travel", "d": ""}, {"n": "EE dongle bills, 9 months", "a": 328.5, "g": "Running costs", "d": ""}, {"n": "Window regulator — Nissan Juke", "a": 35.0, "g": "Parts", "d": ""}, {"n": "Wing mirror — Astra", "a": 35.0, "g": "Parts", "d": ""}, {"n": "Jumah wages — Abdurrahman's friend", "a": 100.0, "g": "Wages", "d": ""}, {"n": "Abdurrahman", "a": 60.0, "g": "Abdurrahman", "d": ""}, {"n": "Cash to Mirwais for garage expenses", "a": 307.0, "g": "Garage", "d": ""}, {"n": "Head & valve skimming — orange Mokka", "a": 180.0, "g": "Garage", "d": ""}, {"n": "Fuel filter housing — Astra SL66", "a": 100.0, "g": "Parts", "d": ""}, {"n": "Abdurrahman for gloves", "a": 40.0, "g": "Abdurrahman", "d": ""}, {"n": "Abdurrahman", "a": 500.0, "g": "Abdurrahman", "d": "2026-08-18"}, {"n": "Electrician — Mini Cooper", "a": 150.0, "g": "Garage", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 500.0, "g": "Autofix loan", "d": "2026-08-18"}, {"n": "Loan to Autofix, by bank", "a": 50.0, "g": "Autofix loan", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 100.0, "g": "Autofix loan", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 100.0, "g": "Autofix loan", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 50.0, "g": "Autofix loan", "d": ""}, {"n": "Bodywork — DC15 and HY10", "a": 620.0, "g": "Garage", "d": ""}, {"n": "Loan to Autofix, by bank", "a": 100.0, "g": "Autofix loan", "d": ""}, {"n": "Loan from Maxx Discount", "a": 500.0, "g": "Maxx loan", "d": ""}, {"n": "Loan from Maxx Discount", "a": 192.0, "g": "Maxx loan", "d": ""}, {"n": "Loan from Maxx Discount, additional", "a": 500.0, "g": "Maxx loan", "d": ""}, {"n": "Engine Corsa + piston and rings, cash", "a": 580.0, "g": "Garage", "d": ""}, {"n": "Muzammil — 13 hours", "a": 100.0, "g": "Wages", "d": ""}, {"n": "Musawwir — 7 hours", "a": 50.0, "g": "Wages", "d": ""}, {"n": "Musawwir — previous balance", "a": 178.77, "g": "Wages", "d": ""}, {"n": "DS3 — remap, MOT and CV boot", "a": 350.0, "g": "Garage", "d": ""}, {"n": "DS3 — timing belt", "a": 120.0, "g": "Garage", "d": ""}, {"n": "Mirwais tickets", "a": 499.0, "g": "Mirwais", "d": ""}, {"n": "Fuel — DS3", "a": 15.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — DS3", "a": 30.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — Suzuki Vitara (PX car)", "a": 25.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — Qashqai 64", "a": 20.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — Mercedes-Benz", "a": 20.0, "g": "Fuel & travel", "d": ""}, {"n": "Fuel — gallons, 2 at £10", "a": 20.0, "g": "Fuel & travel", "d": ""}, {"n": "Uber — Abdurrahman", "a": 18.0, "g": "Fuel & travel", "d": ""}, {"n": "Uber — Mirwais", "a": 44.0, "g": "Fuel & travel", "d": "2026-09-04"}, {"n": "Uber — Mirwais", "a": 35.96, "g": "Fuel & travel", "d": "2026-09-04"}, {"n": "Ford Fiesta for Mirwais", "a": 300.0, "g": "Mirwais", "d": ""}];
 const MB_CUTOFF = '2026-09-13';
 
 function mbKey(t){ return String(t||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
@@ -11634,9 +11634,42 @@ function printMuzaribStatement(id){
   ${s.sold.length?`<table><thead><tr><th>Vehicle</th><th>Cost</th><th>Sold for</th><th>Gross</th><th>Admin</th><th>Net</th><th>Your share</th></tr></thead>
   <tbody>${rows}<tr><td colspan="6"><b>Total to you</b></td><td><b>${fmtMoney(s.investor)}</b></td></tr></tbody></table>`:'<p>No cars sold in this period.</p>'}
   <h3>Cars currently funded</h3>
-  ${p.unsold.length?`<table><thead><tr><th>Vehicle</th><th>Status</th><th>Invested</th></tr></thead><tbody>
-  ${p.unsold.map(v=>`<tr><td>${escapeHtml(v.reg)} — ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}</td><td>${statusLabel(v.status)}</td><td>${fmtMoney(vehicleCostTotal(v))}</td></tr>`).join('')}
+  ${p.unsold.length?`<table><thead><tr><th>Vehicle</th><th>Status</th><th>His share</th></tr></thead><tbody>
+  ${p.unsold.map(v=>`<tr><td>${escapeHtml(v.reg)} — ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}</td><td>${statusLabel(v.status)}</td><td>${fmtMoney(vehicleInvestorCost(v))}</td></tr>`).join('')}
   </tbody></table>`:'<p>No cars currently funded.</p>'}
+
+  ${(function(){
+    /* How the balance is made up. Payments he made himself are rolled into one
+       line rather than listed as dozens of entries - the detail lives on the
+       internal sheet, not on his statement. */
+    const b = owedBreakdown(id);
+    return `<h3>Cash movements</h3>
+    <table><thead><tr><th>What</th><th style="text-align:right">Amount</th></tr></thead><tbody>
+      ${b.rows.map(function(r){ return `<tr><td>${r.l}${r.n?`<div class="muted" style="font-size:11px">${r.n}</div>`:''}</td>
+        <td style="text-align:right;font-weight:700${r.v<0?';color:#a11':''}">${(r.v<0?'− ':'')+fmtMoney(Math.abs(r.v))}</td></tr>`; }).join('')}
+      <tr><td><b>Balance owed to him</b></td>
+        <td style="text-align:right;font-weight:700">${fmtMoney(b.total)}</td></tr>
+    </tbody></table>`;
+  })()}
+
+  ${(function(){
+    const inMonth = muzaribVisibleTx(id).filter(function(t){ return String(t.date||'').slice(0,7) === mo; })
+      .sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
+    if(!inMonth.length) return '<h3>Movements in ' + monthLabel(mo) + '</h3><p>Nothing moved in this period.</p>';
+    return `<h3>Movements in ${monthLabel(mo)}</h3>
+    <table><thead><tr><th>Date</th><th>Type</th><th>Note</th><th>Method</th>
+      <th style="text-align:right">Amount</th></tr></thead><tbody>
+      ${inMonth.map(function(t){
+        const amt = Number(t.amount)||0;
+        /* A withdrawal is money out, and so is a negative adjustment - money
+           that came back to him. Both must read as deductions here, or this
+           table disagrees with the summary above it. */
+        const out = t.type==='withdrawal' || amt < 0;
+        return `<tr><td>${fmtDate(t.date)}</td><td>${(MZ_TX_TYPES[t.type]||{}).label||t.type}</td>
+        <td>${escapeHtml(t.note||'')}</td><td>${escapeHtml(t.method||'—')}</td>
+        <td style="text-align:right;font-weight:700${out?';color:#a11':''}">${(out?'− ':'')+fmtMoney(Math.abs(amt))}</td></tr>`; }).join('')}
+    </tbody></table>`;
+  })()}
   <p class="muted" style="margin-top:22px;font-size:12px">Gross margin = sale price less purchase and preparation costs. A fixed admin charge of
   ${fmtMoney(m.adminCharge??500)} per vehicle is deducted first; the remaining net margin is split
   ${Number(m.splitPct??50)}% to you and ${100-Number(m.splitPct??50)}% to the company.
