@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b126</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b128</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3691,12 +3691,16 @@ function openCarsBroughtIn(mzId){
     <div class="small-muted" style="margin-bottom:10px">A car bought with his money held here takes his cash down —
       that is right. A car he physically brought in is a contribution, so it should put the same amount on his
       capital and leave his cash where it was. Tick the ones he handed over.</div>
-    <table><thead><tr><th></th><th>Car</th><th>Added</th><th class="num">At cost</th></tr></thead><tbody>
+    <div class="small-muted" style="margin-bottom:7px">For each one he handed in, put what <b>he</b> paid — the
+      price plus any parts or work he paid for himself. What the business spent on it stays out.</div>
+    <table><thead><tr><th></th><th>Car</th><th>Added</th><th class="num">Total in it</th><th class="num">He paid</th></tr></thead><tbody>
     ${list.map(function(v,i){ return `<tr>
       <td><input type="checkbox" id="cbi_${i}" data-v="${v.id}" style="width:17px;height:17px"/></td>
       <td><b>${escapeHtml(v.reg||'')}</b><div class="small-muted">${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}</div></td>
       <td>${v.dateAdded?fmtDate(v.dateAdded):'—'}</td>
-      <td class="num">${fmtMoney(vehicleCostTotal(v))}</td></tr>`; }).join('')}
+      <td class="num">${fmtMoney(vehicleCostTotal(v))}</td>
+      <td class="num"><input type="number" step="0.01" id="cbiamt_${i}" style="width:110px"
+        value="${vehiclePurchasePrice(v)||''}" placeholder="what he paid"/></td></tr>`; }).join('')}
     </tbody></table>
     <div class="small-muted" style="margin-top:10px">Cash in hand now:
       <b style="color:${q.cashInHand<0?'var(--red)':'inherit'}">${fmtMoney(q.cashInHand)}</b>
@@ -3710,10 +3714,13 @@ function runCarsBroughtIn(mzId){
   const m = muzarib(mzId); if(!m) return;
   let n = 0, total = 0;
   [].forEach.call(document.querySelectorAll('[id^="cbi_"]'), function(box){
+    if(box.id.indexOf('cbiamt_') === 0) return;        // the amount field, not the tick
     if(!box.checked || !box.dataset || !box.dataset.v) return;
     const v = (DB.vehicles||[]).find(function(x){ return x.id===box.dataset.v; });
     if(!v || carCapitalTx(v.id, mzId)) return;
-    const tx = addCarCapital(v, mzId);
+    const amtEl = document.getElementById('cbiamt_' + box.id.slice(4));
+    const credit = amtEl && String(amtEl.value).trim() !== '' ? Number(amtEl.value)||0 : undefined;
+    const tx = addCarCapital(v, mzId, null, credit);
     if(tx){ n++; total += tx.amount; }
   });
   if(!n){ alert('Nothing was ticked.'); return; }
@@ -3789,7 +3796,8 @@ function setVehicleOwner(vid, val){
     finish(muzaribName(mzId)); return;
   }
   askCarFunding(v, mzId, function(brought){
-    if(brought) addCarCapital(v, mzId, null, window.__carFundingCredit);
+    if(brought){ addCarCapital(v, mzId, null, window.__carFundingCredit); delete v.boughtWithInvestorCash; }
+    else v.boughtWithInvestorCash = true;
     finish(muzaribName(mzId));
   });
 }
@@ -9408,11 +9416,26 @@ function muzaribTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id); }
    service or bodywork after that was paid out of business money, so it is not
    his and must not inflate what we owe him. */
 function vehicleInvestorCost(v){
+  /* Bought with his cash: every penny in it is his, prep included, because
+     his money paid for all of it. */
+  if(carBoughtWithHisCash(v)) return vehicleCostTotal(v);
   const t = carCapitalTx(v.id);
-  return t ? (Number(t.amount)||0) : vehicleCostTotal(v);
+  if(t) return Number(t.amount)||0;
+  /* No entry says where this car came from. Charging its whole cost against
+     him assumes he handed over cash that was never recorded, which drives his
+     balance below zero and makes it look as though he owes the business. The
+     safe reading is that he brought the car in: credit him the purchase price
+     and leave the prep with whoever paid it. The page says plainly that this
+     has been assumed, so it can be corrected in one click. */
+  return vehiclePurchasePrice(v);
 }
-/* True when this car came in as stock rather than being bought with his cash. */
-function isBroughtInCar(v){ return !!carCapitalTx(v.id); }
+/* True when this car came in as stock rather than being bought with his cash.
+   An unrecorded car is treated the same way until someone says otherwise. */
+function isBroughtInCar(v){ return !!carCapitalTx(v.id) || !carBoughtWithHisCash(v); }
+/* Set the moment someone answers "bought with his money we already hold".
+   Without it a car genuinely bought from his cash looks exactly like one
+   nobody ever recorded, and the two must not be treated the same. */
+function carBoughtWithHisCash(v){ return !!v.boughtWithInvestorCash; }
 
 /* Capital arrives in three different shapes and they are NOT interchangeable:
      cash  - real money handed over. This is what there is to buy cars with.
@@ -9932,11 +9955,11 @@ function muzaribPosition(id){
   const tx = muzaribTx(id);
   const capTx       = tx.filter(t=>t.type==='capital');
   const sumTx       = function(list){ return list.reduce(function(s,t){ return s+(Number(t.amount)||0); },0); };
-  const capital     = sumTx(capTx);
+  const capitalRecorded = sumTx(capTx);
   /* Only the cash slice is money we can actually spend. */
   const capitalCash  = sumTx(capTx.filter(function(t){ return capitalKind(t)==='cash';  }));
   const capitalOwed  = sumTx(capTx.filter(function(t){ return capitalKind(t)==='owed';  }));
-  const capitalStock = sumTx(capTx.filter(function(t){ return capitalKind(t)==='stock'; }));
+  const capitalStockRecorded = sumTx(capTx.filter(function(t){ return capitalKind(t)==='stock'; }));
   const withdrawn   = tx.filter(t=>t.type==='withdrawal').reduce((s,t)=>s+(Number(t.amount)||0),0);
   const spentFor    = tx.filter(t=>t.type==='spend').reduce((s,t)=>s+(Number(t.amount)||0),0);
   const adjustments = tx.filter(t=>t.type==='adjustment').reduce((s,t)=>s+(Number(t.amount)||0),0);
@@ -9946,6 +9969,11 @@ function muzaribPosition(id){
      deducted from what he has left to spend. */
   const tiedUpStock = unsold.filter(isBroughtInCar).reduce((s,v)=>s+vehicleInvestorCost(v),0);
   const tiedUpCash  = tiedUp - tiedUpStock;
+  /* A car with no capital entry is credited to him as a contribution, exactly
+     as a recorded one would be. Without this the deduction above has nothing
+     to balance against and his position goes negative for no real reason. */
+  const unrecorded   = cars.filter(function(v){ return !carCapitalTx(v.id) && !carBoughtWithHisCash(v); });
+  const assumedCapital = unrecorded.reduce(function(s,v){ return s+vehiclePurchasePrice(v); }, 0);
   const scrapLoss= scrapped.reduce((s,v)=>s+vehicleInvestorCost(v),0); // written off
   /* Cars handed back to the supplier. A return is not a sale: no admin charge
      is taken and no profit is split. Whatever did not come back is a straight
@@ -9959,6 +9987,8 @@ function muzaribPosition(id){
 
   /* What he is owed never changes because we spent some of his cash on the
      business — that is settled by giving him stock, so it stays internal. */
+  const capital      = capitalRecorded + assumedCapital;
+  const capitalStock = capitalStockRecorded + assumedCapital;
   const cash = capital + adjustments + profit - withdrawn - tiedUp - scrapLoss - returnLoss;
   const usedByCompany = spentFor;          // internal only
   /* Real spendable cash. Starts from the CASH he handed over - not from a
@@ -9974,6 +10004,7 @@ function muzaribPosition(id){
   return {
     capital, withdrawn, spentFor, usedByCompany, cashInHand,
     capitalCash, capitalOwed, capitalStock, tiedUpStock, tiedUpCash, owedAsStock,
+    capitalRecorded, assumedCapital, unrecorded,
     /* No cash ever came in from him - everything on his book is value carried
        over or a car handed in. There is nothing of his to spend, so the whole
        balance is an obligation to buy him stock. */
@@ -10422,7 +10453,8 @@ function runTransferToInvestor(){
   v.ownerType = 'muzarib'; v.muzaribId = mid;
   closeModal();
   askCarFunding(v, mid, function(brought){
-    if(brought) addCarCapital(v, mid, null, window.__carFundingCredit);
+    if(brought){ addCarCapital(v, mid, null, window.__carFundingCredit); delete v.boughtWithInvestorCash; }
+    else v.boughtWithInvestorCash = true;
     logChange('muzarib','Moved to an investor', vehRef(v), 'Funded by', was, m.name,
       fmtMoney(vehicleCostTotal(v)) + (brought ? ' · car he brought in, added to his capital' : ' · bought with his money'));
     saveDB(); render();
@@ -10788,7 +10820,41 @@ function renderMuzaribProfile(id){
         <td class="small-muted">counted at the purchase price — the company paid the prep and takes it back when the car sells</td></tr>`:''}
     </tbody></table></div>`:''}
 
-  ${p.cash < 0 ? `<div class="overdue-banner"><span>⚠ His cash balance is negative &mdash; more has been spent or withdrawn than this investor has put in. Check the capital entries below.</span></div>`:''}
+  ${(function(){
+      /* Nothing has gone wrong when a car's origin was never recorded - it is
+         simply unknown. Say what has been assumed and make it one click to
+         correct, instead of showing an alarming negative. */
+      if(p.unrecorded && p.unrecorded.length){
+        const n = p.unrecorded.length;
+        return `<div class="card" style="box-shadow:none;padding:13px;margin-bottom:12px;background:var(--amber-dim)">
+          <b>${n === 1 ? 'One car does' : n + ' cars do'} not say where ${n === 1 ? 'it' : 'they'} came from</b>
+          <div class="small-muted" style="margin-top:4px">${n === 1 ? 'It is' : 'They are'} being counted as
+            ${n === 1 ? 'a car he brought in' : 'cars he brought in'}, credited at
+            <b>${fmtMoney(p.assumedCapital)}</b> — the purchase price. If he bought
+            ${n === 1 ? 'it' : 'any of them'} with money of his we were holding, say so and the figure changes.</div>
+          <div style="margin-top:8px"><button class="btn btn-sm btn-ghost" onclick="openCarsBroughtIn('${id}')">
+            Say where ${n === 1 ? 'it' : 'they'} came from</button></div></div>`;
+      }
+      if(p.cash >= 0) return '';
+      const noCap = carsWithoutCapital(id);
+      /* By far the commonest cause: a car he handed in was never recorded as
+         his contribution, so its cost is taken off him with nothing credited
+         back. Saying "check the capital entries" is no help when the entry
+         that is missing is the whole problem. */
+      if(noCap.length){
+        const owed = noCap.reduce(function(s,v){ return s+vehicleCostTotal(v); }, 0);
+        return `<div class="overdue-banner" style="display:block">
+          <div><b>⚠ He is showing as owing the business ${fmtMoney(Math.abs(p.cash))}.</b></div>
+          <div style="margin-top:6px">${noCap.length === 1 ? 'A car on his book does' : noCap.length + ' cars on his book do'}
+            not say where ${noCap.length === 1 ? 'it' : 'they'} came from, so ${fmtMoney(owed)} is being taken off him
+            with nothing put back. If he brought ${noCap.length === 1 ? 'it' : 'them'} in as his investment, say so
+            and ${noCap.length === 1 ? 'it goes' : 'they go'} on as capital instead.</div>
+          <div style="margin-top:8px"><button class="btn btn-sm btn-brand" onclick="openCarsBroughtIn('${id}')">
+            Say which cars he brought in</button></div></div>`;
+      }
+      return `<div class="overdue-banner"><span>⚠ His balance is negative — more has been spent or withdrawn
+        than he has put in. Check the entries below.</span></div>`;
+    })()}
 
   ${(isManager() && p.usedByCompany > 0 && !p.noCash) ? (function(){
     const spend = muzaribTx(id).filter(function(t){ return t.type==='spend'; })
