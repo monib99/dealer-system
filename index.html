@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b118</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b119</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -7585,9 +7585,8 @@ async function saveExpense(){
    investor's cash or the company float was never owed to them.
    =========================================================================== */
 function staffOwedRows(name){
-  const who = String(name||'').trim().toLowerCase();
   return (DB.expenses||[]).filter(function(e){
-    if(String(e.employee||'').trim().toLowerCase() !== who) return false;
+    if(!sameName(e.employee, name)) return false;
     if(e.muzaribId || e.fundedBy === 'float' || e.fundedBy === 'company') return false;
     return expenseBalance(e) > 0.004;
   }).sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
@@ -9399,9 +9398,8 @@ const MONIB_NEW = [
   {n:'Ford Fiesta for Mirwais',     a:300}
 ];
 function ownMoneyRows(name){
-  const who = String(name||'').trim().toLowerCase();
   return (DB.expenses||[]).filter(function(e){
-    return String(e.employee||'').trim().toLowerCase() === who
+    return sameName(e.employee, name)
         && !e.muzaribId && e.fundedBy !== 'float' && e.fundedBy !== 'company';
   });
 }
@@ -9456,6 +9454,12 @@ function openOwnPocketSetup(name){
         <label><input type="checkbox" id="op_n${i}" checked onchange="ownPocketPreview('${escapeAttr(name)}')"> ${escapeHtml(x.n)}</label>
         <b>${fmtMoney(x.a)}</b></div>`; }).join('')}
     </div>`:''}
+    ${(function(){ const v = nameVariantsUsed(name); const keys = Object.keys(v);
+      return keys.length > 1 ? `<div class="card" style="box-shadow:none;padding:11px 13px;margin-bottom:11px">
+        <b>Spelt ${keys.length} different ways on the receipts</b>
+        <div class="small-muted" style="margin:3px 0 6px">All of these are treated as the same person.</div>
+        ${keys.map(function(k){ return `<div class="k"><span class="muted">${escapeHtml(k)}</span>
+          <b>${fmtMoney(v[k])}</b></div>`; }).join('')}</div>` : ''; })()}
     <table><tbody>
       <tr><td>Receipts already logged to him</td><td style="text-align:right"><b>${rows.length}</b></td>
         <td style="text-align:right"><b>${fmtMoney(tot)}</b></td></tr>
@@ -10761,11 +10765,10 @@ function mzReportWindow(title, file, inner, warn){
    already writes itself into Team & Pay, so those rows are skipped here or the
    same payment would be counted twice. --------------------------------------- */
 function personSpendRows(name){
-  const who = String(name||'').trim().toLowerCase();
-  if(!who) return [];
+  if(!nameKey(name)) return [];
   const rows = [];
   (DB.expenses||[]).forEach(function(e){
-    if(String(e.employee||'').trim().toLowerCase() !== who) return;
+    if(!sameName(e.employee, name)) return;
     /* Only money out of their own pocket is owed back. Paying a builder with an
        investor's cash does not make the business owe the person who handed it over. */
     const ownMoney = !e.muzaribId && e.fundedBy !== 'float' && e.fundedBy !== 'company';
@@ -10786,11 +10789,41 @@ function personSpendRows(name){
   return rows;
 }
 
+/* ---- One person, several spellings -------------------------------------
+   The same person gets written down different ways on receipts - Monib,
+   Monibansar, Moneebullah, Moneeb jan. Left alone, his spending splits across
+   several rows and none of them shows what he is really owed. Every lookup by
+   name goes through here so one person stays one person. Add a spelling to the
+   list and it is picked up everywhere at once. */
+const NAME_ALIASES = [
+  ['Monib', ['monib','monibansar','monib ansar','moneeb','moneebullah','moneeb jan',
+             'moneebullah ansar','moneeb ullah','monib ullah','m monib','monib ansari']]
+];
+function nameKey(n){ return String(n||'').trim().toLowerCase().replace(/\s+/g,' '); }
+function canonName(n){
+  const k = nameKey(n);
+  for(let i=0;i<NAME_ALIASES.length;i++){
+    if(NAME_ALIASES[i][1].indexOf(k) >= 0) return NAME_ALIASES[i][0];
+  }
+  return String(n||'').trim();
+}
+function sameName(a,b){ return nameKey(canonName(a)) === nameKey(canonName(b)) && nameKey(a) !== ''; }
+/* Which spellings of this person actually appear on receipts, and how much
+   sits under each - so a merge can be checked before it is trusted. */
+function nameVariantsUsed(name){
+  const out = {};
+  (DB.expenses||[]).forEach(function(e){
+    if(!sameName(e.employee, name)) return;
+    const k = String(e.employee||'').trim() || '(blank)';
+    out[k] = (out[k]||0) + (Number(e.amount)||0);
+  });
+  return out;
+}
 function personNames(){
   const seen = {};
-  (DB.team||[]).forEach(function(t){ if(t.name) seen[t.name] = 1; });
-  (DB.expenses||[]).forEach(function(e){ if(e.employee) seen[e.employee] = 1; });
-  (DB.cashbook||[]).forEach(function(r){ const n = r.who || r.createdBy; if(n) seen[n] = 1; });
+  (DB.team||[]).forEach(function(t){ if(t.name) seen[canonName(t.name)] = 1; });
+  (DB.expenses||[]).forEach(function(e){ if(e.employee) seen[canonName(e.employee)] = 1; });
+  (DB.cashbook||[]).forEach(function(r){ const n = r.who || r.createdBy; if(n) seen[canonName(n)] = 1; });
   return Object.keys(seen).sort();
 }
 
