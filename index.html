@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b125</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b126</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3985,12 +3985,14 @@ function vehicleOverviewTab(v,cost,margin){
                 return (brought
                   ? `He handed this car in. <b>${fmtMoney(his)}</b> of it is his — what he paid himself.
                      The business put in ${fmtMoney(all-his)}, which comes back to the business when it sells.`
-                  : `<b>${fmtMoney(all)}</b> of his money is in this car.`)
+                  : `<b>${fmtMoney(all)}</b> of his money is in this car — recorded as bought with cash he had
+                     here. If he handed this car over instead, say so below so he is credited for it.`)
                   + ` At the asking price of ${fmtMoney(v.askingPrice)}, he would receive about <b>${share}</b>.`;
               })()}
         </div>
-        ${(isSuperAdmin() && isBroughtInCar(v))?`<div style="margin-top:9px">
-          <button class="btn btn-sm btn-ghost" onclick="openCarStake('${v.id}')">Change what he paid</button></div>`:''}
+        ${isSuperAdmin()?`<div style="margin-top:9px">
+          <button class="btn btn-sm ${isBroughtInCar(v)?'btn-ghost':'btn-brand'}" onclick="openCarStake('${v.id}')">${
+            isBroughtInCar(v) ? 'Change what he paid' : 'He brought this car in'}</button></div>`:''}
         </div>`;})():''}
     ${isManager()?retailCheckPanel(v):''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
@@ -10658,15 +10660,19 @@ function renderMuzaribat(){
 function openCarStake(vid){
   if(!isSuperAdmin()){ alert('Only a Super Admin can change this.'); return; }
   const v = (DB.vehicles||[]).find(function(x){ return x.id===vid; }); if(!v) return;
-  const t = carCapitalTx(v.id); if(!t){ alert('This car has no capital entry against an investor.'); return; }
+  if(!v.muzaribId){ alert('This car is not on an investor.'); return; }
+  const t = carCapitalTx(v.id);
   const m = muzarib(v.muzaribId) || {};
   openModal(`<button class="close-x" onclick="closeModal()">✕</button>
     <h3>What did ${escapeHtml(m.name||'he')} pay for ${escapeHtml(v.reg||'this car')}?</h3>
+    ${t?'':`<div class="card" style="box-shadow:none;padding:10px 12px;margin-bottom:10px;background:var(--amber-dim)">
+      Nothing is recorded for this car on his account yet, so none of it is credited to him. Saving this puts it on
+      as a car he handed in.</div>`}
     <div class="small-muted" style="margin-bottom:11px">The price he paid, <b>plus anything else he paid for on it
       himself</b> — a gearbox, parts, work. Not what the business paid: that comes back to the business when the
       car sells.</div>
     <div class="field"><label>What he paid, all in (£)</label>
-      <input id="cs_amt" type="number" step="0.01" value="${Number(t.amount)||0}" oninput="carStakePreview('${v.id}')"/></div>
+      <input id="cs_amt" type="number" step="0.01" value="${t ? (Number(t.amount)||0) : (vehiclePurchasePrice(v)||'')}" oninput="carStakePreview('${v.id}')"/></div>
     <div class="card" style="box-shadow:none;padding:11px 13px;margin-top:10px" id="cs_sum"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-brand" onclick="saveCarStake('${v.id}')">Save</button></div>`);
@@ -10687,14 +10693,22 @@ function carStakePreview(vid){
 function saveCarStake(vid){
   if(!isSuperAdmin()) return;
   const v = (DB.vehicles||[]).find(function(x){ return x.id===vid; }); if(!v) return;
-  const t = carCapitalTx(v.id); if(!t) return;
   const amt = Number((document.getElementById('cs_amt')||{value:0}).value)||0;
   if(amt <= 0){ alert('Enter what he paid for it.'); return; }
-  const was = Number(t.amount)||0;
-  captureUndo({t:'mzTxEdit', id:t.id, before:{amount:was, type:t.type, date:t.date, method:t.method, note:t.note}});
-  t.amount = amt;
-  logChange('muzarib','Changed what he paid for', vehRef(v), 'His stake',
-    fmtMoney(was), fmtMoney(amt), 'the rest was paid by the business');
+  let t = carCapitalTx(v.id);
+  if(!t){
+    captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB))});
+    t = addCarCapital(v, v.muzaribId, v.dateAdded, amt);
+    if(!t){ alert('Could not add it.'); return; }
+    logChange('muzarib','Recorded as brought in', vehRef(v), 'His stake', '', fmtMoney(amt),
+      'the rest was paid by the business');
+  } else {
+    const was = Number(t.amount)||0;
+    captureUndo({t:'mzTxEdit', id:t.id, before:{amount:was, type:t.type, date:t.date, method:t.method, note:t.note}});
+    t.amount = amt;
+    logChange('muzarib','Changed what he paid for', vehRef(v), 'His stake',
+      fmtMoney(was), fmtMoney(amt), 'the rest was paid by the business');
+  }
   saveDB(); closeModal(); render();
 }
 function openCarFundingHelp(){}
