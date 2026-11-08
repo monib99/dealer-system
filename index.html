@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b116</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b118</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -6920,6 +6920,7 @@ function renderTeam(){
       ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openSpendImport()">📒 Enter the spend record</button>`:''}
       ${isSuperAdmin() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openMbImport()">🧾 Monib's own costs</button>`:''}
       ${isSuperAdmin() && teamView==='overview' && hsInvestor()?`<button class="btn btn-ghost" onclick="openHsFix()">🧾 Correct Haji Sahib's list</button>`:''}
+      ${isSuperAdmin() && teamView==='overview' && ownMoneyRows('Monib').length?`<button class="btn btn-ghost" onclick="openOwnPocketSetup('Monib')">👤 Give Monib his own page</button>`:''}
       ${isManager() && teamView==='overview'?`<button class="btn btn-ghost" onclick="openPersonSpend()">👤 What one person has spent</button>`:''}
       ${isManager() && teamView==='overview'?`<button class="btn btn-brand" onclick="openAddTeamMember()">+ Add team member</button>`:''}
     </div>
@@ -9386,6 +9387,147 @@ function markAllCapitalCarried(id){
     'No cash arrived \u2014 settled by buying stock');
   saveDB(); render();
 }
+/* ---- Setting up someone who has been paying out of his own pocket --------
+   Someone like Monib is not funding stock - he has been buying things for the
+   business with his own money. Giving him an investor page puts the whole
+   debt in ONE place: each receipt becomes capital in (no cash arrived, he paid
+   the supplier direct) and stays as the spend, so his page reads "put in X,
+   spent X, owed X". The receipts leave the Owed-by-employee table at the same
+   moment, so the same debt is never counted twice. */
+const MONIB_NEW = [
+  {n:'Ticket for Mirwais',          a:499},
+  {n:'Ford Fiesta for Mirwais',     a:300}
+];
+function ownMoneyRows(name){
+  const who = String(name||'').trim().toLowerCase();
+  return (DB.expenses||[]).filter(function(e){
+    return String(e.employee||'').trim().toLowerCase() === who
+        && !e.muzaribId && e.fundedBy !== 'float' && e.fundedBy !== 'company';
+  });
+}
+function findMuzaribByName(name){
+  const who = String(name||'').trim().toLowerCase();
+  return (DB.muzaribs||[]).find(function(m){ return String(m.name||'').trim().toLowerCase() === who; });
+}
+/* His own stated total, so the page lands on the figure he knows. */
+const OWN_POCKET_TARGET = { 'Monib': 5899.96 };
+
+function ownPocketPlan(name){
+  const rows = ownMoneyRows(name);
+  const tot  = rows.reduce(function(s,e){ return s+(Number(e.amount)||0); },0);
+  let addTot = 0;
+  MONIB_NEW.forEach(function(x,i){
+    const box = document.getElementById('op_n'+i);
+    if(!box || box.checked) addTot += x.a;
+  });
+  const el = document.getElementById('op_target');
+  const target = el && String(el.value).trim() !== '' ? Number(el.value)||0 : null;
+  const base = Math.round((tot + addTot)*100)/100;
+  const gap  = target === null ? 0 : Math.round((target - base)*100)/100;
+  return {rows:rows, tot:tot, addTot:addTot, base:base, target:target, gap:gap};
+}
+function ownPocketPreview(name){
+  const b = document.getElementById('op_sum'); if(!b) return;
+  const p = ownPocketPlan(name);
+  b.innerHTML =
+    `<div class="k"><span class="muted">From receipts</span><b>${fmtMoney(p.base)}</b></div>` +
+    (p.target === null ? '' :
+      `<div class="k"><span class="muted">Balancing line</span><b${p.gap<0?' style="color:var(--red)"':''}>${
+        (p.gap<0?'− ':'')+fmtMoney(Math.abs(p.gap))}</b></div>`) +
+    `<div class="k"><span class="muted">He will be owed</span><b>${fmtMoney(p.target===null?p.base:p.target)}</b></div>` +
+    (p.gap < 0 ? `<div class="small-muted" style="margin-top:5px;color:var(--red)">His receipts already come to more
+       than that total. Check the figure before you apply.</div>` : '');
+}
+function openOwnPocketSetup(name){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can do this.'); return; }
+  const rows = ownMoneyRows(name);
+  const existing = findMuzaribByName(name);
+  const already = existing ? muzaribTx(existing.id).filter(function(t){ return t.type==='capital'; }).length : 0;
+  const tot = rows.reduce(function(s,e){ return s+(Number(e.amount)||0); },0);
+  const addTot = MONIB_NEW.reduce(function(s,x){ return s+x.a; },0);
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Give ${escapeHtml(name)} his own page</h3>
+    <div class="small-muted" style="margin-bottom:12px">Everything he has paid for out of his own pocket moves onto one
+      page, the same shape as an investor's. What he is owed does not change — it just stops being spread
+      across the pay log.</div>
+    ${MONIB_NEW.length ? `<div class="card" style="box-shadow:none;padding:11px 13px;margin-bottom:11px">
+      <b>Two new receipts to add</b>
+      ${MONIB_NEW.map(function(x,i){ return `<div class="k" style="margin-top:5px">
+        <label><input type="checkbox" id="op_n${i}" checked onchange="ownPocketPreview('${escapeAttr(name)}')"> ${escapeHtml(x.n)}</label>
+        <b>${fmtMoney(x.a)}</b></div>`; }).join('')}
+    </div>`:''}
+    <table><tbody>
+      <tr><td>Receipts already logged to him</td><td style="text-align:right"><b>${rows.length}</b></td>
+        <td style="text-align:right"><b>${fmtMoney(tot)}</b></td></tr>
+      <tr><td>New receipts above</td><td style="text-align:right"><b>${MONIB_NEW.length}</b></td>
+        <td style="text-align:right"><b>${fmtMoney(addTot)}</b></td></tr>
+    </tbody></table>
+    <div class="field" style="margin-top:11px"><label>What he should be owed in total (£)</label>
+      <input id="op_target" type="number" step="0.01" value="${OWN_POCKET_TARGET[name]||''}"
+             placeholder="leave blank to just use the receipts" oninput="ownPocketPreview('${escapeAttr(name)}')"/>
+      <div class="small-muted" style="margin-top:4px">His own figure. Anything the receipts do not cover goes on
+        as one clearly-marked balancing line, which you can replace with the real receipts later.</div></div>
+    <div class="card" style="box-shadow:none;padding:11px 13px;margin-top:10px" id="op_sum"></div>
+    ${existing ? `<div class="small-muted" style="margin-top:9px">He already has a page with ${already}
+      capital ${already===1?'entry':'entries'} — this adds to it rather than starting again.</div>`:''}
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="runOwnPocketSetup('${escapeAttr(name)}')">Set him up</button></div>`);
+  ownPocketPreview(name);
+}
+function runOwnPocketSetup(name){
+  if(!isSuperAdmin()) return;
+  captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB))});
+  if(!DB.muzaribs) DB.muzaribs = [];
+  let m = findMuzaribByName(name);
+  if(!m){
+    m = {id:nextId('mz'), name:name, splitPct:50, adminCharge:500, reservePct:0,
+         settleBy:'cash', ownPocket:true, addedBy:currentUserName};
+    DB.muzaribs.push(m);
+    logChange('muzarib','Added', mzRef(m), 'Investor', '', name, 'Paid for things out of his own pocket');
+  } else { m.settleBy = 'cash'; m.ownPocket = true; }
+  /* the two new receipts first, so they move across with the rest */
+  MONIB_NEW.forEach(function(x,i){
+    const box = document.getElementById('op_n'+i);
+    if(box && !box.checked) return;
+    DB.expenses = DB.expenses || [];
+    DB.expenses.push({id:nextId('exp'), employee:name, userEmail:currentUserEmail,
+      date: todayISO(), amount: x.a, note: x.n, fundedBy:'own', muzaribId:null,
+      status:'unpaid', paidAmount:0, payments:[], photoId:null});
+  });
+  const rows = ownMoneyRows(name);
+  if(!DB.muzaribTx) DB.muzaribTx = [];
+  let moved = 0, total = 0;
+  rows.forEach(function(e){
+    const amt = Number(e.amount)||0;
+    DB.muzaribTx.push({id:nextId('mztx'), muzaribId:m.id, type:'capital', kind:'owed',
+      amount: amt, date: e.date || todayISO(), method:'Paid direct',
+      note: (e.note||'Receipt') + ' — paid from his own pocket', expenseId: e.id,
+      addedBy: currentUserName});
+    e.muzaribId = m.id;
+    e.fundedBy  = 'mz:' + m.id;
+    syncExpenseToInvestor(e);
+    moved++; total += amt;
+  });
+  logChange('money','Moved own-pocket receipts onto', mzRef(m), 'Capital', '',
+    fmtMoney(total), moved + ' receipts · settled in cash, not stock');
+  /* Whatever his own total covers beyond the receipts goes on as one line,
+     labelled so nobody later mistakes it for a real receipt. */
+  const el = document.getElementById('op_target');
+  const target = el && String(el.value).trim() !== '' ? Number(el.value)||0 : null;
+  if(target !== null){
+    const gap = Math.round((target - muzaribPosition(m.id).cash)*100)/100;
+    if(Math.abs(gap) > 0.004){
+      DB.muzaribTx.push({id:nextId('mztx'), muzaribId:m.id, type:'capital', kind:'owed',
+        amount: gap, date: todayISO(), method:'Paid direct',
+        note:'Balance to match his own total of ' + fmtMoney(target) + ' — receipts still to be entered',
+        addedBy: currentUserName, balancingLine:true});
+      logChange('money','Balancing line for', mzRef(m), 'Capital', '', fmtMoney(gap),
+        'to match his own total of ' + fmtMoney(target));
+    }
+  }
+  saveDB(); closeModal(); render();
+  alert(name + ' now has his own page. He is owed ' + fmtMoney(muzaribPosition(m.id).cash) + '.');
+}
 function muzaribPosition(id){
   const m = muzarib(id) || {};
   const cars = muzaribCars(id);
@@ -9442,6 +9584,9 @@ function muzaribPosition(id){
        over or a car handed in. There is nothing of his to spend, so the whole
        balance is an obligation to buy him stock. */
     noCash: capital > 0 && capitalCash <= 0.004,
+    /* Settled by buying him cars (the default) or by handing the money back,
+       which is what someone who paid for things out of his own pocket is owed. */
+    payBack: m.settleBy === 'cash',
     adjustments, profit, adminPaid, companyShare, grossTotal,
     tiedUp, scrapLoss, cash, buyingBudget, reservePct,
     returnRefund, returnLoss,
@@ -10151,9 +10296,11 @@ function renderMuzaribProfile(id){
       ${m.archived.note?'<br><b>Reason:</b> '+escapeHtml(m.archived.note):''}</div></div>`:''}
 
   <div class="grid kpi-grid">
-    ${p.noCash ? `<div class="card kpi"><div class="label">Stock to buy for him</div>
+    ${p.noCash ? `<div class="card kpi"><div class="label">${p.payBack ? 'Owed back to him' : 'Stock to buy for him'}</div>
       <div class="value small">${fmtMoney(p.cash)}</div>
-      <div class="sub">No cash came in — we settle this by buying cars to this value</div></div>`
+      <div class="sub">${p.payBack
+        ? 'He paid this out of his own pocket — we owe him the money back'
+        : 'No cash came in — we settle this by buying cars to this value'}</div></div>`
     : `<div class="card kpi"><div class="label">Cash owed to him</div><div class="value small">${fmtMoney(p.cash)}</div>
       <div class="sub">What we owe him on the cash side — the stock below is on top</div></div>
     ${isManager() ? `<div class="card kpi"><div class="label">Cash I can spend</div>
@@ -10174,12 +10321,14 @@ function renderMuzaribProfile(id){
   ${(isManager() && (p.owedAsStock > 0 || p.capitalStock > 0)) ? `<div class="card" style="box-shadow:none;padding:14px;margin-bottom:12px;">
     <b>Capital in that was not cash</b>
     <div class="small-muted" style="margin-top:4px;">${p.noCash
-      ? 'Nothing he put in arrived as cash, so there is none of his money to spend. The whole balance is settled by buying him cars.'
+      ? (p.payBack
+          ? 'He paid for these himself, so no cash ever came into the business. The whole balance is money we owe him back.'
+          : 'Nothing he put in arrived as cash, so there is none of his money to spend. The whole balance is settled by buying him cars.')
       : 'No money arrived for these, so they are part of what we owe him but <b>not</b> part of what there is to spend.'}</div>
     <table style="margin-top:10px"><tbody>
-      ${p.owedAsStock > 0 ? `<tr><td>Capital in from the old business</td>
+      ${p.owedAsStock > 0 ? `<tr><td>${p.payBack ? 'Paid out of his own pocket' : 'Capital in from the old business'}</td>
         <td style="text-align:right"><b>${fmtMoney(p.owedAsStock)}</b></td>
-        <td class="small-muted">we need to buy cars to the same value</td></tr>`:''}
+        <td class="small-muted">${p.payBack ? 'we owe him this back in cash' : 'we need to buy cars to the same value'}</td></tr>`:''}
       ${p.capitalStock > 0 ? `<tr><td>Cars he handed in</td>
         <td style="text-align:right"><b>${fmtMoney(p.capitalStock)}</b></td>
         <td class="small-muted">counted at the purchase price — the company paid the prep and takes it back when the car sells</td></tr>`:''}
@@ -10263,7 +10412,9 @@ function renderMuzaribProfile(id){
       <td>${fmtDate(t.date)}</td>
       <td><span class="tag ${t.type==='capital'?'tag-green':(t.type==='withdrawal'?'tag-amber':(t.type==='spend'?'tag-blue':'tag-grey'))}">${MZ_TX_TYPES[t.type].label}</span></td>
       <td>${escapeHtml(t.note||'')}${t.type==='capital' && capitalKind(t)!=='cash'
-        ? ` <span class="tag tag-grey" title="No cash arrived for this">${capitalKind(t)==='stock'?'car handed in':'from the old business'}</span>`:''}</td>
+        ? ` <span class="tag tag-grey" title="No cash arrived for this">${capitalKind(t)==='stock'
+            ? 'car handed in'
+            : (t.method==='Paid direct' ? 'his own pocket' : 'from the old business')}</span>`:''}</td>
       <td>${t.method ? escapeHtml(t.method) : '—'}</td>
       <td style="font-weight:700;color:${t.type==='withdrawal'?'var(--red)':'inherit'}">${t.type==='withdrawal'?'&minus; ':''}${fmtMoney(Math.abs(t.amount))}</td>
       <td style="white-space:nowrap">
