@@ -490,7 +490,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b124</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b125</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3979,9 +3979,19 @@ function vehicleOverviewTab(v,cost,margin){
           ${st.sold
             ? `Sold. Gross ${fmtMoney(st.gross)} − ${fmtMoney(st.admin)} admin = ${fmtMoney(st.net)} net.
                <b>Investor ${fmtMoney(st.investor)}</b> · Company ${fmtMoney(st.company)}.`
-            : `${fmtMoney(vehicleCostTotal(v))} of their capital is in this car. At the asking price of ${fmtMoney(v.askingPrice)},
-               they would receive about <b>${fmtMoney(Math.max(0,((Number(v.askingPrice)||0)-vehicleCostTotal(v)-(m.adminCharge??500)))*(Number(m.splitPct??50)/100))}</b>.`}
-        </div></div>`;})():''}
+            : (function(){
+                const his = vehicleInvestorCost(v), all = vehicleCostTotal(v), brought = isBroughtInCar(v);
+                const share = fmtMoney(Math.max(0,((Number(v.askingPrice)||0)-all-(m.adminCharge??500)))*(Number(m.splitPct??50)/100));
+                return (brought
+                  ? `He handed this car in. <b>${fmtMoney(his)}</b> of it is his — what he paid himself.
+                     The business put in ${fmtMoney(all-his)}, which comes back to the business when it sells.`
+                  : `<b>${fmtMoney(all)}</b> of his money is in this car.`)
+                  + ` At the asking price of ${fmtMoney(v.askingPrice)}, he would receive about <b>${share}</b>.`;
+              })()}
+        </div>
+        ${(isSuperAdmin() && isBroughtInCar(v))?`<div style="margin-top:9px">
+          <button class="btn btn-sm btn-ghost" onclick="openCarStake('${v.id}')">Change what he paid</button></div>`:''}
+        </div>`;})():''}
     ${isManager()?retailCheckPanel(v):''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
       <button class="btn btn-ghost btn-sm" onclick="refreshVehicleData('${v.id}')">🔍 Fill details from registration</button>
@@ -10643,6 +10653,51 @@ function renderMuzaribat(){
   `;
 }
 
+/* Amending an investor's stake in a car he handed in, from the car itself -
+   which is where anyone looking at the figure actually is. */
+function openCarStake(vid){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can change this.'); return; }
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vid; }); if(!v) return;
+  const t = carCapitalTx(v.id); if(!t){ alert('This car has no capital entry against an investor.'); return; }
+  const m = muzarib(v.muzaribId) || {};
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>What did ${escapeHtml(m.name||'he')} pay for ${escapeHtml(v.reg||'this car')}?</h3>
+    <div class="small-muted" style="margin-bottom:11px">The price he paid, <b>plus anything else he paid for on it
+      himself</b> — a gearbox, parts, work. Not what the business paid: that comes back to the business when the
+      car sells.</div>
+    <div class="field"><label>What he paid, all in (£)</label>
+      <input id="cs_amt" type="number" step="0.01" value="${Number(t.amount)||0}" oninput="carStakePreview('${v.id}')"/></div>
+    <div class="card" style="box-shadow:none;padding:11px 13px;margin-top:10px" id="cs_sum"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveCarStake('${v.id}')">Save</button></div>`);
+  carStakePreview(v.id);
+}
+function carStakePreview(vid){
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vid; }); if(!v) return;
+  const box = document.getElementById('cs_sum'); if(!box) return;
+  const his = Number((document.getElementById('cs_amt')||{value:0}).value)||0;
+  const all = vehicleCostTotal(v);
+  box.innerHTML =
+    `<div class="k"><span class="muted">He paid</span><b>${fmtMoney(his)}</b></div>
+     <div class="k"><span class="muted">The business paid</span><b${all-his<0?' style="color:var(--red)"':''}>${fmtMoney(all-his)}</b></div>
+     <div class="k"><span class="muted">Total in the car</span><b>${fmtMoney(all)}</b></div>` +
+    (his > all ? `<div class="small-muted" style="margin-top:5px;color:var(--red)">That is more than the car has cost
+       in total. Check the costs on the Cost &amp; invoice tab.</div>` : '');
+}
+function saveCarStake(vid){
+  if(!isSuperAdmin()) return;
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===vid; }); if(!v) return;
+  const t = carCapitalTx(v.id); if(!t) return;
+  const amt = Number((document.getElementById('cs_amt')||{value:0}).value)||0;
+  if(amt <= 0){ alert('Enter what he paid for it.'); return; }
+  const was = Number(t.amount)||0;
+  captureUndo({t:'mzTxEdit', id:t.id, before:{amount:was, type:t.type, date:t.date, method:t.method, note:t.note}});
+  t.amount = amt;
+  logChange('muzarib','Changed what he paid for', vehRef(v), 'His stake',
+    fmtMoney(was), fmtMoney(amt), 'the rest was paid by the business');
+  saveDB(); closeModal(); render();
+}
+function openCarFundingHelp(){}
 function openMuzarib(id){ activeMuzaribId = id; mzMonth = null; currentTab='muzaribat'; render(); }
 function backToMuzaribs(){ activeMuzaribId = null; render(); }
 
