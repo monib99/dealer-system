@@ -526,7 +526,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b146</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b147</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -11901,14 +11901,15 @@ function renderMuzaribProfile(id){
           <td class="num">${rows.length}</td>
           <td class="num" style="font-weight:700;color:${down?'var(--red)':'inherit'}">${down?'&minus; ':''}${fmtMoney(Math.abs(sum))}</td>
           ${isSuperAdmin()?`<td class="num" style="white-space:nowrap">
-            <button class="btn btn-sm btn-danger" onclick="deleteMzType('${id}','${k}')"
-              title="Delete all ${rows.length} of these">Delete all ${rows.length}</button></td>`:''}</tr>`;
+            <button class="btn btn-sm btn-ghost" onclick="mzClearType('${id}','${k}')"
+              title="Take all ${rows.length} off his balance. They stay in Team &amp; Pay.">Clear all ${rows.length}</button></td>`:''}</tr>`;
       }).join('')}
     </tbody></table>` : `<div class="empty">Nothing recorded yet. Use <b>Capital in</b> above.</div>`}
   </div>
   ${isSuperAdmin() && tx.length ? `<div class="small-muted" style="margin:-4px 0 14px">
-    To change one entry rather than all of them, open <a class="link" onclick="App.go('team')">Team &amp; Pay</a>:
-    every line is there with Edit and delete. The lines are kept off this page because the notes on them are ours.</div>` : ''}
+    <b>Clear all</b> takes that kind off his balance so you can enter it again &mdash; it does not delete anything,
+    and every line stays under <a class="link" onclick="App.go('team')">Team &amp; Pay</a> as the record of what was
+    paid. To change or genuinely remove one entry, do it there.</div>` : ''}
   ${isManager() && !isSuperAdmin() ? `<div class="small-muted" style="margin:-4px 0 16px">
     Every entry, line by line, is under <a class="link" onclick="App.go('team')">Team &amp; Pay</a>. It is kept
     there because the notes on it are ours &mdash; who was paid, what for &mdash; and not for an investor to
@@ -12195,11 +12196,16 @@ function saveMzTx(id, type){
     method + (note?' · '+note:'') + ' · cash now ' + fmtMoney(muzaribPosition(id).cash));
   saveDB(); closeModal(); render();
 }
-/* Clearing one kind of entry in a go - every capital in, or every adjustment.
-   It is how a record gets emptied to be entered again, without putting the
-   line-by-line list, and our notes on it, back on the investor's own page. */
-function deleteMzType(mzId, type){
-  if(!isSuperAdmin()){ alert('Only a Super Admin can delete these.'); return; }
+/* Taking one kind of entry off an investor's balance - every capital in, or
+   every adjustment - so his record can be entered again from scratch.
+
+   They are set aside, not deleted. The line stays on file and stays visible
+   under Team & Pay, greyed out: those capital-in lines ARE the record of who
+   was paid what out of his money, so deleting them to tidy his balance would
+   throw away the only copy of it. muzaribTx leaves archived entries out, which
+   is what every balance goes through, so the figure drops to zero either way. */
+function mzClearType(mzId, type){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can do this.'); return; }
   const m = muzarib(mzId); if(!m) return;
   const rows = muzaribTx(mzId).filter(function(t){ return t.type === type; });
   if(!rows.length) return;
@@ -12212,23 +12218,28 @@ function deleteMzType(mzId, type){
     after = muzaribPosition(mzId).cash;
   }catch(e){}
   DB.muzaribTx = keep;
-  if(!confirm('Delete all ' + rows.length + ' ' + label + ' entries for ' + (m.name||'this investor') + '?\n\n'
+  if(!confirm('Take all ' + rows.length + ' ' + label + ' entries off ' + (m.name||'this investor') + '\u2019s balance?\n\n'
     + 'They total ' + fmtMoney(sum) + '.\n'
     + (after === null ? '' : 'He is owed ' + fmtMoney(muzaribPosition(mzId).cash) + ' now, and '
        + fmtMoney(after) + ' after this.\n')
-    + '\nThis one cannot be undone from the change log. If you only want the balance at zero, '
-    + 'use Start again in Team & Pay instead - that keeps every line on file.')) return;
+    + '\nNothing is deleted: every line stays under Team & Pay, greyed out, as the record of what was paid. '
+    + 'Bring back, on his card there, puts them on his balance again.')) return;
   captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB)),
-               label:'before deleting ' + (m.name||'the investor') + '\u2019s ' + label + ' entries'});
+               label:'before setting aside ' + (m.name||'the investor') + '\u2019s ' + label + ' entries'});
   const before = muzaribPosition(mzId).cash;
-  DB.muzaribTx = (DB.muzaribTx||[]).filter(function(t){
-    return !(t.muzaribId===mzId && t.type===type && !t.archived); });
-  logChange('money','Deleted every ' + label + ' entry for', mzRef(m), (MZ_TX_TYPES[type]||{}).label || type,
-    rows.length + ' entries \u00b7 ' + fmtMoney(sum), 'none',
-    'Owed ' + fmtMoney(before) + ' \u2192 ' + fmtMoney(muzaribPosition(mzId).cash)
-    + ' \u00b7 deleted by ' + currentUserName);
+  const stamp = todayISO();
+  (DB.muzaribTx||[]).forEach(function(t){
+    if(t.muzaribId!==mzId || t.type!==type || t.archived) return;
+    t.archived = true; t.archivedAt = stamp; t.archivedBy = currentUserName;
+  });
+  logChange('muzarib','Set aside every ' + label + ' entry for', mzRef(m),
+    (MZ_TX_TYPES[type]||{}).label || type,
+    rows.length + ' entries \u00b7 ' + fmtMoney(sum) + ' \u00b7 owed ' + fmtMoney(before),
+    'off his balance \u00b7 owed ' + fmtMoney(muzaribPosition(mzId).cash),
+    'Kept under Team & Pay \u00b7 by ' + currentUserName);
   saveDB(); render();
-  if(typeof wbToast === 'function') wbToast(rows.length + ' ' + label + ' entries deleted');
+  if(typeof wbToast === 'function')
+    wbToast(rows.length + ' ' + label + ' entries set aside \u2014 still in Team & Pay');
 }
 function deleteMzTx(txId){
   if(!isManager()){ alert('Only a manager can delete a cash entry.'); return; }
