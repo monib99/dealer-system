@@ -526,7 +526,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b140</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b141</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -11258,6 +11258,35 @@ function runTransferToInvestor(){
     saveDB(); render();
     if(typeof wbToast === 'function') wbToast(v.reg + ' is now funded by ' + m.name);
   });
+}
+
+/* The "Cars handed to investors" table still lists transfers made by the older
+   version of this tool, and each row offers Move back. The function behind that
+   button went missing when the transfer tool was rewritten, so the button threw
+   instead of doing anything. This puts the car back to company stock and takes
+   the capital entry off the investor, which is the reverse of what the move did. */
+function undoTransfer(id){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can move a car back.'); return; }
+  const t = assetTransfers().find(function(x){ return x.id===id; });
+  if(!t) return;
+  const v = (DB.vehicles||[]).find(function(x){ return x.id===t.vehicleId; });
+  const who = muzaribName(t.muzaribId) || 'the investor';
+  if(v && v.sale){ alert((v.reg||'This car') + ' has been sold, so it cannot be moved back.'); return; }
+  if(!confirm((t.reg || 'This car') + ' goes back to being company stock, and the '
+      + fmtMoney(t.value) + ' comes off what ' + who + ' has in stock.\n\nContinue?')) return;
+  captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB)), label:'before moving ' + (t.reg||'the car') + ' back'});
+  if(v){
+    if(typeof dropCarCapital === 'function') dropCarCapital(v.id);
+    v.ownerType = 'company'; v.muzaribId = null;
+    delete v.boughtWithInvestorCash;
+    logChange('muzarib','Moved back to the company', vehRef(v), 'Funded by', who, 'Company stock',
+      fmtMoney(t.value) + (t.note ? ' · ' + t.note : ''));
+  } else {
+    logChange('muzarib','Removed a transfer record', {id:t.id, label:t.reg||''}, '', who, '',
+      'The car is no longer on file');
+  }
+  DB.assetTransfers = assetTransfers().filter(function(x){ return x.id!==id; });
+  saveDB(); render();
 }
 
 function mzFairness(){
