@@ -536,7 +536,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b149</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b150</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3147,6 +3147,40 @@ let fleetQ = '';
 let fleetOpenHist = {};
 
 function fleet(){ return DB.fleet || (DB.fleet = []); }
+function fleetRegKey(r){ return String(r||'').replace(/\s+/g,'').toUpperCase(); }
+/* Car manager is a view of the cars we actually have, not a second list to be
+   kept up to date by hand. Every vehicle in Stock gets a row here the first
+   time it is seen, and the row carries the one thing Stock does not hold:
+   where the car physically is. Keeping two lists meant the manager showed
+   nothing at all until somebody imported one, while Stock had 54 cars in it. */
+function syncFleetFromStock(){
+  const list = fleet();
+  const have = {};
+  list.forEach(function(f){ const k = fleetRegKey(f.reg); if(k) have[k] = f; });
+  let changed = 0;
+  (DB.vehicles||[]).forEach(function(v){
+    const k = fleetRegKey(v.reg);
+    if(!k) return;
+    const row = have[k];
+    if(row){
+      /* keep the description in step with Stock, but never the location */
+      if(!row.vehicleId) { row.vehicleId = v.id; changed++; }
+      return;
+    }
+    list.push({id:nextId('flt'), vehicleId:v.id, reg:v.reg,
+      name:[v.make, v.model].filter(Boolean).join(' '), year:v.year, colour:v.color,
+      loc: v.sale ? 'Sold' : 'Car Express', fromStock:true,
+      updAt: v.dateAdded || new Date().toISOString(), updBy:'',
+      history:[]});
+    have[k] = true; changed++;
+  });
+  /* a car that has since been sold should not still read as on the forecourt */
+  list.forEach(function(f){
+    const sc = fleetStockCar(f);
+    if(sc && sc.sale && f.loc !== 'Sold' && f.loc !== 'Scrapped'){ f.loc = 'Sold'; changed++; }
+  });
+  return changed;
+}
 function fleetCount(loc){
   if(loc === 'All') return fleet().length;
   if(loc === 'Due') return fleetStartNeeded().length;
@@ -3349,6 +3383,12 @@ function fleetSpine(loc){
           'Scrapped':'red','Sold':'grey'}[loc] || 'grey';
 }
 function renderFleet(){
+  /* Done here rather than on every save: it only matters when the screen is
+     being looked at, and one write when stock has changed is enough. */
+  if(syncFleetFromStock() && !window.__fleetSyncing){
+    window.__fleetSyncing = true;
+    setTimeout(function(){ window.__fleetSyncing = false; saveDB(); }, 0);
+  }
   const rows = fleetShown();
   const tabs = ['All'].concat(FLEET_LOCS).filter(function(l){
     return l === 'All' || fleetCount(l) > 0 || fleetLoc === l; });
@@ -3391,12 +3431,17 @@ function renderFleet(){
       onclick="fleetLoc='${l}';render()"><b>${fleetCount(l)}</b><span>${escapeHtml(l)}</span></div>`; }).join('')}
   </div>
 
-  ${(!fleet().length && isSuperAdmin())?`<div class="card" style="box-shadow:none;padding:16px;margin-bottom:12px">
-    <b>Nothing here yet.</b>
-    <div class="small-muted" style="margin:5px 0 10px">The list of ${FLEET_SEED.length} vehicles and where each one
-      was is ready to bring in. You can move them about afterwards.</div>
-    <button class="btn btn-brand btn-sm" onclick="importFleetSeed()">Bring in the ${FLEET_SEED.length} vehicles</button>
+  ${(!fleet().length)?`<div class="card" style="box-shadow:none;padding:16px;margin-bottom:12px">
+    <b>No vehicles yet.</b>
+    <div class="small-muted" style="margin-top:5px">Every car you add to Stock appears here on its own, with the
+      forecourt as its starting place. Add one in Stock, or use <b>Add a vehicle</b> above for something that is
+      not stock — a part-exchange waiting to be booked in, or a courtesy car.</div>
   </div>`:''}
+
+  ${(fleet().length && isManager())?`<div class="small-muted" style="margin:0 0 9px">
+    Locations came from Stock, so everything starts on the forecourt.
+    <span class="link" style="cursor:pointer" onclick="importFleetSeed()">Set them from the printed sheet</span>
+    to put the Sandy and Luton cars where they really are.</div>`:''}
 
   ${(needPhoto && fleet().length)?`<div class="small-muted" style="margin:0 0 9px">
     ${needPhoto} of ${fleet().length} have no photo against ${needPhoto===1?'its':'their'} location yet —
@@ -3590,22 +3635,45 @@ function deleteFleet(id){
   DB.fleet = fleet().filter(function(x){ return x.id !== id; });
   saveDB(); render();
 }
+/* The locations off the printed sheets. Every car in Stock is already listed
+   here, so this fills in where each one was rather than adding them again. */
 function importFleetSeed(){
-  if(!isSuperAdmin()) return;
-  if(!confirm('Bring in ' + FLEET_SEED.length + ' vehicles with their current locations?')) return;
-  const now = new Date().toISOString();
-  let n = 0;
-  FLEET_SEED.forEach(function(s){
-    if(fleet().some(function(f){ return (f.reg||'') === s.reg; })) return;
-    fleet().push({id:nextId('flt'), reg:s.reg, name:s.name, year:s.year, colour:s.colour,
-      loc:s.loc, person:s.person, kind:s.kind, to:s.to, note:s.note,
-      updAt:now, updBy:currentUserName||'',
-      history:[{loc:s.loc, extra:'', note:s.note, at:now, by:currentUserName||''}]});
-    n++;
+  /* Moving cars about is a manager's job, so setting them from the sheet is too. */
+  if(!isManager()){ alert('Only a manager can set the locations.'); return; }
+  syncFleetFromStock();
+  const byReg = {};
+  fleet().forEach(function(f){ const k = fleetRegKey(f.reg); if(k) byReg[k] = f; });
+  const moved = [], added = [];
+  FLEET_SEED.forEach(function(sd){
+    const f = byReg[fleetRegKey(sd.reg)];
+    if(f){ if(f.loc !== sd.loc) moved.push([f, sd]); }
+    else added.push(sd);
   });
-  logChange('stock','Imported the vehicle list', {id:'fleet', label:'Car manager'}, 'Vehicles', '', String(n), '');
+  if(!moved.length && !added.length){ alert('Every vehicle is already where the sheet says.'); return; }
+  if(!confirm('Set the locations from the sheet?\n\n'
+    + (moved.length ? moved.length + ' car' + (moved.length===1?'':'s') + ' moved to where the sheet says'
+       + (added.length ? '\n' : '') : '')
+    + (added.length ? added.length + ' not in Stock, added to the manager only' : ''))) return;
+  const now = new Date().toISOString();
+  moved.forEach(function(pair){
+    const f = pair[0], sd = pair[1];
+    f.loc = sd.loc; f.person = sd.person; f.kind = sd.kind; f.to = sd.to;
+    if(sd.note) f.note = sd.note;
+    f.updAt = now; f.updBy = currentUserName||'';
+    f.history = (f.history||[]).concat([{loc:sd.loc, extra:'', note:sd.note||'from the sheet',
+      at:now, by:currentUserName||''}]);
+  });
+  added.forEach(function(sd){
+    fleet().push({id:nextId('flt'), reg:sd.reg, name:sd.name, year:sd.year, colour:sd.colour,
+      loc:sd.loc, person:sd.person, kind:sd.kind, to:sd.to, note:sd.note,
+      updAt:now, updBy:currentUserName||'',
+      history:[{loc:sd.loc, extra:'', note:sd.note, at:now, by:currentUserName||''}]});
+  });
+  logChange('stock','Set locations from the sheet', {id:'fleet', label:'Car manager'}, 'Vehicles',
+    '', String(moved.length + added.length),
+    moved.length + ' moved \u00b7 ' + added.length + ' added');
   saveDB(); render();
-  alert(n + ' vehicles brought in.');
+  alert(moved.length + ' moved, ' + added.length + ' added.');
 }
 function fmtDateTime(iso){
   if(!iso) return '';
