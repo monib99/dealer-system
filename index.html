@@ -536,7 +536,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b150</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b151</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -2888,7 +2888,34 @@ function daysToSell(v){
 /* =========================================================================
    RENDER ROOT
    ========================================================================= */
+/* Every search box calls render() as you type, and render() rebuilds the page,
+   which throws away the element you are typing into - so the caret jumped out
+   after one character and you had to click back in for the next one. Note what
+   was focused and where the caret was, then put it back once the new markup is
+   in. Keyed on a stable id, so the box has to carry one. */
+function focusKeep(){
+  const el = document.activeElement;
+  if(!el || !el.id) return null;
+  const tag = (el.tagName||'').toLowerCase();
+  if(tag !== 'input' && tag !== 'textarea') return null;
+  let start = null, end = null;
+  try{ start = el.selectionStart; end = el.selectionEnd; }catch(e){}
+  return {id: el.id, start: start, end: end};
+}
+function focusRestore(k){
+  if(!k) return;
+  const el = document.getElementById(k.id);
+  if(!el || el === document.activeElement) return;
+  try{
+    el.focus({preventScroll:true});
+    if(k.start !== null && typeof el.setSelectionRange === 'function') el.setSelectionRange(k.start, k.end);
+  }catch(e){}
+}
 function render(){
+  const __focus = focusKeep();
+  try{ renderInner(); } finally { focusRestore(__focus); }
+}
+function renderInner(){
   document.querySelectorAll('.nav-item').forEach(n=> n.classList.toggle('active', n.dataset.tab===currentTab));
   try{ navSync(); }catch(e){}
   // Ideas & Capital is a manager-level section
@@ -3448,7 +3475,7 @@ function renderFleet(){
     a photo is what turns "it should be at Sandy" into "it is at Sandy".</div>`:''}
 
   <div class="field" style="margin-bottom:10px">
-    <input id="fleet_q" placeholder="Search registration, make or model" value="${escapeAttr(fleetQ)}"
+    <input id="q_fleet" placeholder="Search registration, make or model" value="${escapeAttr(fleetQ)}"
       oninput="fleetQ=this.value;clearTimeout(window.__fq);window.__fq=setTimeout(render,250)"/>
   </div>
 
@@ -4440,7 +4467,7 @@ function renderStock(){
     }).join('')}
   </div>
   <div class="toolbar">
-    <input placeholder="Search reg, make or model…" value="${stockSearch}" oninput="stockSearch=this.value;render()" style="width:260px"/>
+    <input id="q_stock" placeholder="Search reg, make or model…" value="${escapeAttr(stockSearch)}" oninput="stockSearch=this.value;render()" style="width:260px"/>
     <select class="btn btn-ghost btn-sm" onchange="stockSort=this.value;render()" title="Sort the list">
       ${[['newest','Newest in stock'],['oldest','Oldest in stock'],['longest','Longest unsold'],
          ['soldlast','Sold most recently'],['soldfirst','Sold earliest'],
@@ -5725,14 +5752,33 @@ async function removeInvoicePhoto(vId, idx){
 }
 
 /* ---- sale ---- */
+let saleEditing = null;   /* the vehicle whose finished sale is open for changing */
+function editSale(vId){
+  if(!isManager()){ alert('Only a manager can change a sale after it has been recorded.'); return; }
+  saleEditing = vId; renderVehicleDetail();
+}
+function cancelEditSale(){ saleEditing = null; renderVehicleDetail(); }
 function vehicleSaleTab(v){
   if(v.returned && !v.sale) return returnRecordCard(v);
-  if(v.sale){
+  if(v.sale && saleEditing !== v.id){
     const s=v.sale;
     return `<div class="card">
       <h3 style="margin-top:0">Sale record</h3>
       <table>
-        <tr><td>Customer</td><td>${(DB.customers.find(c=>c.id===s.customerId)||{}).name||'—'}</td></tr>
+        ${(function(){
+          /* Who bought it and how to reach them. It is on the invoice already,
+             so having to open the customer record to read a phone number was
+             just an extra click when someone rings about their car. */
+          const c = DB.customers.find(function(x){ return x.id===s.customerId; }) || {};
+          const contact = [c.phone, c.email].filter(Boolean);
+          const place   = [c.address, c.postcode].filter(Boolean);
+          return `<tr><td>Customer</td><td>${c.name?`<a class="link" onclick="openEditSaleCustomer('${v.id}')" title="Open their details">${escapeHtml(c.name)}</a>`:'—'}</td></tr>
+          ${contact.length?`<tr><td>Contact</td><td>${c.phone?`<a href="tel:${escapeAttr(c.phone)}">${escapeHtml(c.phone)}</a>`:''}${
+            (c.phone&&c.email)?' · ':''}${c.email?`<a href="mailto:${escapeAttr(c.email)}">${escapeHtml(c.email)}</a>`:''}</td></tr>`:''}
+          ${place.length?`<tr><td>Address</td><td>${escapeHtml(place.join(', '))}</td></tr>`:''}
+          ${(!contact.length && !place.length && c.name)?`<tr><td>Contact</td><td class="small-muted">No phone, email or address on file —
+            <a class="link" onclick="openEditSaleCustomer('${v.id}')">add them</a></td></tr>`:''}`;
+        })()}
         <tr><td>Sale date</td><td>${fmtDate(s.date)}</td></tr>
         <tr><td>Sale price</td><td>${fmtMoney(s.salePrice)}</td></tr>
         <tr><td>Discount</td><td>${fmtMoney(s.discount)}</td></tr>
@@ -5749,6 +5795,8 @@ function vehicleSaleTab(v){
       ${licenceCard(v)}
       <div style="margin-top:14px;display:flex;gap:10px;">
         <button class="btn btn-brand" onclick="printInvoice('${v.id}')">🖨 View / print invoice</button>
+        ${isManager()?`<button class="btn btn-ghost" onclick="editSale('${v.id}')"
+          title="Change the figures or the customer on this sale">Edit sale</button>`:''}
         <button class="btn btn-ghost" onclick="undoSale('${v.id}')">Undo sale</button>
         <button class="btn btn-ghost" onclick="openReturn('${v.id}','customer')">↩ Customer returned it</button>
       </div>
@@ -5762,9 +5810,13 @@ function vehicleSaleTab(v){
   const sx = v.sale;
   const hasPx = !!(sx && ((sx.partEx && (sx.partEx.reg || sx.partEx.make || sx.partEx.model)) || Number(sx.partExValue)>0));
   return `<div class="card">
-    <h3 style="margin-top:0">Record a sale for ${v.reg}</h3>
-    <div class="small-muted" style="margin:-4px 0 12px">Going back to the seller instead?
-      <a class="link" onclick="openReturn('${v.id}','supplier')">Record it as a return</a></div>
+    <h3 style="margin-top:0">${v.sale?`Change the sale of ${v.reg}`:`Record a sale for ${v.reg}`}</h3>
+    ${v.sale?`<div class="small-muted" style="margin:-4px 0 12px">Sold ${fmtDate(v.sale.date)}${
+      v.sale.invoiceRef?' on invoice '+escapeHtml(v.sale.invoiceRef):''}. The invoice number and the wording that was
+      signed stay as they were; the figures and the customer are yours to correct.
+      <a class="link" onclick="cancelEditSale()">Leave it as it is</a></div>`
+      :`<div class="small-muted" style="margin:-4px 0 12px">Going back to the seller instead?
+      <a class="link" onclick="openReturn('${v.id}','supplier')">Record it as a return</a></div>`}
     ${r?`<div class="card" style="box-shadow:none;background:var(--brand-dim);padding:12px;margin-bottom:12px;">
       <div style="font-weight:700;margin-bottom:4px;">Reserved for ${escapeHtml(r.name)}</div>
       <div class="small-muted">${escapeHtml([r.phone,r.email,r.postcode].filter(Boolean).join(' · '))}
@@ -5790,9 +5842,9 @@ function vehicleSaleTab(v){
         Not on the list? <a class="link" onclick="openAddCustomer(true)">Add a new customer</a></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Sale price (£)</label><input id="s_price" type="number" value="${v.askingPrice||0}"/></div>
-      <div class="field"><label>Discount (£)</label><input id="s_discount" type="number" value="0"/></div>
-      <div class="field"><label>Sale date</label><input id="s_date" type="date" value="${todayISO()}"/></div>
+      <div class="field"><label>Sale price (£)</label><input id="s_price" type="number" value="${(v.sale&&Number(v.sale.salePrice))||v.askingPrice||0}"/></div>
+      <div class="field"><label>Discount (£)</label><input id="s_discount" type="number" value="${(v.sale&&Number(v.sale.discount))||0}"/></div>
+      <div class="field"><label>Sale date</label><input id="s_date" type="date" value="${(v.sale&&v.sale.date)||todayISO()}"/></div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;font-size:13.5px;cursor:pointer">
       <input type="checkbox" id="s_hasPx" ${hasPx?'checked':''} style="width:17px;height:17px" onchange="togglePxFields(this.checked)"/>
@@ -5822,9 +5874,9 @@ function vehicleSaleTab(v){
       <span><strong>Trade sale</strong> — buyer is a business, not a consumer. Prints the trade terms instead of the consumer ones.</span>
     </label>
     <div class="field-row">
-      <div class="field"><label>Admin charge (£)</label><input id="s_admin" type="number" value="0"/></div>
-      <div class="field"><label>Delivery charge (£)</label><input id="s_delivery" type="number" value="0"/></div>
-      <div class="field"><label>Warranty (£)</label><input id="s_warranty" type="number" value="0"/></div>
+      <div class="field"><label>Admin charge (£)</label><input id="s_admin" type="number" value="${(v.sale&&Number(v.sale.adminCharge))||0}"/></div>
+      <div class="field"><label>Delivery charge (£)</label><input id="s_delivery" type="number" value="${(v.sale&&Number(v.sale.deliveryCharge))||0}"/></div>
+      <div class="field"><label>Warranty (£)</label><input id="s_warranty" type="number" value="${(v.sale&&Number(v.sale.warranty))||0}"/></div>
     </div>
     <div class="section-title" style="margin-top:12px"><h2>Extra charges</h2></div>
     <div class="small-muted" style="margin:-4px 0 8px">Anything else the customer is paying for. Each line prints on the invoice with its own note, so write what it is for.</div>
@@ -5980,6 +6032,7 @@ function pxIntoStock(v){
 }
 function confirmSale(vId){
   const v = DB.vehicles.find(x=>x.id===vId);
+  saleEditing = null;
   const customerId = document.getElementById('s_customer').value;
   if(!customerId){ alert('Select or add a customer first'); return; }
   const wasSold = !!v.sale, prevSale = v.sale ? {...v.sale} : null;
@@ -9325,7 +9378,7 @@ function renderCustomers(){
     <button class="btn btn-brand" onclick="openAddCustomer(false)">+ Add customer</button>
   </div>
   <div class="toolbar" style="margin-bottom:12px;">
-    <input placeholder="Search name, phone, email or postcode…" value="${escapeAttr(custSearch)}"
+    <input id="q_cust" placeholder="Search name, phone, email or postcode…" value="${escapeAttr(custSearch)}"
       oninput="custSearch=this.value;render()" style="width:300px"/>
     <div class="chip-row" style="margin:0;">
       <div class="chip ${custView==='recent'&&!custSearch?'active':''}" onclick="custSearch='';custView='recent';render()">Recent</div>
@@ -10118,7 +10171,7 @@ function renderLeads(){
 
   ${leadView==='bycar' ? renderLeadsByCar() : leadView==='sources' ? renderLeadSources() : `
   <div class="toolbar">
-    <input placeholder="Search name, phone, reg&hellip;" value="${escapeAttr(leadSearch)}" oninput="leadSearch=this.value;render()" style="flex:1;min-width:180px;"/>
+    <input id="q_lead" placeholder="Search name, phone, reg&hellip;" value="${escapeAttr(leadSearch)}" oninput="leadSearch=this.value;render()" style="flex:1;min-width:180px;"/>
     <select onchange="leadFilter=this.value;render()">
       <option value="active" ${leadFilter==='active'?'selected':''}>Active only</option>
       <option value="due" ${leadFilter==='due'?'selected':''}>Follow-ups due</option>
@@ -13273,7 +13326,7 @@ function renderAudit(){
   </div>
 
   <div class="toolbar">
-    <input placeholder="Search reg, person, value…" value="${escapeAttr(auditSearch)}" oninput="auditSearch=this.value;render()" style="flex:1;min-width:170px;"/>
+    <input id="q_audit" placeholder="Search reg, person, value…" value="${escapeAttr(auditSearch)}" oninput="auditSearch=this.value;render()" style="flex:1;min-width:170px;"/>
     <select onchange="auditArea=this.value;render()">
       <option value="all" ${auditArea==='all'?'selected':''}>All areas</option>
       ${Object.entries(AUDIT_AREAS).map(([k,v])=>`<option value="${k}" ${auditArea===k?'selected':''}>${v.label}</option>`).join('')}
