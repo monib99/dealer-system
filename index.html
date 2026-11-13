@@ -526,7 +526,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b144</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b145</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -11902,38 +11902,13 @@ function renderMuzaribProfile(id){
       }).join('')}
     </tbody></table>` : `<div class="empty">Nothing recorded yet. Use <b>Capital in</b> above.</div>`}
   </div>
-  ${(function(){
-    /* His own entries - what he put in, took out, and any correction. The
-       internal spend lines are deliberately not here: muzaribVisibleTx leaves
-       them out, and they live under Team & Pay with our notes on them. */
-    const own = tx.slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
-    if(!own.length) return '';
-    return `<div class="card" style="padding:0;margin-bottom:12px">
-      <table><thead><tr><th>Date</th><th>Type</th><th>Note</th><th>Method</th><th class="num">Amount</th>
-        ${isSuperAdmin()?'<th></th>':''}</tr></thead><tbody>
-      ${own.map(function(t){
-        const down = t.type==='withdrawal' || Number(t.amount) < 0;
-        return `<tr>
-          <td>${fmtDate(t.date)}</td>
-          <td><span class="tag ${t.type==='capital'?'tag-green':(t.type==='withdrawal'?'tag-amber':'tag-grey')}">${MZ_TX_TYPES[t.type].label}</span></td>
-          <td>${escapeHtml(t.note||'')}${t.type==='capital' && capitalKind(t)!=='cash'
-            ? ` <span class="tag tag-grey" title="No cash arrived for this">${capitalKind(t)==='stock'
-                ? 'car handed in'
-                : (t.method==='Paid direct' ? 'his own pocket' : 'from the old business')}</span>`:''}</td>
-          <td>${t.method ? escapeHtml(t.method) : '—'}</td>
-          <td class="num" style="font-weight:700;color:${down?'var(--red)':'inherit'}">${down?'&minus; ':''}${fmtMoney(Math.abs(t.amount))}</td>
-          ${isSuperAdmin()?`<td style="white-space:nowrap">
-            <button class="btn btn-sm btn-ghost" onclick="openEditMzTx('${t.id}')"
-              title="Change the amount, date, type or note">Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteMzTx('${t.id}')"
-              title="Delete this entry">✕</button></td>`:''}
-        </tr>`; }).join('')}
-      </tbody></table></div>`;
-  })()}
-  ${isManager() ? `<div class="small-muted" style="margin:-4px 0 16px">
-    What his money was spent on, line by line, is under <a class="link" onclick="App.go('team')">Team &amp; Pay</a>.
-    It is kept there because the notes on it are ours &mdash; who was paid, what for &mdash; and not for an
-    investor to read.</div>` : ''}
+  ${isSuperAdmin() && tx.length ? `<div class="small-muted" style="margin:-4px 0 14px">
+    To change or remove any of these, open <a class="link" onclick="App.go('team')">Team &amp; Pay</a> &mdash; every
+    entry is listed there with Edit and delete. It is kept off this page because the notes on it are ours.</div>` : ''}
+  ${isManager() && !isSuperAdmin() ? `<div class="small-muted" style="margin:-4px 0 16px">
+    Every entry, line by line, is under <a class="link" onclick="App.go('team')">Team &amp; Pay</a>. It is kept
+    there because the notes on it are ours &mdash; who was paid, what for &mdash; and not for an investor to
+    read.</div>` : ''}
   <div class="section-title"><h2>Monthly statement</h2>
     <select onchange="mzMonth=this.value;render()" style="max-width:220px;">
       ${mzMonthOptions(id).map(mo=>`<option value="${mo}" ${mzMonth===mo?'selected':''}>${monthLabel(mo)}</option>`).join('')}
