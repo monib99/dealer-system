@@ -526,7 +526,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b142</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b143</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -7655,11 +7655,12 @@ function openMzReset(id){
   const sold = q.cars.filter(function(v){ return !!v.sale; }).length;
   openModal(`<button class="close-x" onclick="closeModal()">✕</button>
     <h3>Start ${escapeHtml(m.name||'')}’s record again</h3>
-    <div class="small-muted" style="margin-bottom:12px">Every cash entry below is removed, so his record goes back to
-      nothing and you can enter his capital again from his own list. It does not touch his cars.</div>
-    <table style="margin-bottom:12px"><thead><tr><th>What goes</th><th class="num">Entries</th>
+    <div class="small-muted" style="margin-bottom:12px">His balance goes to zero so you can enter his capital again
+      from his own list. <b>Nothing is thrown away</b> &mdash; every line below stays on this page as the record of
+      what was paid, greyed out and no longer counting. His cars are not touched.</div>
+    <table style="margin-bottom:12px"><thead><tr><th>What stops counting</th><th class="num">Entries</th>
       <th class="num">Total</th></tr></thead><tbody>${rows}
-      <tr style="border-top:2px solid var(--ink)"><td style="font-weight:700">All of it</td>
+      <tr style="border-top:2px solid var(--ink)"><td style="font-weight:700">All of it, kept on file</td>
         <td class="num" style="font-weight:700">${q.tx.length}</td><td></td></tr></tbody></table>
     <div class="card" style="box-shadow:none;padding:12px 14px;margin-bottom:12px">
       <div>He is owed <b>${fmtMoney(q.p.cash)}</b> at the moment. After this it reads
@@ -7672,13 +7673,14 @@ function openMzReset(id){
         ${escapeHtml(q.cars.map(function(v){ return v.reg||''; }).join(', '))}.
         ${sold?'A sold car keeps its settlement, so check that figure once you have re-entered his capital.':''}</div>`:''}
     </div>
-    <div class="overdue-banner" style="display:block;margin-bottom:12px"><b>⚠ This cannot be undone once the
-      browser tab is closed.</b> While this tab stays open you can put it all back from the change log.</div>
+    <div class="card" style="box-shadow:none;padding:11px 13px;margin-bottom:12px;background:var(--wash)">
+      You can put every line back at any time with <b>Bring back</b>, which appears on his card once lines are set
+      aside. Nothing is deleted.</div>
     <div class="field"><label>Type the investor’s name to confirm</label>
       <input id="mzr_name" placeholder="${escapeHtml(m.name||'')}" autocomplete="off"/></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-danger" onclick="runMzReset('${id}')">Clear ${q.tx.length} entries</button>
+      <button class="btn btn-brand" onclick="runMzReset('${id}')">Set aside ${q.tx.length} entries</button>
     </div>`);
 }
 function runMzReset(id){
@@ -7691,20 +7693,46 @@ function runMzReset(id){
   }
   const q = mzResetParts(id);
   captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB)),
-               label:'before clearing ' + (m.name||'the investor') + '’s record'});
+               label:'before starting ' + (m.name||'the investor') + '’s record again'});
   const before = q.p.cash;
-  DB.muzaribTx = (DB.muzaribTx||[]).filter(function(t){ return t.muzaribId !== id; });
+  const stamp = todayISO();
+  /* Set aside, not deleted: the lines stay on file under Team & Pay, and
+     muzaribTx leaves them out of everything that works out what he is owed. */
+  (DB.muzaribTx||[]).forEach(function(t){
+    if(t.muzaribId !== id || t.archived) return;
+    t.archived = true; t.archivedAt = stamp; t.archivedBy = currentUserName;
+  });
   /* A car marked as bought with his cash no longer has an entry saying so. Left
      alone it would read as money he handed over that was never recorded. */
   (DB.vehicles||[]).forEach(function(v){
     if(v.ownerType==='muzarib' && v.muzaribId===id) delete v.boughtWithInvestorCash;
   });
-  logChange('muzarib','Cleared the record for', mzRef(m), 'Cash entries',
-    q.tx.length + ' entries · owed ' + fmtMoney(before), 'none',
-    'Starting again · cleared by ' + currentUserName);
+  logChange('muzarib','Started the record again for', mzRef(m), 'Counting towards what he is owed',
+    q.tx.length + ' entries · owed ' + fmtMoney(before), 'nothing · owed ' + fmtMoney(muzaribPosition(id).cash),
+    'Set aside by ' + currentUserName + ' · every line kept under Team & Pay');
   saveDB(); closeModal(); render();
   if(typeof wbToast === 'function')
-    wbToast((m.name||'The investor') + '’s record is clear — enter his capital again');
+    wbToast((m.name||'The investor') + '’s balance is zero — enter his capital again');
+}
+
+/* Undoing the above, long after the tab that did it has been closed. */
+function mzUnarchive(id){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can bring these back.'); return; }
+  const m = muzarib(id); if(!m) return;
+  const off = mzArchivedTx(id);
+  if(!off.length) return;
+  if(!confirm('Bring back ' + off.length + ' set-aside '
+    + (off.length===1?'entry':'entries') + ' for ' + (m.name||'this investor') + '?\n\n'
+    + 'They count towards what he is owed again, on top of anything entered since.')) return;
+  captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB)),
+               label:'before bringing back ' + (m.name||'the investor') + '’s set-aside entries'});
+  const before = muzaribPosition(id).cash;
+  off.forEach(function(t){ delete t.archived; delete t.archivedAt; delete t.archivedBy; });
+  logChange('muzarib','Brought back set-aside entries for', mzRef(m), 'Counting towards what he is owed',
+    'nothing · owed ' + fmtMoney(before),
+    off.length + ' entries · owed ' + fmtMoney(muzaribPosition(id).cash),
+    'Brought back by ' + currentUserName);
+  saveDB(); render();
 }
 
 function investorCashUsedSection(){
@@ -7713,10 +7741,13 @@ function investorCashUsedSection(){
     const byDate = function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); };
     /* Everything, spend lines included: this is the internal record. The
        investor's own page uses muzaribVisibleTx, which leaves spend out. */
-    const all   = muzaribTx(m.id).slice().sort(byDate);
+    /* Everything, spend lines and archived lines included: this is the
+       internal record, and the point of it is that nothing disappears. */
+    const all   = muzaribAllTx(m.id).slice().sort(byDate);
     const spend = all.filter(function(t){ return t.type==='spend'; });
     return {m:m, p:p, spend:spend, all:all};
   }).filter(function(x){ return x.all.length; });
+  used.forEach(function(x){ x.off = x.all.filter(function(t){ return t.archived; }); });
   if(!used.length) return '';
   const grand = used.reduce(function(s,x){ return s + x.p.usedByCompany; }, 0);
 
@@ -7728,17 +7759,20 @@ function investorCashUsedSection(){
     <b>${fmtMoney(grand)}</b> of investor cash has gone on running the business, across
     ${used.length === 1 ? 'one investor' : used.length + ' investors'}. What they are owed is not affected by it.</div>
   ${used.map(function(x){
-    const id = x.m.id, p = x.p, spend = x.spend, all = x.all;
+    const id = x.m.id, p = x.p, spend = x.spend, all = x.all, off = x.off;
     return `
   <div class="card" style="margin-bottom:14px">
     <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px">
       <h3 style="margin:0"><a class="link" onclick="openMuzarib('${id}')">${escapeHtml(x.m.name)}</a></h3>
-      <span class="small-muted">${all.length} entr${all.length===1?'y':'ies'}</span>
+      <span class="small-muted">${all.length} entr${all.length===1?'y':'ies'}${
+        off.length?` · ${off.length} set aside`:''}</span>
       <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
         ${spend.length?`<button class="btn btn-sm btn-ghost" onclick="printMzSpendBreakdown('${id}')"
           title="Internal only">&#128274; Print where his money went</button>`:''}
-        ${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="openMzReset('${id}')"
-          title="Clear every entry and start his record again">Start again</button>`:''}
+        ${isSuperAdmin() && off.length?`<button class="btn btn-sm btn-ghost" onclick="mzUnarchive('${id}')"
+          title="Make the set-aside entries count again">Bring back ${off.length}</button>`:''}
+        ${isSuperAdmin() && all.length>off.length?`<button class="btn btn-sm btn-ghost" onclick="openMzReset('${id}')"
+          title="Take his balance to zero, keeping every line here">Start again</button>`:''}
       </div>
     </div>
     <div class="grid kpi-grid" style="margin-bottom:12px">
@@ -7759,14 +7793,18 @@ function investorCashUsedSection(){
         ${carsWithoutCapital(id).length === 1 ? 'it' : 'they'} came from.
         <a class="link" onclick="openCarsBroughtIn('${id}')">Say which he brought in</a></div>`:''}
     </div>`:''}
+    ${off.length ? `<div class="small-muted" style="margin:-4px 0 10px">The ${off.length} greyed
+      ${off.length===1?'line was':'lines were'} set aside when his record was started again. ${off.length===1?'It is':'They are'}
+      kept here as the record of what was paid, and ${off.length===1?'does':'do'} not count towards what he is owed.</div>`:''}
     <table><thead><tr><th>Date</th><th>Type</th><th>Note</th><th>Method</th><th class="num">Amount</th><th></th></tr></thead>
-      <tbody>${all.map(function(t){ return `<tr>
+      <tbody>${all.map(function(t){ return `<tr${t.archived?' style="opacity:.55"':''}>
         <td>${fmtDate(t.date)}</td>
         <td><span class="tag ${t.type==='capital'?'tag-green':(t.type==='withdrawal'?'tag-amber':(t.type==='spend'?'tag-blue':'tag-grey'))}">${MZ_TX_TYPES[t.type].label}</span></td>
         <td>${escapeHtml(t.note||'')}${t.type==='capital' && capitalKind(t)!=='cash'
           ? ` <span class="tag tag-grey" title="No cash arrived for this">${capitalKind(t)==='stock'
               ? 'car handed in'
-              : (t.method==='Paid direct' ? 'his own pocket' : 'from the old business')}</span>`:''}</td>
+              : (t.method==='Paid direct' ? 'his own pocket' : 'from the old business')}</span>`:''}${
+          t.archived ? ` <span class="tag tag-grey" title="Kept for the record, but it no longer counts towards what he is owed">set aside${t.archivedAt?' '+fmtDate(t.archivedAt):''}</span>`:''}</td>
         <td>${t.method ? escapeHtml(t.method) : '—'}</td>
         ${(function(){ const down = t.type==='withdrawal' || Number(t.amount) < 0;
           return `<td class="num" style="font-weight:700;color:${down?'var(--red)':'inherit'}">${down?'&minus; ':''}${fmtMoney(Math.abs(t.amount))}</td>`; })()}
@@ -10315,7 +10353,14 @@ function carSettlement(v){
 
 /* His own profile shows only his transactions, not our internal use of his cash */
 function muzaribVisibleTx(id){ return muzaribTx(id).filter(t=>t.type!=='spend'); }
-function muzaribTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id); }
+/* An archived entry is kept but no longer counts. It is how an investor's
+   record is started again without throwing away what was there: the balance
+   reads zero, and every line is still on file under Team & Pay. Everything
+   that works out what he is owed goes through here, so excluding them once
+   here is enough. */
+function muzaribTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id && !t.archived); }
+function muzaribAllTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id); }
+function mzArchivedTx(id){ return (DB.muzaribTx||[]).filter(t=>t.muzaribId===id && t.archived); }
 
 /* The whole financial position, derived live. */
 /* What one car is worth on the INVESTOR's book.
