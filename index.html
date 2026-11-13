@@ -448,6 +448,14 @@
 .flt-act{display:flex;flex-direction:column;gap:5px;justify-content:center;padding:10px 11px 10px 0}
 .flt-hist{margin-top:7px;border-top:1px solid var(--line);padding-top:6px;font-size:11px;
   color:var(--muted);line-height:1.75}
+.flt-sites{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;margin:0 0 10px}
+.flt-sites .fs{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;
+  cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.flt-sites .fs:hover{border-color:var(--brand)}
+.flt-sites .fs.on{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+.flt-sites .fs b{display:block;font-size:30px;line-height:1.05;font-weight:800}
+.flt-sites .fs span{display:block;font-size:13px;font-weight:700;margin-top:3px}
+.flt-sites .fs em{display:block;font-style:normal;font-size:11px;color:var(--muted);margin-top:1px}
 .flt-sum{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 .flt-sum .s{border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:92px}
 .flt-sum .s b{display:block;font-size:19px;line-height:1.1}
@@ -526,7 +534,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b147</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b148</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -2948,18 +2956,53 @@ function closeMobileMenu(){ document.getElementById('sidebarNavItems').classList
 const FLEET_LOCS = ['Car Express','Sandy Workshop','Luton Workshop','Bodywork Luton',
                     'Bodywork Sandy','With Staff','In Transit','Sold','Scrapped','Unassigned'];
 const FLEET_SEED = [{"reg":"AK60ZHF","name":"Honda Jazz","year":"2010","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"AK62HNH","name":"Peugeot RCZ","year":"2012","colour":"White","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"AO13UHA","name":"FORD B-MAX 1.6 TITANIUM P/SHIFT MPV","year":"2013","colour":"gold","loc":"In Transit","person":"Monib","kind":"Collection","to":"Hemel","note":"Bca car being delivered"},{"reg":"BD13DWJ","name":"Ford Fiesta","year":"2013","colour":"Burgundy","loc":"Bodywork Luton","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"BJ67RZL","name":"Nissan Juke","year":"2017","colour":"Red","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"BK12UZY","name":"Citroen C1","year":"2012","colour":"Red","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"DA65ARU","name":"Vauxhall Mokka","year":"2015","colour":"White","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"DC15MVK","name":"Ford KA","year":"2015","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"DU66XRD","name":"Vauxhall Corsa","year":"2016","colour":"Black","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"DV09OOB","name":"Vauxhall Corsa","year":"2009","colour":"Blue","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"DV18PBU","name":"Vauxhall Mokka","year":"2018","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"EJ64ZDZ","name":"Nissan Qashqai","year":"2014","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"FP10MZN","name":"VW Polo","year":"2010","colour":"Black","loc":"Bodywork Sandy","person":"","kind":"","to":"","note":"Needs bodywork"},{"reg":"GL13PXA","name":"Ford KA","year":"2013","colour":"Blue","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"GV58KNN","name":"BMW 3 Series","year":"2008","colour":"","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"HY60HGL","name":"BMW 1 Series","year":"2010","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"With james getting work done"},{"reg":"KM67HNT","name":"Peugeot 208","year":"","colour":"Black","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"KN54FWK","name":"VW Polo","year":"2004","colour":"Black","loc":"With Staff","person":"Mirwais","kind":"","to":"","note":"Ready to sell"},{"reg":"LC18XUU","name":"CITROEN C4 CACTUS 1.2 P/T 82 FEEL EDITION Hatchback","year":"2018","colour":"black","loc":"In Transit","person":"Monib","kind":"Delivery","to":"Hemel","note":"Bca car in transit"},{"reg":"LR61JVW","name":"Vauxhall Astra","year":"2011","colour":"Red","loc":"With Staff","person":"Zack","kind":"","to":"","note":"Ready to sell"},{"reg":"LS63SVU","name":"SEAT IBIZA 1.2 TSI FR 3dr","year":"2013","colour":"silver","loc":"In Transit","person":"Monib","kind":"Delivery","to":"Hemel","note":"Co part car in transit"},{"reg":"LT61VYW","name":"Ford Fiesta","year":"2011","colour":"Red","loc":"Car Express","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"LY59FME","name":"Ford Kuga","year":"2009","colour":"Black","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"MT12YBN","name":"Vauxhall Antara","year":"2012","colour":"Silver","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"NX15WMU","name":"Mg 3","year":"2015","colour":"Black","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"OE16GJJ","name":"Mazda CX5","year":"2016","colour":"Black","loc":"Car Express","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"PN14CWP","name":"Ford Fiesta","year":"2014","colour":"White","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"RRZ9816","name":"","year":"","colour":"","loc":"Car Express","person":"","kind":"","to":"","note":""},{"reg":"SC63WCF","name":"FORD FIESTA 1.25 82 Zetec 5dr","year":"2013","colour":"black","loc":"Bodywork Luton","person":"","kind":"","to":"","note":"Car being delivered to Luton Bodywork"},{"reg":"SG63JVA","name":"Peugeot 208","year":"2013","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"SK14YED","name":"TOYOTA AYGO 1.0 VVT-i Move 5dr","year":"2014","colour":"blue","loc":"Car Express","person":"","kind":"","to":"","note":"Co part car being delivered to Hemel by monib"},{"reg":"SL66JOA","name":"Vauxhall Astra","year":"2016","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"SM66GYP","name":"Vauxhall Corsa","year":"2016","colour":"Black","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"ST12AGZ","name":"VW Polo","year":"2012","colour":"Silver","loc":"Car Express","person":"","kind":"","to":"","note":"Needs bodywork"},{"reg":"ST65UMV","name":"Mercedes Benz A180d","year":"2015","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Reserved"},{"reg":"SV61JDO","name":"Jaguar XF","year":"2011","colour":"Red","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Scrapped"},{"reg":"VE16VMC","name":"Ford Focus Titanium","year":"2016","colour":"White","loc":"Luton Workshop","person":"","kind":"","to":"","note":"With jumah mechanic"},{"reg":"VE55YDV","name":"Audi A4 Convertible","year":"2005","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"VN07UPA","name":"Saab Sport","year":"2007","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"VN14WCG","name":"Mazda CX5","year":"2014","colour":"Blue","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs work"},{"reg":"VO13ZNV","name":"Ford Fiesta","year":"2013","colour":"Silver","loc":"Car Express","person":"","kind":"","to":"","note":"Needs bodywork"},{"reg":"VU60XFV","name":"Nissan Qashqai","year":"2010","colour":"Gold","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"WD65CDK","name":"Mazda 2","year":"2016","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"WR60LYN","name":"Mini Cooper","year":"2010","colour":"White","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs work"},{"reg":"WV18WMC","name":"Vauxhall Van","year":"2018","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"WX63WMK","name":"Citroen DS3","year":"","colour":"White","loc":"With Staff","person":"Zack","kind":"","to":"","note":"Needs repair at home"},{"reg":"Y845VBP","name":"Ford Transit","year":"2001","colour":"","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"YP63AYB","name":"Citroen C3","year":"2013","colour":"White","loc":"With Staff","person":"Zack","kind":"","to":"","note":"Needs repair at home"},{"reg":"YS63WZE","name":"VW Polo","year":"2013","colour":"Black","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"}];
+/* The three places cars actually sit, as they get talked about day to day.
+   The forecourt is one site; Sandy and Luton each have a workshop and a
+   bodyshop, which is two chips below but one answer to "how many are at
+   Sandy". Anything not at a site - with a member of staff, on a transporter -
+   is counted separately rather than folded into a town it is not at. */
+const FLEET_SITES = [
+  {key:'Hemel', label:'Hemel', sub:'the forecourt',   locs:['Car Express']},
+  {key:'Sandy', label:'Sandy', sub:'workshop & body', locs:['Sandy Workshop','Bodywork Sandy']},
+  {key:'Luton', label:'Luton', sub:'the garage',      locs:['Luton Workshop','Bodywork Luton']}
+];
+const FLEET_OFFSITE = ['With Staff','In Transit'];
+function fleetSiteLocs(key){
+  const s = FLEET_SITES.find(function(x){ return x.key === key; });
+  return s ? s.locs : [];
+}
+function fleetSiteCount(key){
+  if(key === 'Out') return fleet().filter(function(f){ return FLEET_OFFSITE.indexOf(f.loc) >= 0; }).length;
+  const locs = fleetSiteLocs(key);
+  return fleet().filter(function(f){ return locs.indexOf(f.loc) >= 0; }).length;
+}
+/* Sold and scrapped are history, not somewhere a car is. */
+function fleetHere(){
+  return fleet().filter(function(f){ return f.loc !== 'Sold' && f.loc !== 'Scrapped'; }).length;
+}
 let fleetLoc = 'All';
 let fleetQ = '';
 let fleetOpenHist = {};
 
 function fleet(){ return DB.fleet || (DB.fleet = []); }
 function fleetCount(loc){
-  return loc === 'All' ? fleet().length : fleet().filter(function(f){ return f.loc === loc; }).length;
+  if(loc === 'All') return fleet().length;
+  if(loc === 'Out') return fleetSiteCount('Out');
+  const site = FLEET_SITES.find(function(x){ return x.key === loc; });
+  if(site) return fleetSiteCount(loc);
+  return fleet().filter(function(f){ return f.loc === loc; }).length;
+}
+function fleetMatchesFilter(f){
+  if(fleetLoc === 'All') return true;
+  if(fleetLoc === 'Out') return FLEET_OFFSITE.indexOf(f.loc) >= 0;
+  const site = FLEET_SITES.find(function(x){ return x.key === fleetLoc; });
+  if(site) return site.locs.indexOf(f.loc) >= 0;
+  return f.loc === fleetLoc;
 }
 function fleetShown(){
   const q = String(fleetQ||'').trim().toLowerCase();
   return fleet().filter(function(f){
-    if(fleetLoc !== 'All' && f.loc !== fleetLoc) return false;
+    if(!fleetMatchesFilter(f)) return false;
     if(!q) return true;
     return (f.reg||'').toLowerCase().indexOf(q) >= 0
         || (f.name||'').toLowerCase().indexOf(q) >= 0;
@@ -3137,10 +3180,30 @@ function renderFleet(){
     </div>
   </div>
 
+  <div class="flt-sites">
+    ${FLEET_SITES.map(function(st){ return `<div class="fs ${fleetLoc===st.key?'on':''}"
+      onclick="fleetLoc='${fleetLoc===st.key?'All':st.key}';render()">
+      <b>${fleetSiteCount(st.key)}</b><span>${escapeHtml(st.label)}</span>
+      <em>${escapeHtml(st.sub)}</em></div>`; }).join('')}
+    ${fleetSiteCount('Out') ? `<div class="fs ${fleetLoc==='Out'?'on':''}"
+      onclick="fleetLoc='${fleetLoc==='Out'?'All':'Out'}';render()">
+      <b>${fleetSiteCount('Out')}</b><span>Away</span><em>with staff or moving</em></div>` : ''}
+  </div>
+  <div class="small-muted" style="margin:0 0 12px">${fleetHere()} ${fleetHere()===1?'vehicle':'vehicles'} on the
+    books${fleet().length !== fleetHere() ? `, plus ${fleet().length - fleetHere()} sold or scrapped` : ''}.
+    Tap a place to see only what is there.</div>
+
   <div class="flt-sum">
     ${tabs.map(function(l){ return `<div class="s ${fleetLoc===l?'on':''}" style="cursor:pointer"
       onclick="fleetLoc='${l}';render()"><b>${fleetCount(l)}</b><span>${escapeHtml(l)}</span></div>`; }).join('')}
   </div>
+
+  ${(!fleet().length && isSuperAdmin())?`<div class="card" style="box-shadow:none;padding:16px;margin-bottom:12px">
+    <b>Nothing here yet.</b>
+    <div class="small-muted" style="margin:5px 0 10px">The list of ${FLEET_SEED.length} vehicles and where each one
+      was is ready to bring in. You can move them about afterwards.</div>
+    <button class="btn btn-brand btn-sm" onclick="importFleetSeed()">Bring in the ${FLEET_SEED.length} vehicles</button>
+  </div>`:''}
 
   ${(needPhoto && fleet().length)?`<div class="small-muted" style="margin:0 0 9px">
     ${needPhoto} of ${fleet().length} have no photo against ${needPhoto===1?'its':'their'} location yet —
