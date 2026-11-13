@@ -422,6 +422,41 @@
 .cl-yn .y.on{ background:#1f7a52; color:#fff; } .cl-yn .n.on{ background:#e10600; color:#fff; } .cl-yn button:not(.on):hover{ background:#f0f2f6; }
 .cl-note{ min-width:0; width:100%; } .cl-iss{ min-width:0; }
 .cl-shot{ width:38px; height:38px; object-fit:cover; border-radius:6px; border:1px solid var(--line); cursor:pointer; }
+
+/* ---- Car manager --------------------------------------------------------
+   A scanning list, not a stack of boxes. The whole point is to run an eye
+   down it and see where things are, so the location is a coloured spine on
+   the left and the photo sits beside it as proof. */
+.flt{display:flex;gap:12px;align-items:stretch;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:0;margin-bottom:8px;overflow:hidden;transition:box-shadow .12s}
+.flt:hover{box-shadow:0 2px 10px rgba(0,0,0,.07)}
+.flt-spine{width:4px;flex:0 0 4px;background:var(--line)}
+.flt-sp-green{background:#1a9a52}.flt-sp-amber{background:#e08900}.flt-sp-blue{background:#2b6fd4}
+.flt-sp-red{background:#d12b20}.flt-sp-grey{background:#9aa1ab}
+.flt-shot{width:74px;height:74px;flex:0 0 74px;object-fit:cover;background:#eef0f2;align-self:center;
+  border-radius:8px;margin:10px 0 10px 10px;cursor:pointer}
+.flt-none{width:74px;height:74px;flex:0 0 74px;background:#f3f5f7;border:1px dashed var(--line);
+  border-radius:8px;margin:10px 0 10px 10px;display:flex;align-items:center;justify-content:center;
+  color:#aab0b8;font-size:19px;cursor:pointer;align-self:center}
+.flt-body{flex:1;min-width:0;padding:11px 12px 11px 2px}
+.flt-reg{font-weight:800;font-size:15px;letter-spacing:.02em}
+.flt-desc{color:var(--muted);font-size:12px;margin-left:7px}
+.flt-line2{margin-top:4px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.flt-where{font-size:12px;color:#4a515b}
+.flt-note{margin-top:4px;font-size:12.5px}
+.flt-meta{margin-top:4px;font-size:11px;color:var(--muted)}
+.flt-act{display:flex;flex-direction:column;gap:5px;justify-content:center;padding:10px 11px 10px 0}
+.flt-hist{margin-top:7px;border-top:1px solid var(--line);padding-top:6px;font-size:11px;
+  color:var(--muted);line-height:1.75}
+.flt-sum{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.flt-sum .s{border:1px solid var(--line);border-radius:10px;padding:9px 13px;min-width:92px}
+.flt-sum .s b{display:block;font-size:19px;line-height:1.1}
+.flt-sum .s span{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.flt-sum .s.on{border-color:var(--brand);background:var(--brand-dim)}
+@media(max-width:620px){
+  .flt-shot,.flt-none{width:56px;height:56px;flex:0 0 56px}
+  .flt-act{padding:10px 8px 10px 0}
+}
 @media (max-width:760px){ .cl-row{ grid-template-columns:1fr auto; } .cl-name{ grid-column:1/-1; } .cl-note{ grid-column:1/-1; } .cl-iss{ grid-column:1/-1; } .cl-top{ position:static; } }
 </style>
 
@@ -463,6 +498,7 @@
           <div class="nav-item" data-tab="stock" onclick="App.go('stock')">🚗 Stock</div>
           <div class="nav-item" data-tab="leads" onclick="App.go('leads')">🎯 Leads <span class="dot"></span></div>
           <div class="nav-item" data-tab="customers" onclick="App.go('customers')">🧾 Customers &amp; Sales</div>
+          <div class="nav-item" data-tab="fleet" onclick="App.go('fleet')">🚚 Car manager</div>
         </div>
       </div>
 
@@ -490,7 +526,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-08 b133</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b140</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -692,6 +728,22 @@ function saveDB(){
   saveTimer = setTimeout(async ()=>{
     try{
       const json = JSON.stringify(DB);
+      /* Every save rewrites this whole row and pushes it to every open device, so
+         an oversized one does not fail quietly - it times out and takes the
+         database down with it. Better to stop here and say which part is too big. */
+      if(json.length > 4 * 1024 * 1024){
+        const parts = Object.keys(DB).map(function(k){
+          let n = 0; try{ n = JSON.stringify(DB[k]).length; }catch(e){}
+          return k + ' ' + Math.round(n/1024) + ' KB';
+        }).sort(function(a,b){ return parseInt(b.split(' ')[1]) - parseInt(a.split(' ')[1]); });
+        console.error('workspace too large to save', parts);
+        setSyncStatus('Not saved - the workspace is too large');
+        showLoadFailure('This change was not saved: the workspace has grown to '
+          + Math.round(json.length/1048576*10)/10 + ' MB, past the 4 MB limit. '
+          + 'The largest parts are ' + parts.slice(0,3).join(', ') + '. '
+          + 'Nothing is lost, but tell Monib before carrying on.');
+        return;
+      }
       justSavedLocally = true;
       const {error} = await sb.from('app_data').update({data: DB, updated_at: new Date().toISOString()}).eq('id', APP_DATA_ROW_ID);
       if(error) throw error;
@@ -2015,43 +2067,206 @@ function fmOpen(html){
 
 /* ================= the forms ================= */
 
-function fmVehicleRecord(){
-  const years = [];
-  for(let y=2010;y<=2027;y++) years.push('<div class="ft" style="font-weight:600"><i></i>'+y+'</div>');
-  const docs = ['V5C logbook','MOT certificate','Service book','Service invoices','Spare key','Locking wheel nut','Handbook / wallet'];
-  const prep = ['HPI checked','Deep valet','Photographed','Advertised','36-point inspection','MOT booked','Service booked','Number plates','Parcel shelf','Jack & tools','Mats','Ready to sell'];
-  const body =
-    fmGrid(4, fmBox('Registration')+fmBox('Make &amp; model')+fmBox('Stock no.')+fmBox('Date in'))+
-    '<div class="fg" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px">'+
-      '<div class="fb" style="border:2.2px solid #D4080A;background:#FFF7F7;min-height:44px"><span style="color:#D4080A;font-weight:800">MOT expires</span></div>'+
-      '<div class="fb" style="border:2.2px solid #D4080A;background:#FFF7F7;min-height:44px"><span style="color:#D4080A;font-weight:800">Keys handed in (1 / 2 / 3)</span></div>'+
-      '<div class="fb" style="border:2.2px solid #D4080A;background:#FFF7F7;min-height:44px"><span style="color:#D4080A;font-weight:800">Previous owners</span></div>'+
-      '<div class="fb" style="border:2.2px solid #D4080A;background:#FFF7F7;min-height:44px"><span style="color:#D4080A;font-weight:800">Mileage on arrival</span></div>'+
+/* ---- Vehicle Record ------------------------------------------------------
+   The sheet that lives on the front of the document wallet. Printed blank from
+   Forms, or from a car so the details we already hold are filled in and only
+   the things that have to be checked by hand are left to write.
+   Its own markup rather than fmShell: this one is a dense landscape grid and
+   has to match the printed pad exactly.                                       */
+function fmVehicleRecord(vid){
+  const v = vid ? (DB.vehicles||[]).find(function(x){ return x.id===vid; }) : null;
+  const e = fmEsc;
+  const val = function(x){ return (x===undefined||x===null||x==='') ? '' : String(x); };
+  /* A filled value sits on the line in handwriting-sized text; blank stays blank. */
+  const F = function(label, w, filled){
+    return '<div class="f" style="flex:'+(w||1)+'"><label>'+label+'</label>'+
+      '<div class="v">'+e(val(filled))+'</div><div class="ln"></div></div>';
+  };
+  const ROW = function(inner, mb){ return '<div class="fr" style="margin-bottom:'+(mb||'3.8mm')+'">'+inner+'</div>'; };
+  const BOX = function(label, filled, cls, flex){
+    return '<div class="bo '+(cls||'')+'" style="flex:'+(flex||1)+'"><span>'+label+'</span>'+
+      '<div class="bv">'+e(val(filled))+'</div></div>';
+  };
+  const TICKS = function(items, per){
+    return '<div class="bx" style="--per:'+per+'">'+items.map(function(i){
+      return '<div><span class="cb"></span>'+i+'</div>'; }).join('')+'</div>';
+  };
+  let years = '';
+  for(let y=2010;y<=2027;y++) years += '<div><span class="cb"></span>'+y+'</div>';
+
+  const c = (v && v.costs) || {};
+  const money = [];
+  if(v){
+    const named = {purchase:'Purchase', delivery:'Delivery', service:'Service', mot:'MOT',
+                   bodywork:'Bodywork', mechanical:'Mechanical', autotrader:'AutoTrader boost',
+                   fuel:'Fuel', other:'Other'};
+    Object.keys(named).forEach(function(k){
+      if(k==='purchase') return;                       // purchase is shown under Bought and sold
+      const n = Number(c[k])||0;
+      if(n > 0) money.push({what:named[k], cost:n});
+    });
+    (v.parts||[]).forEach(function(p){
+      if(p.status==='Returned' || !(Number(p.cost)>0)) return;
+      money.push({what:(p.name||'Part'), cost:Number(p.cost), when:p.date});
+    });
+    (v.works||[]).forEach(function(w){
+      if(!(Number(w.cost)>0)) return;
+      money.push({what:(w.title||'Work'), cost:Number(w.cost), when:w.doneAt});
+    });
+  }
+  /* Seven lines on an empty sheet to write on. A car that has had more spent on
+     it gets more lines, down to a tighter row, and past that the tail is rolled
+     into one line so the sheet always stays a single page. */
+  const MROWS = 7, MAXROWS = 13;
+  let shown = money.slice(0, MAXROWS);
+  if(money.length > MAXROWS){
+    const rest = money.slice(MAXROWS - 1);
+    shown = money.slice(0, MAXROWS - 1);
+    shown.push({what:'Other items ('+rest.length+')',
+                cost:rest.reduce(function(t,r){ return t+r.cost; }, 0)});
+  }
+  const tight = shown.length > 8 ? ' tight' : '';
+  let mrows = '';
+  for(let i=0;i<Math.max(MROWS, shown.length);i++){
+    const r = shown[i];
+    mrows += '<tr><td>'+(r&&r.when?e(fmtDate(r.when)):'')+'</td><td>'+(r?e(r.what):'')+
+             '</td><td class="r">'+(r?fmtMoney(r.cost):'')+'</td></tr>';
+  }
+  const spent = v ? vehicleCostTotal(v) : null;
+  const logo = (typeof BRAND_LOGO_PRINT === 'string' && BRAND_LOGO_PRINT)
+    ? '<img src="'+BRAND_LOGO_PRINT+'" alt="">' : '';
+
+  const html =
+  '<!doctype html><html><head><meta charset="utf-8"><title>Vehicle Record'+(v?(' — '+e(v.reg||'')):'')+'</title><style>'+
+  '@page{size:A4 landscape;margin:0}'+
+  '*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+  'body{font:8.8px/1.25 "Helvetica Neue",Arial,sans-serif;color:#15181c;background:#fff;'+
+    'width:297mm;height:207mm;padding:6mm 7mm 3mm;overflow:hidden}'+
+  '.pbtn{position:fixed;top:8px;right:8px;background:#E10600;color:#fff;border:0;border-radius:6px;'+
+    'padding:8px 15px;font-size:13px;cursor:pointer;font-weight:700;z-index:9}'+
+  '@media print{.pbtn{display:none}}'+
+  '.top{display:flex;gap:3mm;align-items:stretch;margin-bottom:2.6mm}'+
+  '.top .lg{flex:0 0 36mm;display:flex;align-items:center}.top .lg img{width:100%;display:block}'+
+  '.bo{border:1.4px solid #15181c;border-radius:1.4mm;padding:1.6mm 2.6mm}'+
+  '.bo>span{display:block;font-size:6.6px;letter-spacing:.12em;text-transform:uppercase;color:#3c434d;font-weight:700}'+
+  '.bo .bv{height:8mm;font-size:13px;font-weight:700;padding-top:1.4mm;white-space:nowrap;overflow:hidden}'+
+  '.bo.sm .bv{height:5.6mm;font-size:11px;padding-top:.8mm}'+
+  '.bo.red{border-color:#E10600;border-width:1.6px}.bo.red>span{color:#E10600}'+
+  '.bar{background:#15181c;color:#fff;padding:1.3mm 2.4mm;display:flex;align-items:baseline;'+
+    'border-radius:.8mm;margin:0 0 2.2mm}'+
+  '.bar b{font-size:8.6px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}'+
+  '.bar em{margin-left:auto;font-style:normal;font-size:6.6px;color:#b9bfc6}'+
+  '.fr{display:flex;gap:4mm}'+
+  '.f label{display:block;font-size:6.6px;letter-spacing:.11em;text-transform:uppercase;color:#3c434d;font-weight:700}'+
+  '.f .v{height:6.8mm;font-size:11px;font-weight:600;padding-top:1.5mm;white-space:nowrap;overflow:hidden}'+
+  '.ln{border-bottom:1px solid #6f767e}'+
+  '.bx{display:flex;flex-wrap:wrap;gap:3mm 0}'+
+  '.bx>div{flex:0 0 calc(100% / var(--per));display:flex;align-items:center;gap:1.6mm;font-size:8.2px}'+
+  '.cb{width:3.2mm;height:3.2mm;border:1px solid #4a515b;border-radius:.5mm;flex:0 0 3.2mm}'+
+  '.yr>div{font-size:7.6px;gap:1.2mm}.yr .cb{width:2.9mm;height:2.9mm;flex:0 0 2.9mm}'+
+  'table{width:100%;border-collapse:collapse}'+
+  'th{text-align:left;font-size:6.6px;letter-spacing:.11em;text-transform:uppercase;color:#3c434d;'+
+    'padding:0 1.6mm 1mm;font-weight:700;border-bottom:1.2px solid #15181c}'+
+  'td{height:7mm;border-bottom:.9px solid #9aa1aa;padding:0 1.6mm;font-size:10px}'+
+  'table.mn.tight td{height:5.2mm;font-size:9px}'+
+  'td.r{text-align:right;font-weight:600}'+
+  'tr.tot td{border-bottom:none;border-top:1.1px solid #15181c;height:5.6mm;font-weight:800;font-size:9px;padding-top:1.2mm}'+
+  '.cols{display:flex;gap:5mm;align-items:flex-start}.blk{margin-bottom:3.4mm}'+
+  '.leave{border:1px solid #c9ced4;border-left:3px solid #E10600;border-radius:1mm;padding:2.4mm 3mm;'+
+    'font-size:7.3px;line-height:1.45;color:#4a515b}.leave b{color:#15181c}'+
+  '.sign{display:flex;gap:6mm;margin-top:2.4mm}.sign div{flex:1}'+
+  '.sign .ln{margin-top:6.5mm;margin-bottom:1mm}'+
+  '.sign span{font-size:6.6px;letter-spacing:.11em;text-transform:uppercase;color:#3c434d;font-weight:700}'+
+  '.foot{display:flex;justify-content:space-between;margin-top:2.4mm;padding-top:1.6mm;'+
+    'border-top:.8px solid #c9ced4;font-size:6.6px;color:#6b7280}.foot b{color:#E10600}'+
+  '</style></head><body>'+
+  '<button class="pbtn" onclick="window.print()">Print / save as PDF</button>'+
+
+  '<div class="top"><div class="lg">'+logo+'</div>'+
+    BOX('Registration', v&&v.reg, '', 1.5)+
+    BOX('Make &amp; model', v?[v.make,v.model].filter(Boolean).join(' '):'', '', 1.6)+
+    BOX('Stock no.', v&&v.stockNo, '', .9)+
+    BOX('Date in', v&&v.dateAdded?fmtDate(v.dateAdded):'', '', .9)+
+  '</div>'+
+  '<div class="top">'+
+    BOX('MOT expires', v&&v.motExpiry?fmtDate(v.motExpiry):'', 'red sm', 1)+
+    '<div class="bo sm" style="flex:1.15"><span>Keys handed in</span>'+
+      '<div style="display:flex;gap:4mm;align-items:center;height:5.6mm">'+
+      [1,2,3].map(function(n){ return '<span style="display:flex;align-items:center;gap:1.4mm;font-size:8.2px">'+
+        '<i class="cb" style="display:block"></i>'+n+'</span>'; }).join('')+'</div></div>'+
+    BOX('Previous owners (V5C)', '', 'red sm', 1)+
+    BOX('Mileage on arrival', v&&v.mileage?Number(v.mileage).toLocaleString('en-GB'):'', 'red sm', 1)+
+  '</div>'+
+
+  '<div class="cols" style="margin-top:3.2mm">'+
+
+    '<div style="flex:1.08">'+
+      '<div class="blk"><div class="bar"><b>The vehicle</b></div>'+
+        ROW(F('Variant / trim',1.4, v&&v.variant)+F('Colour',1, v&&v.color)+
+            F('First registered',1, v&&v.firstReg?fmtDate(v.firstReg):''))+
+        ROW(F('Engine size',1, v&&v.engine)+F('Fuel',1, v&&v.fuel)+F('Transmission',1.2, v&&v.transmission))+
+        ROW(F('VIN',2.2, v&&v.vin)+F('MOT advisories (Y / N)',1), '0')+
+      '</div>'+
+      '<div class="blk"><div class="bar"><b>Service history</b><em>tick every year that is stamped or invoiced</em></div>'+
+        '<div class="bx yr" style="--per:6;margin-bottom:2.6mm">'+years+'</div>'+
+        ROW(F('Last service — date',1)+F('At mileage',1), '2.6mm')+
+        '<table><thead><tr><th style="width:21%">Date</th><th style="width:19%">Mileage</th><th>Garage</th>'+
+          '<th style="width:20%">Invoice</th></tr></thead><tbody>'+
+          '<tr><td></td><td></td><td></td><td></td></tr>'.repeat(3)+'</tbody></table>'+
+      '</div>'+
+      '<div class="bo red" style="padding:2mm 2.6mm">'+
+        '<span style="font-size:7.6px">Timing belt &amp; water pump</span>'+
+        '<div style="margin-top:1.6mm">'+
+          '<div style="display:flex;gap:6mm;margin-bottom:2.4mm">'+
+            '<span style="display:flex;align-items:center;gap:1.6mm;font-size:8.2px"><i class="cb" style="display:block"></i>Done</span>'+
+            '<span style="display:flex;align-items:center;gap:1.6mm;font-size:8.2px"><i class="cb" style="display:block"></i>Not done</span>'+
+          '</div>'+ ROW(F('Year',1)+F('Mileage',1)+F('By whom',1.3), '0') +
+        '</div></div>'+
     '</div>'+
-    fmH('The vehicle')+
-    fmGrid(3, fmBox('Variant / trim')+fmBox('Colour')+fmBox('First registered')+
-              fmBox('Engine size')+fmBox('Fuel')+fmBox('Transmission')+
-              fmBox('VIN',2)+fmBox('MOT advisories (Y/N)'))+
-    fmH('Service history','tick every year that is stamped or invoiced')+
-    '<div class="fts" style="grid-template-columns:repeat(9,1fr)">'+years.join('')+'</div>'+
-    fmGrid(2, fmBox('Last service — date')+fmBox('At mileage'))+
-    fmTable(['Date','Mileage','Garage','Invoice'],3,['18%','16%','','16%'])+
-    '<div style="border:2.2px solid #D4080A;border-radius:5px;padding:7px 10px;margin:8px 0">'+
-      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#D4080A;margin-bottom:6px">Timing belt &amp; water pump</div>'+
-      '<div class="fg" style="grid-template-columns:150px 1fr 1fr 1fr;margin:0">'+
-        '<div class="ft" style="font-weight:700"><i style="width:16px;height:16px"></i>Done &nbsp;<i style="width:16px;height:16px"></i>Not done</div>'+
-        fmBox('Year')+fmBox('Mileage')+fmBox('By whom')+'</div></div>'+
-    '<div style="display:flex;gap:10px;align-items:flex-start">'+
-      '<div style="flex:1">'+fmH('In this wallet','tick what is here')+fmTicks(docs,2)+
-        fmH('Money spent on this car')+fmTable(['Date','What it was for','Cost'],7,['20%','','22%'])+'</div>'+
-      '<div style="flex:1">'+fmH('Preparation','tick as it is done')+fmTicks(prep,2)+
-        fmH('Bought and sold')+
-        fmGrid(2, fmBox('Bought from')+fmBox('Purchase price (£)')+fmBox('Total spent (£)')+fmBox('Date sold')+
-                  fmBox('Sale price (£)')+fmBox('Invoice no.')+fmBox('Profit (£)')+fmBox('Sold by'))+'</div>'+
+
+    '<div style="flex:.95">'+
+      '<div class="blk"><div class="bar"><b>Money spent on this car</b></div>'+
+        '<table class="mn'+tight+'"><thead><tr><th style="width:22%">Date</th><th>What it was for</th>'+
+          '<th style="width:22%" class="r">Cost</th></tr></thead><tbody>'+mrows+
+          '<tr class="tot"><td colspan="2">Total spent</td><td class="r">'+
+            (spent!==null?fmtMoney(spent):'£')+'</td></tr></tbody></table></div>'+
+      '<div class="blk"><div class="bar"><b>Bought and sold</b></div>'+
+        ROW(F('Bought from',1.3)+F('Purchase price (£)',1, (Number(c.purchase)||0)?fmtMoney(c.purchase):''))+
+        ROW(F('Total spent (£)',1, spent!==null?fmtMoney(spent):'')+
+            F('Date sold',1, v&&v.sale?fmtDate(v.sale.date):''))+
+        ROW(F('Sale price (£)',1, v&&v.sale?fmtMoney(v.sale.salePrice):'')+
+            F('Invoice no.',1, v&&v.sale?v.sale.invoiceNo:''))+
+        ROW(F('Profit (£)',1, v&&v.sale?fmtMoney(vehicleProfit(v)):'')+F('Sold by',1))+
+        ROW(F('Remarks',1), '0')+
+      '</div>'+
     '</div>'+
-    fmNote('<b>Before the car leaves:</b> V5C in the customer’s name or sent to DVLA · every key handed over · service book and invoices in the car · MOT certificate with the paperwork · owner count on the invoice matches the V5C · <b>this sheet is kept and filed, never given to the customer.</b>')+
-    fmSign(['Checked in by / date','Prep signed off by / date','Handover checked by / date']);
-  fmOpen(fmShell('Vehicle Record','Front of the document wallet — filled in the day the car arrives', body, true));
+
+    '<div style="flex:.9">'+
+      '<div class="blk"><div class="bar"><b>In this wallet</b><em>tick what is here</em></div>'+
+        TICKS(['V5C logbook','MOT certificate','Service book','Service invoices','Spare key',
+               'Locking wheel nut','Handbook / wallet'], 2)+'</div>'+
+      '<div class="blk"><div class="bar"><b>Preparation</b><em>tick as it is done</em></div>'+
+        TICKS(['HPI checked','Deep valet','Photographed','Advertised','36-point inspection','MOT booked',
+               'Service booked','Number plates','Parcel shelf','Jack &amp; tools','Mats','Ready to sell'], 2)+'</div>'+
+      '<div class="blk"><div class="bar"><b>Price &amp; advertising</b></div>'+
+        ROW(F('Asking price (£)',1, v&&v.askingPrice?fmtMoney(v.askingPrice):'')+F('Advertised on',1.2))+
+        ROW(F('Date',1)+F('Price changed to',1.2), '0')+'</div>'+
+      '<div class="leave"><b>Before the car leaves:</b> V5C in the customer’s name or sent to DVLA · every '+
+        'key handed over · service book and invoices in the car · MOT certificate with the paperwork · '+
+        'owner count on the invoice matches the V5C · <b>this sheet is kept and filed, never given to the '+
+        'customer.</b></div>'+
+    '</div>'+
+  '</div>'+
+
+  '<div class="sign">'+
+    '<div><div class="ln"></div><span>Checked in by / date</span></div>'+
+    '<div><div class="ln"></div><span>Prep signed off by / date</span></div>'+
+    '<div><div class="ln"></div><span>Handover checked by / date</span></div>'+
+  '</div>'+
+  '<div class="foot"><span><b>'+e(fmBrand())+'</b> · Vehicle Record · internal document</span>'+
+    '<span>Keep on the front of the document wallet until the car is sold</span></div>'+
+  '</body></html>';
+  fmOpen(html);
 }
 
 function fmInspectionSheet(){
@@ -2701,6 +2916,7 @@ function render(){
   else if(currentTab==='reports') html = renderReports();
   else if(currentTab==='boardroom') html = renderBoardroom();
   else if(currentTab==='muzaribat') html = renderMuzaribat();
+  else if(currentTab==='fleet') html = renderFleet();
   else if(currentTab==='company') html = renderCompanyAssets();
   else if(currentTab==='cashbook') html = renderCashbook();
   else if(currentTab==='forms') html = renderForms();
@@ -2721,6 +2937,422 @@ function closeMobileMenu(){ document.getElementById('sidebarNavItems').classList
 /* =========================================================================
    DASHBOARD
    ========================================================================= */
+/* =========================================================================
+   CAR MANAGER - where every vehicle physically is
+   Separate from Stock on purpose. Stock is what is for sale and what it cost;
+   this is the whereabouts of every car the business is responsible for,
+   including ones in a workshop, at a bodyshop, with a member of staff, in
+   transit or scrapped. A car can be on both lists; they are matched by
+   registration so the stock record is one tap away.
+   ========================================================================= */
+const FLEET_LOCS = ['Car Express','Sandy Workshop','Luton Workshop','Bodywork Luton',
+                    'Bodywork Sandy','With Staff','In Transit','Sold','Scrapped','Unassigned'];
+const FLEET_SEED = [{"reg":"AK60ZHF","name":"Honda Jazz","year":"2010","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"AK62HNH","name":"Peugeot RCZ","year":"2012","colour":"White","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"AO13UHA","name":"FORD B-MAX 1.6 TITANIUM P/SHIFT MPV","year":"2013","colour":"gold","loc":"In Transit","person":"Monib","kind":"Collection","to":"Hemel","note":"Bca car being delivered"},{"reg":"BD13DWJ","name":"Ford Fiesta","year":"2013","colour":"Burgundy","loc":"Bodywork Luton","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"BJ67RZL","name":"Nissan Juke","year":"2017","colour":"Red","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"BK12UZY","name":"Citroen C1","year":"2012","colour":"Red","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"DA65ARU","name":"Vauxhall Mokka","year":"2015","colour":"White","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"DC15MVK","name":"Ford KA","year":"2015","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"DU66XRD","name":"Vauxhall Corsa","year":"2016","colour":"Black","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"DV09OOB","name":"Vauxhall Corsa","year":"2009","colour":"Blue","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"DV18PBU","name":"Vauxhall Mokka","year":"2018","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"EJ64ZDZ","name":"Nissan Qashqai","year":"2014","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"FP10MZN","name":"VW Polo","year":"2010","colour":"Black","loc":"Bodywork Sandy","person":"","kind":"","to":"","note":"Needs bodywork"},{"reg":"GL13PXA","name":"Ford KA","year":"2013","colour":"Blue","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"GV58KNN","name":"BMW 3 Series","year":"2008","colour":"","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"HY60HGL","name":"BMW 1 Series","year":"2010","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"With james getting work done"},{"reg":"KM67HNT","name":"Peugeot 208","year":"","colour":"Black","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"KN54FWK","name":"VW Polo","year":"2004","colour":"Black","loc":"With Staff","person":"Mirwais","kind":"","to":"","note":"Ready to sell"},{"reg":"LC18XUU","name":"CITROEN C4 CACTUS 1.2 P/T 82 FEEL EDITION Hatchback","year":"2018","colour":"black","loc":"In Transit","person":"Monib","kind":"Delivery","to":"Hemel","note":"Bca car in transit"},{"reg":"LR61JVW","name":"Vauxhall Astra","year":"2011","colour":"Red","loc":"With Staff","person":"Zack","kind":"","to":"","note":"Ready to sell"},{"reg":"LS63SVU","name":"SEAT IBIZA 1.2 TSI FR 3dr","year":"2013","colour":"silver","loc":"In Transit","person":"Monib","kind":"Delivery","to":"Hemel","note":"Co part car in transit"},{"reg":"LT61VYW","name":"Ford Fiesta","year":"2011","colour":"Red","loc":"Car Express","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"LY59FME","name":"Ford Kuga","year":"2009","colour":"Black","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"MT12YBN","name":"Vauxhall Antara","year":"2012","colour":"Silver","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"NX15WMU","name":"Mg 3","year":"2015","colour":"Black","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"OE16GJJ","name":"Mazda CX5","year":"2016","colour":"Black","loc":"Car Express","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"PN14CWP","name":"Ford Fiesta","year":"2014","colour":"White","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"RRZ9816","name":"","year":"","colour":"","loc":"Car Express","person":"","kind":"","to":"","note":""},{"reg":"SC63WCF","name":"FORD FIESTA 1.25 82 Zetec 5dr","year":"2013","colour":"black","loc":"Bodywork Luton","person":"","kind":"","to":"","note":"Car being delivered to Luton Bodywork"},{"reg":"SG63JVA","name":"Peugeot 208","year":"2013","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"SK14YED","name":"TOYOTA AYGO 1.0 VVT-i Move 5dr","year":"2014","colour":"blue","loc":"Car Express","person":"","kind":"","to":"","note":"Co part car being delivered to Hemel by monib"},{"reg":"SL66JOA","name":"Vauxhall Astra","year":"2016","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"SM66GYP","name":"Vauxhall Corsa","year":"2016","colour":"Black","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"ST12AGZ","name":"VW Polo","year":"2012","colour":"Silver","loc":"Car Express","person":"","kind":"","to":"","note":"Needs bodywork"},{"reg":"ST65UMV","name":"Mercedes Benz A180d","year":"2015","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Reserved"},{"reg":"SV61JDO","name":"Jaguar XF","year":"2011","colour":"Red","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Scrapped"},{"reg":"VE16VMC","name":"Ford Focus Titanium","year":"2016","colour":"White","loc":"Luton Workshop","person":"","kind":"","to":"","note":"With jumah mechanic"},{"reg":"VE55YDV","name":"Audi A4 Convertible","year":"2005","colour":"Blue","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"VN07UPA","name":"Saab Sport","year":"2007","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"VN14WCG","name":"Mazda CX5","year":"2014","colour":"Blue","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs work"},{"reg":"VO13ZNV","name":"Ford Fiesta","year":"2013","colour":"Silver","loc":"Car Express","person":"","kind":"","to":"","note":"Needs bodywork"},{"reg":"VU60XFV","name":"Nissan Qashqai","year":"2010","colour":"Gold","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"WD65CDK","name":"Mazda 2","year":"2016","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"WR60LYN","name":"Mini Cooper","year":"2010","colour":"White","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs work"},{"reg":"WV18WMC","name":"Vauxhall Van","year":"2018","colour":"Grey","loc":"Car Express","person":"","kind":"","to":"","note":"Ready to sell"},{"reg":"WX63WMK","name":"Citroen DS3","year":"","colour":"White","loc":"With Staff","person":"Zack","kind":"","to":"","note":"Needs repair at home"},{"reg":"Y845VBP","name":"Ford Transit","year":"2001","colour":"","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"},{"reg":"YP63AYB","name":"Citroen C3","year":"2013","colour":"White","loc":"With Staff","person":"Zack","kind":"","to":"","note":"Needs repair at home"},{"reg":"YS63WZE","name":"VW Polo","year":"2013","colour":"Black","loc":"Sandy Workshop","person":"","kind":"","to":"","note":"Needs repair"}];
+let fleetLoc = 'All';
+let fleetQ = '';
+let fleetOpenHist = {};
+
+function fleet(){ return DB.fleet || (DB.fleet = []); }
+function fleetCount(loc){
+  return loc === 'All' ? fleet().length : fleet().filter(function(f){ return f.loc === loc; }).length;
+}
+function fleetShown(){
+  const q = String(fleetQ||'').trim().toLowerCase();
+  return fleet().filter(function(f){
+    if(fleetLoc !== 'All' && f.loc !== fleetLoc) return false;
+    if(!q) return true;
+    return (f.reg||'').toLowerCase().indexOf(q) >= 0
+        || (f.name||'').toLowerCase().indexOf(q) >= 0;
+  }).sort(function(a,b){ return String(a.reg||'').localeCompare(String(b.reg||'')); });
+}
+/* The same car may also be in Stock. Match on registration, ignoring spaces. */
+function fleetStockCar(f){
+  const key = String(f.reg||'').replace(/\s+/g,'').toUpperCase();
+  if(!key) return null;
+  return (DB.vehicles||[]).find(function(v){
+    return String(v.reg||'').replace(/\s+/g,'').toUpperCase() === key; }) || null;
+}
+function fleetWhere(f){
+  if(f.loc === 'With Staff') return f.person ? 'With ' + escapeHtml(f.person) : 'With staff';
+  if(f.loc === 'In Transit'){
+    return [f.kind||'In transit', f.to?('to '+f.to):'', f.person||''].filter(Boolean).map(escapeHtml).join(' · ');
+  }
+  return '';
+}
+function fleetTagClass(loc){
+  return {'Car Express':'tag-green','In Transit':'tag-amber','With Staff':'tag-blue',
+          'Scrapped':'tag-red','Sold':'tag-grey'}[loc] || 'tag-grey';
+}
+
+/* A sheet to walk round with. Grouped by where things are meant to be, with a
+   box to tick, because the reason to print this is to stand in the yard and
+   check the list against what is actually there. */
+function printFleet(withPhotos){
+  const all = fleetShown();
+  if(!all.length){ alert('Nothing to print.'); return; }
+  const scope = fleetLoc === 'All' ? 'All locations' : fleetLoc;
+  const groups = {};
+  all.forEach(function(f){ (groups[f.loc||'Unassigned'] = groups[f.loc||'Unassigned'] || []).push(f); });
+  const order = FLEET_LOCS.filter(function(l){ return groups[l]; })
+                  .concat(Object.keys(groups).filter(function(l){ return FLEET_LOCS.indexOf(l) < 0; }));
+  const dot = function(l){ return 'd-' + fleetSpine(l); };
+  const logo = (typeof BRAND_LOGO_PRINT === 'string' && BRAND_LOGO_PRINT)
+    ? `<img class="logo" src="${BRAND_LOGO_PRINT}" alt="">` : `<div class="wordmark">${escapeHtml(DB.bizName||'Car Express')}</div>`;
+  const photographed = all.filter(function(f){ return f.photoId; }).length;
+  const shotCell = function(f){
+    if(!withPhotos) return '';
+    return f.photoId ? `<td class="ph"><img src="${getPhotoUrl(f.photoId)}"/></td>`
+                     : `<td class="ph"><div class="noph">—</div></td>`;
+  };
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><meta charset="utf-8"><title>Car manager — ${escapeHtml(scope)}</title><style>
+    @page{size:A4;margin:11mm 11mm 14mm}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font:10.5px/1.45 "Helvetica Neue",Arial,sans-serif;color:#15181c;-webkit-print-color-adjust:exact;
+      padding-bottom:10mm}
+
+    .top{display:flex;align-items:flex-end;justify-content:space-between;padding-bottom:7px}
+    .logo{height:13mm;display:block}
+    .wordmark{font-size:21px;font-weight:800;letter-spacing:-.02em}
+    .top .meta{text-align:right}
+    .top h1{font-size:15px;font-weight:800;letter-spacing:-.01em}
+    .top .sub{color:#6b7280;font-size:9.5px;margin-top:1px}
+    .rule{height:2.6px;background:#E10600;border-radius:2px;margin-bottom:11px}
+
+    .tiles{display:flex;gap:5px;margin-bottom:13px;flex-wrap:wrap}
+    .tl{border:1px solid #e3e6ea;border-radius:5px;padding:6px 10px;min-width:74px}
+    .tl b{display:block;font-size:15px;font-weight:800;line-height:1.1}
+    .tl span{font-size:7.5px;letter-spacing:.07em;text-transform:uppercase;color:#7b828c;white-space:nowrap}
+    .tl.sel{border-color:#E10600;background:#fff6f5}
+    .tl.sel b{color:#E10600}
+    .tl.ph{margin-left:auto;border-style:dashed}
+
+    .sec{margin-bottom:12px;break-inside:avoid}
+    .sh{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+    .sh .dt{width:8px;height:8px;border-radius:50%;flex:0 0 8px}
+    .d-green{background:#1a9a52}.d-amber{background:#e08900}.d-blue{background:#2b6fd4}
+    .d-red{background:#d12b20}.d-grey{background:#9aa1ab}
+    .sh h2{font-size:12.5px;font-weight:800}
+    .sh .cnt{font-size:8.5px;color:#6b7280;background:#f1f3f5;border-radius:20px;padding:1.5px 8px;font-weight:700}
+
+    table{width:100%;border-collapse:collapse}
+    th{text-align:left;font-size:7.5px;letter-spacing:.08em;text-transform:uppercase;color:#8a9099;
+      padding:0 6px 3px;border-bottom:1.3px solid #15181c;font-weight:700}
+    td{padding:4.5px 6px;border-bottom:1px solid #eef0f2;vertical-align:middle;font-size:10px}
+    tr:nth-child(even) td{background:#fafbfc}
+    tr{break-inside:avoid}
+    td.bx{width:17px}
+    .box{width:11px;height:11px;border:1.3px solid #9aa1ab;border-radius:2.5px;display:block}
+    td.rg{font-weight:800;white-space:nowrap;width:74px;letter-spacing:.02em;font-size:10.5px}
+    td.ca{color:#5d646e;font-size:9.5px}
+    td.st span{display:inline-block;background:#f1f3f5;border-radius:20px;padding:1.5px 8px;font-size:9px}
+    td.wh{font-size:9.5px;white-space:nowrap;color:#4a515b}
+    td.up{font-size:8.5px;color:#9aa1ab;white-space:nowrap;text-align:right;line-height:1.3}
+    td.ph{width:44px}
+    td.ph img{width:40px;height:40px;object-fit:cover;border-radius:4px;display:block}
+    .noph{width:40px;height:40px;border:1px dashed #dde1e5;border-radius:4px;color:#c5cad0;
+      display:flex;align-items:center;justify-content:center;font-size:11px}
+    .tick{color:#1a9a52;font-weight:800;margin-left:4px}
+    .tick.off{color:#d4d8dd}
+
+    .foot{position:fixed;bottom:5mm;left:11mm;right:11mm;border-top:1px solid #eef0f2;padding-top:4px;
+      display:flex;justify-content:space-between;font-size:8px;color:#9aa1ab}
+    </style></head><body>
+
+    <div class="top">
+      ${logo}
+      <div class="meta">
+        <h1>Car manager</h1>
+        <div class="sub">${escapeHtml(scope)} · ${all.length} vehicle${all.length===1?'':'s'}</div>
+        <div class="sub">${fmtDateTime(new Date().toISOString())}${currentUserName?(' · '+escapeHtml(currentUserName)):''}</div>
+      </div>
+    </div>
+    <div class="rule"></div>
+
+    <div class="tiles">
+      ${order.map(function(l){ return `<div class="tl ${fleetLoc===l?'sel':''}">
+        <b>${groups[l].length}</b><span>${escapeHtml(l)}</span></div>`; }).join('')}
+      <div class="tl ph"><b>${photographed}<span style="font-size:10px;color:#9aa1ab;font-weight:400"> / ${all.length}</span></b>
+        <span>Photo confirmed</span></div>
+    </div>
+
+    ${order.map(function(l){
+      const list = groups[l].slice().sort(function(a,b){ return String(a.reg||'').localeCompare(String(b.reg||'')); });
+      return `<div class="sec">
+        <div class="sh"><span class="dt ${dot(l)}"></span><h2>${escapeHtml(l)}</h2>
+          <span class="cnt">${list.length}</span></div>
+        <table><thead><tr><th></th>${withPhotos?'<th></th>':''}<th>Reg</th><th>Vehicle</th>
+          <th>Status</th><th>Who / where</th><th style="text-align:right">Last moved</th></tr></thead>
+        <tbody>${list.map(function(f){
+          return `<tr><td class="bx"><span class="box"></span></td>
+            ${shotCell(f)}
+            <td class="rg">${escapeHtml(f.reg||'')}</td>
+            <td class="ca">${escapeHtml([f.name,f.year,f.colour].filter(Boolean).join(' · '))}</td>
+            <td class="st">${f.note?`<span>${escapeHtml(f.note)}</span>`:''}</td>
+            <td class="wh">${escapeHtml(fleetWherePlain(f)||'')}
+              <span class="tick ${f.photoId?'':'off'}">✓</span></td>
+            <td class="up">${f.updAt?fmtDateTime(f.updAt):'—'}${f.updBy?('<br>'+escapeHtml(f.updBy)):''}</td>
+          </tr>`; }).join('')}</tbody></table></div>`; }).join('')}
+
+    <div class="foot">
+      <span>Tick the box when you have seen it yourself · ✓ means a photo was taken where it is</span>
+      <span>${escapeHtml(DB.bizName||'Car Express')}</span>
+    </div>
+    </body></html>`);
+  w.document.close();
+  setTimeout(function(){ try{ w.print(); }catch(e){} }, withPhotos ? 900 : 250);
+}
+function openFleetPrint(){
+  const n = fleetShown().length, withPh = fleetShown().filter(function(f){ return f.photoId; }).length;
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Print the car manager</h3>
+    <div class="small-muted" style="margin-bottom:11px">${n} vehicle${n===1?'':'s'}${
+      fleetLoc==='All'?'':(' at <b>'+escapeHtml(fleetLoc)+'</b>')} · grouped by where they are, with a box to
+      tick as you check each one.</div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <button class="btn btn-brand" style="text-align:left;height:auto;padding:11px 13px;white-space:normal"
+        onclick="closeModal();printFleet(false)">
+        <b>List only</b><br><span class="small-muted">One line each — fits a yard walk on a couple of sheets.</span></button>
+      <button class="btn btn-ghost" style="text-align:left;height:auto;padding:11px 13px;white-space:normal"
+        onclick="closeModal();printFleet(true)">
+        <b>With photos</b><br><span class="small-muted">Adds the position photo beside each one.
+        ${withPh} of ${n} have one. Slower to open and longer to print.</span></button>
+    </div>`);
+}
+function fleetSpine(loc){
+  return {'Car Express':'green','In Transit':'amber','With Staff':'blue',
+          'Scrapped':'red','Sold':'grey'}[loc] || 'grey';
+}
+function renderFleet(){
+  const rows = fleetShown();
+  const tabs = ['All'].concat(FLEET_LOCS).filter(function(l){
+    return l === 'All' || fleetCount(l) > 0 || fleetLoc === l; });
+  const needPhoto = fleet().filter(function(f){ return !f.photoId; }).length;
+  return `
+  <div class="topbar">
+    <div><h1>Car manager</h1><div class="date">Where every vehicle is right now</div></div>
+    <div style="display:flex;gap:7px">
+      <button class="btn btn-ghost" onclick="openFleetPrint()">🖨 Print</button>
+      <button class="btn btn-brand" onclick="openFleetAdd()">+ Add a vehicle</button>
+    </div>
+  </div>
+
+  <div class="flt-sum">
+    ${tabs.map(function(l){ return `<div class="s ${fleetLoc===l?'on':''}" style="cursor:pointer"
+      onclick="fleetLoc='${l}';render()"><b>${fleetCount(l)}</b><span>${escapeHtml(l)}</span></div>`; }).join('')}
+  </div>
+
+  ${(needPhoto && fleet().length)?`<div class="small-muted" style="margin:0 0 9px">
+    ${needPhoto} of ${fleet().length} have no photo against ${needPhoto===1?'its':'their'} location yet —
+    a photo is what turns "it should be at Sandy" into "it is at Sandy".</div>`:''}
+
+  <div class="field" style="margin-bottom:10px">
+    <input id="fleet_q" placeholder="Search registration, make or model" value="${escapeAttr(fleetQ)}"
+      oninput="fleetQ=this.value;clearTimeout(window.__fq);window.__fq=setTimeout(render,250)"/>
+  </div>
+
+  ${rows.length ? rows.map(function(f){
+    const sc = fleetStockCar(f);
+    const where = fleetWhere(f);
+    return `<div class="flt">
+      <div class="flt-spine flt-sp-${fleetSpine(f.loc)}"></div>
+      ${f.photoId
+        ? `<img class="flt-shot" src="${getPhotoUrl(f.photoId)}" title="Taken ${f.photoAt?fmtDateTime(f.photoAt):''} — tap to open"
+             onclick="window.open('${getPhotoUrl(f.photoId)}','_blank')"/>`
+        : `<label class="flt-none" title="Add a photo of where it is">\u{1F4F7}
+             <input type="file" accept="image/*" capture="environment" hidden
+               onchange="uploadFleetPhoto('${f.id}', this)"/></label>`}
+      <div class="flt-body">
+        <div><span class="flt-reg">${escapeHtml(f.reg||'')}</span>
+          <span class="flt-desc">${escapeHtml([f.name,f.year,f.colour].filter(Boolean).join(' · '))}</span></div>
+        <div class="flt-line2">
+          <span class="tag ${fleetTagClass(f.loc)}">${escapeHtml(f.loc||'Unassigned')}</span>
+          ${where?`<span class="flt-where">${where}</span>`:''}
+          ${f.photoId?`<span class="tag tag-green" title="A photo was taken where it is">✓ confirmed</span>`:''}
+        </div>
+        ${f.note?`<div class="flt-note">${escapeHtml(f.note)}</div>`:''}
+        <div class="flt-meta">
+          ${f.updAt?('Moved '+fmtDateTime(f.updAt)+(f.updBy?(' by '+escapeHtml(f.updBy)):'')):'Not moved yet'}
+          ${(f.history&&f.history.length>1)?` · <span class="link" style="cursor:pointer"
+            onclick="fleetOpenHist['${f.id}']=!fleetOpenHist['${f.id}'];render()">${
+              fleetOpenHist[f.id]?'hide history':'history'}</span>`:''}
+        </div>
+        ${(fleetOpenHist[f.id] && f.history && f.history.length)?`<div class="flt-hist">
+          ${f.history.slice().reverse().map(function(h){
+            return `${escapeHtml(h.loc)}${h.extra?(' · '+escapeHtml(h.extra)):''} — ${fmtDateTime(h.at)}${
+              h.by?(' by '+escapeHtml(h.by)):''}`; }).join('<br>')}</div>`:''}
+      </div>
+      <div class="flt-act">
+        <button class="btn btn-sm btn-brand" onclick="openFleetMove('${f.id}')">Move</button>
+        ${f.photoId?`<label class="btn btn-sm btn-ghost" style="cursor:pointer;text-align:center">Photo
+          <input type="file" accept="image/*" capture="environment" hidden
+            onchange="uploadFleetPhoto('${f.id}', this)"/></label>`:''}
+        ${sc?`<button class="btn btn-sm btn-ghost" onclick="openVehicle('${sc.id}')">Stock</button>`:''}
+        ${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" style="color:var(--red)"
+          onclick="deleteFleet('${f.id}')">✕</button>`:''}
+      </div></div>`;
+  }).join('') : `<div class="empty">${fleetQ?'Nothing matches that.':'No vehicles on this list yet.'}</div>`}
+
+  ${(isSuperAdmin() && !fleet().length)?`<div class="card" style="padding:14px;margin-top:10px">
+    <b>Start from your existing list</b>
+    <div class="small-muted" style="margin-top:4px">The ${FLEET_SEED.length} vehicles from the Vehicle Manager can be
+      brought in as they stand, with their locations and notes.</div>
+    <button class="btn btn-brand btn-sm" style="margin-top:8px" onclick="importFleetSeed()">Bring in all ${FLEET_SEED.length}</button>
+  </div>`:''}`;
+}
+
+/* A photo taken where the car is, which is the only real proof of where it is.
+   Taking a new one replaces the old: the question is always "where is it now",
+   never "where was it in September". */
+async function uploadFleetPhoto(id, input){
+  const f = fleet().find(function(x){ return x.id === id; });
+  const file = input && input.files && input.files[0];
+  if(!f || !file) return;
+  input.value = '';
+  const old = f.photoId;
+  try{
+    const res = await storePhoto(file);
+    if(!res.ref){ alert('That photo could not be saved. ' + (res.error||'')); return; }
+    f.photoId = res.ref;
+    f.photoAt = new Date().toISOString();
+    f.photoBy = currentUserName || '';
+    if(f.history && f.history.length) f.history[f.history.length-1].photo = true;
+    logChange('stock','Photo of where it is', {id:f.id, label:f.reg}, 'Location photo',
+      old?'replaced':'', f.loc, 'by ' + (currentUserName||''));
+    saveDB(); render(); notePhotoFallback(res);
+    if(old) deletePhoto(old);
+  }catch(e){ alert('That photo could not be saved. ' + (e.message||e)); }
+}
+
+function openFleetMove(id){
+  /* Staff move the cars, so staff record the moves. Anyone signed in can say
+     where a vehicle is and photograph it; only a Super Admin can take one off
+     the list. */
+  const f = fleet().find(function(x){ return x.id === id; }); if(!f) return;
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Move ${escapeHtml(f.reg||'this vehicle')}</h3>
+    <div class="small-muted" style="margin-bottom:11px">${escapeHtml([f.name,f.year,f.colour].filter(Boolean).join(' · '))}
+      · currently <b>${escapeHtml(f.loc||'Unassigned')}</b></div>
+    <div class="field"><label>Where is it going?</label>
+      <select id="fm_loc" onchange="fleetMoveFields()">
+        ${FLEET_LOCS.map(function(l){ return `<option ${f.loc===l?'selected':''}>${l}</option>`; }).join('')}
+      </select></div>
+    <div id="fm_extra"></div>
+    <div class="field"><label>What is happening with it?</label>
+      <input id="fm_note" value="${escapeAttr(f.note||'')}" placeholder="e.g. Needs bodywork, Ready to sell"/></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveFleetMove('${f.id}')">Save</button></div>`);
+  fleetMoveFields(f);
+}
+/* Only the places that need one ask for a name or a destination. */
+function fleetMoveFields(f){
+  const box = document.getElementById('fm_extra'); if(!box) return;
+  const loc = (document.getElementById('fm_loc')||{value:''}).value;
+  const people = (DB.team||[]).map(function(t){ return t.name; }).filter(Boolean);
+  const cur = f || {};
+  if(loc === 'With Staff'){
+    box.innerHTML = `<div class="field"><label>Who has it?</label>
+      <input id="fm_person" list="fm_people" value="${escapeAttr(cur.person||'')}"/>
+      <datalist id="fm_people">${people.map(function(p){ return `<option>${escapeHtml(p)}</option>`; }).join('')}</datalist></div>`;
+  } else if(loc === 'In Transit'){
+    box.innerHTML = `<div class="field-row">
+        <div class="field"><label>Collection or delivery?</label>
+          <select id="fm_kind"><option ${cur.kind==='Collection'?'selected':''}>Collection</option>
+            <option ${cur.kind==='Delivery'?'selected':''}>Delivery</option></select></div>
+        <div class="field"><label>Going to</label>
+          <input id="fm_to" value="${escapeAttr(cur.to||'')}" placeholder="e.g. Hemel"/></div>
+      </div>
+      <div class="field"><label>Who is moving it?</label>
+        <input id="fm_person" list="fm_people" value="${escapeAttr(cur.person||'')}"/>
+        <datalist id="fm_people">${people.map(function(p){ return `<option>${escapeHtml(p)}</option>`; }).join('')}</datalist></div>`;
+  } else box.innerHTML = '';
+}
+function saveFleetMove(id){
+  const f = fleet().find(function(x){ return x.id === id; }); if(!f) return;
+  const val = function(i){ const e = document.getElementById(i); return e ? e.value.trim() : ''; };
+  const was = f.loc, wasWhere = [f.person, f.to].filter(Boolean).join(' ');
+  f.loc    = val('fm_loc') || f.loc;
+  f.person = (f.loc === 'With Staff' || f.loc === 'In Transit') ? val('fm_person') : '';
+  f.kind   = f.loc === 'In Transit' ? val('fm_kind') : '';
+  f.to     = f.loc === 'In Transit' ? val('fm_to') : '';
+  f.note   = val('fm_note');
+  f.updAt  = new Date().toISOString();
+  f.updBy  = currentUserName || '';
+  f.history = f.history || [];
+  f.history.push({loc:f.loc, extra:fleetWherePlain(f), note:f.note, at:f.updAt, by:f.updBy});
+  logChange('stock','Moved', {id:f.id, label:f.reg}, 'Location', was + (wasWhere?(' · '+wasWhere):''),
+    f.loc + (fleetWherePlain(f)?(' · '+fleetWherePlain(f)):''), f.note||'');
+  saveDB(); closeModal(); render();
+}
+function fleetWherePlain(f){
+  if(f.loc === 'With Staff') return f.person || '';
+  if(f.loc === 'In Transit') return [f.kind, f.to?('to '+f.to):'', f.person].filter(Boolean).join(' · ');
+  return '';
+}
+function openFleetAdd(){
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Add a vehicle to the car manager</h3>
+    <div class="field-row">
+      <div class="field"><label>Registration *</label><input id="fa_reg" style="text-transform:uppercase"/></div>
+      <div class="field"><label>Make and model</label><input id="fa_name" placeholder="e.g. Ford Fiesta"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Year</label><input id="fa_year"/></div>
+      <div class="field"><label>Colour</label><input id="fa_colour"/></div>
+    </div>
+    <div class="field"><label>Where is it?</label>
+      <select id="fa_loc">${FLEET_LOCS.map(function(l){ return `<option>${l}</option>`; }).join('')}</select></div>
+    <div class="field"><label>What is happening with it?</label><input id="fa_note"/></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="saveFleetAdd()">Add</button></div>`);
+}
+function saveFleetAdd(){
+  const val = function(i){ const e = document.getElementById(i); return e ? e.value.trim() : ''; };
+  const reg = val('fa_reg').toUpperCase().replace(/\s+/g,'');
+  if(!reg){ alert('Enter the registration.'); return; }
+  if(fleet().some(function(f){ return (f.reg||'').replace(/\s+/g,'') === reg; })){
+    alert(reg + ' is already on the list.'); return; }
+  const now = new Date().toISOString();
+  const f = {id:nextId('flt'), reg:reg, name:val('fa_name'), year:val('fa_year'), colour:val('fa_colour'),
+             loc:val('fa_loc')||'Unassigned', person:'', kind:'', to:'', note:val('fa_note'),
+             updAt:now, updBy:currentUserName||'', history:[{loc:val('fa_loc')||'Unassigned', extra:'',
+             note:val('fa_note'), at:now, by:currentUserName||''}]};
+  fleet().push(f);
+  logChange('stock','Added to the car manager', {id:f.id, label:reg}, 'Location', '', f.loc, f.note||'');
+  saveDB(); closeModal(); render();
+}
+function deleteFleet(id){
+  if(!isSuperAdmin()) return;
+  const f = fleet().find(function(x){ return x.id === id; }); if(!f) return;
+  if(!confirm('Take ' + (f.reg||'this vehicle') + ' off the car manager?\n\nIts stock record is not touched.')) return;
+  logChange('stock','Removed from the car manager', {id:f.id, label:f.reg}, 'Location', f.loc, '', '');
+  DB.fleet = fleet().filter(function(x){ return x.id !== id; });
+  saveDB(); render();
+}
+function importFleetSeed(){
+  if(!isSuperAdmin()) return;
+  if(!confirm('Bring in ' + FLEET_SEED.length + ' vehicles with their current locations?')) return;
+  const now = new Date().toISOString();
+  let n = 0;
+  FLEET_SEED.forEach(function(s){
+    if(fleet().some(function(f){ return (f.reg||'') === s.reg; })) return;
+    fleet().push({id:nextId('flt'), reg:s.reg, name:s.name, year:s.year, colour:s.colour,
+      loc:s.loc, person:s.person, kind:s.kind, to:s.to, note:s.note,
+      updAt:now, updBy:currentUserName||'',
+      history:[{loc:s.loc, extra:'', note:s.note, at:now, by:currentUserName||''}]});
+    n++;
+  });
+  logChange('stock','Imported the vehicle list', {id:'fleet', label:'Car manager'}, 'Vehicles', '', String(n), '');
+  saveDB(); render();
+  alert(n + ' vehicles brought in.');
+}
+function fmtDateTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso); if(isNaN(d)) return '';
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}) + ', ' +
+         d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+
 function renderDashboard(){
   const val = stockValuation();
   const overdueIssues = allOpenIssues().filter(i=>isOverdue(i.reminderDate));
@@ -3945,6 +4577,7 @@ async function renderVehicleDetail(){
         <select onchange="changeVehicleStatus('${v.id}',this.value)" style="margin-right:8px;">
           ${['repair','mot','bodywork','ready','scrap','sold'].map(s=>`<option value="${s}" ${v.status===s?'selected':''}>${statusLabel(s)}</option>`).join('')}
         </select>
+        <button class="btn btn-ghost" onclick="fmVehicleRecord('${v.id}')" title="The wallet sheet, filled in from this record">Print record sheet</button>
         <button class="btn btn-ghost" onclick="App.go('stock')">← Back to stock</button>
       </div>
     </div>
@@ -6974,6 +7607,65 @@ function renderTeam(){
   ${teamView==='receipts' ? renderReceiptBox() : renderTeamOverview()}
   `;
 }
+/* Where an investor's cash physically went. It belongs here rather than on his
+   own page: that page is his statement - what he put in, took out and is owed -
+   and this is the company's side of it, which he never sees. The entries are
+   made by the spend log above, whenever a spend is marked as funded by him. */
+function investorCashUsedSection(){
+  const used = muzaribs().map(function(m){
+    const p = muzaribPosition(m.id);
+    const spend = muzaribTx(m.id).filter(function(t){ return t.type==='spend'; })
+      .slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
+    return {m:m, p:p, spend:spend};
+  }).filter(function(x){ return x.p.usedByCompany > 0.004 && !x.p.noCash; });
+  if(!used.length) return '';
+  const grand = used.reduce(function(s,x){ return s + x.p.usedByCompany; }, 0);
+
+  return `
+  <div class="section-title"><h2>Investor cash used by the business</h2>
+    <span class="small-muted">Internal &mdash; never on an investor's statement. What he is owed is unchanged;
+      this is only where the money physically went. Entries come from the spend log above, when a spend is
+      marked as funded by that investor.</span></div>
+  <div class="card" style="box-shadow:none;padding:14px;margin-bottom:12px">
+    <b>${fmtMoney(grand)}</b> of investor cash has been spent on the business across
+    ${used.length === 1 ? 'one investor' : used.length + ' investors'}.</div>
+  ${used.map(function(x){
+    const id = x.m.id, p = x.p, spend = x.spend;
+    return `
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <h3 style="margin:0"><a class="link" onclick="openMuzarib('${id}')">${escapeHtml(x.m.name)}</a></h3>
+      <span class="small-muted">${spend.length} entr${spend.length===1?'y':'ies'}</span>
+      <button class="btn btn-sm btn-ghost" style="margin-left:auto"
+        onclick="printMzSpendBreakdown('${id}')" title="Internal only">&#128274; Print where his money went</button>
+    </div>
+    <div class="grid kpi-grid" style="margin-bottom:12px">
+      <div class="card kpi"><div class="label">He is owed</div><div class="value small">${fmtMoney(p.cash)}</div>
+        <div class="sub">settled in stock or cash</div></div>
+      <div class="card kpi"><div class="label">Spent on the business</div>
+        <div class="value small" style="color:var(--amber)">${fmtMoney(p.usedByCompany)}</div>
+        <div class="sub">${spend.length} entr${spend.length===1?'y':'ies'}</div></div>
+      <div class="card kpi"><div class="label">Cash actually in hand</div>
+        <div class="value small" style="color:${p.cashInHand<0?'var(--red)':'inherit'}">${fmtMoney(p.cashInHand)}</div>
+        <div class="sub">what is really here to spend</div></div>
+    </div>
+    ${p.cashInHand < 0 ? `<div class="overdue-banner" style="margin:0 0 12px;display:block">
+      <div><b>&#9888; His cash in hand is below zero.</b> That happens when more has gone out than he has put in &mdash;
+      or when a car he physically brought in was recorded as though it was bought with his money.</div>
+      ${carsWithoutCapital(id).length ? `<div style="margin-top:7px">
+        ${carsWithoutCapital(id).length} of his ${muzaribCars(id).length === 1 ? 'car does' : 'cars do'} not say where
+        ${carsWithoutCapital(id).length === 1 ? 'it' : 'they'} came from.
+        <a class="link" onclick="openCarsBroughtIn('${id}')">Say which he brought in</a></div>`:''}
+    </div>`:''}
+    <table><thead><tr><th>Date</th><th>What it went on</th><th>Entered by</th><th class="num">Amount</th></tr></thead>
+      <tbody>${spend.map(function(t){ return `<tr>
+        <td>${fmtDate(t.date)}</td><td>${escapeHtml(t.note||'')}</td>
+        <td>${escapeHtml(t.addedBy||'')}</td><td class="num">${fmtMoney(t.amount)}</td></tr>`; }).join('')}
+        <tr><td colspan="3" style="font-weight:700">Total</td>
+          <td class="num" style="font-weight:700">${fmtMoney(p.usedByCompany)}</td></tr></tbody></table>
+  </div>`; }).join('')}
+  `;
+}
 function renderTeamOverview(){
   const myExpenses = isManager() ? DB.expenses : DB.expenses.filter(e=>e.userEmail===currentUserEmail);
   const myPayroll = isManager() ? DB.payroll : DB.payroll.filter(p=>p.userEmail===currentUserEmail);
@@ -7073,6 +7765,8 @@ function renderTeamOverview(){
 
   ${attendanceSection()}
 
+  ${isManager() ? investorCashUsedSection() : ''}
+
   ${isManager() ? `
   <div class="section-title"><h2>Payroll</h2><button class="btn btn-brand btn-sm" onclick="openAddPayroll()">+ Add pay record</button></div>
   ${(function(){
@@ -7105,7 +7799,9 @@ function renderTeamOverview(){
       <td><b>${fmtMoney(payDue(p))}</b></td>
       <td>${fmtMoney(payPaid(p))}</td>
       <td style="font-weight:700;color:${balance>0.004?'var(--red)':'var(--green)'}">${balance>0.004?fmtMoney(balance):'settled'}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deletePayroll('${p.id}')">✕</button></td></tr>`;
+      <td style="white-space:nowrap">${isSuperAdmin()?`<button class="btn btn-sm btn-ghost"
+        onclick="openEditPayroll('${p.id}')" title="Change this pay record">Edit</button> `:''}<button
+        class="btn btn-sm btn-danger" onclick="deletePayroll('${p.id}')">✕</button></td></tr>`;
     }).join('')}
     </tbody></table>`}
   </div>` : `
@@ -7898,40 +8594,66 @@ function payFormCalc(){
      <div class="k"><span class="muted"><b>${bal > 0.004 ? 'Still owed to him' : (bal < -0.004 ? 'Overpaid' : 'Settled in full')}</b></span>
        <b style="color:${bal > 0.004 ? 'var(--red)' : 'var(--green)'}">${fmtMoney(Math.abs(bal))}</b></div>`;
 }
-function openAddPayroll(){
+/* One form for both. With an id it edits that record, which only a Super Admin
+   can do: a pay record is what someone was told they would be paid, so changing
+   one after the fact has to leave a trail and be nobody else's job. */
+function openAddPayroll(id){
   if(!isManager()) return;
+  const p = id ? (DB.payroll||[]).find(function(x){ return x.id===id; }) : null;
+  if(id && !p) return;
+  if(p && !isSuperAdmin()){
+    alert('Only a Super Admin can change a pay record.\n\nAsk them to correct it, or delete this one and add it again.');
+    return;
+  }
   const thisMonth = todayISO().slice(0,7);
-  openModal(`<button class="close-x" onclick="closeModal()">✕</button><h3>Add pay record</h3>
+  const n = function(x){ return Number(x)||0; };
+  /* An edit must keep the employee it was written for, even if that name is no
+     longer on the team list. */
+  const team = DB.team.slice();
+  if(p && !team.some(function(m){ return m.name===p.employee; }))
+    team.unshift({name:p.employee, dayRate:p.dayRate, email:p.userEmail||''});
+  payEditingId = p ? p.id : null;
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>${p?'Change pay record':'Add pay record'}</h3>
+    ${p?`<div class="small-muted" style="margin:-4px 0 10px">${escapeHtml(p.employee||'')} · ${p.period||''}.
+      Every change is written to the history with what it was before.</div>`:''}
     <div class="field-row">
-      <div class="field"><label>Employee</label><select id="p_emp" onchange="prefillRate()">${DB.team.map(m=>`<option data-rate="${m.dayRate}" data-email="${m.email||''}">${m.name}</option>`).join('')}</select></div>
-      <div class="field"><label>Period (month)</label><input id="p_period" type="month" value="${thisMonth}"/></div>
+      <div class="field"><label>Employee</label><select id="p_emp" onchange="prefillRate()">${team.map(m=>`<option data-rate="${m.dayRate}" data-email="${m.email||''}" ${(p&&p.employee===m.name)?'selected':''}>${m.name}</option>`).join('')}</select></div>
+      <div class="field"><label>Period (month)</label><input id="p_period" type="month" value="${p?(p.period||''):thisMonth}"/></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Days worked</label><input id="p_days" type="number" oninput="payFormCalc()"/></div>
-      <div class="field"><label>Day rate (£)</label><input id="p_rate" type="number" value="${(DB.team[0]||{}).dayRate||0}" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Days worked</label><input id="p_days" type="number" value="${p?n(p.daysWorked):''}" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Day rate (£)</label><input id="p_rate" type="number" value="${p?n(p.dayRate):((DB.team[0]||{}).dayRate||0)}" oninput="payFormCalc()"/></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Cars sold</label><input id="p_cars" type="number" value="0" oninput="payFormCalc()"/></div>
-      <div class="field"><label>Commission per car (£)</label><input id="p_comm" type="number" value="0" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Cars sold</label><input id="p_cars" type="number" value="${p?n(p.carsSold):0}" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Commission per car (£)</label><input id="p_comm" type="number" value="${p?n(p.commissionRate):0}" oninput="payFormCalc()"/></div>
     </div>
     <div class="field"><label>Money back for what he spent (£)</label>
-      <input id="p_reim" type="number" value="0" oninput="payFormCalc()"/>
+      <input id="p_reim" type="number" value="${p?n(p.reimbursement):0}" oninput="payFormCalc()"/>
       <div class="small-muted" id="p_reim_hint" style="margin-top:4px"></div>
-      <label style="display:block;margin-top:5px"><input type="checkbox" id="p_reim_mark" checked>
-        Also mark his receipts as paid back, oldest first</label></div>
+      <label style="display:flex;align-items:center;gap:7px;margin-top:6px">
+        <input type="checkbox" id="p_reim_mark" style="width:auto;flex:0 0 auto;margin:0" ${(!p||n(p.reimbursedReceipts)>0.004||!n(p.reimbursement))?'checked':''}>
+        <span>Also mark his receipts as paid back, oldest first</span></label>
+      ${(p&&n(p.reimbursedReceipts)>0.004)?`<div class="small-muted" style="margin-top:4px">
+        ${fmtMoney(p.reimbursedReceipts)} of his receipts were marked paid by this record. Saving puts those
+        back as outstanding first, then settles them again from the new figure.</div>`:''}</div>
     <div class="field-row">
-      <div class="field"><label>Deductions / advances (£)</label><input id="p_ded" type="number" value="0" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Deductions / advances (£)</label><input id="p_ded" type="number" value="${p?n(p.deductions):0}" oninput="payFormCalc()"/></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Cash paid (£)</label><input id="p_cash" type="number" value="0" oninput="payFormCalc()"/></div>
-      <div class="field"><label>Bank paid (£)</label><input id="p_bank" type="number" value="0" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Cash paid (£)</label><input id="p_cash" type="number" value="${p?n(p.cashPaid):0}" oninput="payFormCalc()"/></div>
+      <div class="field"><label>Bank paid (£)</label><input id="p_bank" type="number" value="${p?n(p.bankPaid):0}" oninput="payFormCalc()"/></div>
     </div>
     <div class="small-muted" style="margin:2px 0 8px">Leave these at zero, or pay part — whatever is left shows below
       as still owed and carries forward.</div>
     <div class="card" style="box-shadow:none;padding:11px 13px" id="p_sum"></div>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-brand" onclick="savePayroll()">Save</button></div>`);
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" onclick="savePayroll(${p?`'${p.id}'`:'null'})">${p?'Save change':'Save'}</button></div>`);
   prefillRate();
 }
+function openEditPayroll(id){ openAddPayroll(id); }
+let payEditingId = null;   /* the record open in the form, so it is not counted as owed from before */
 function prefillRate(){
   const sel = document.getElementById('p_emp'); if(!sel) return;
   const r = document.getElementById('p_rate'); if(r) r.value = sel.selectedOptions[0].dataset.rate||0;
@@ -7939,7 +8661,10 @@ function prefillRate(){
   const hint = document.getElementById('p_reim_hint');
   if(hint){
     const owed = typeof staffOwedTotal==='function' ? staffOwedTotal(name) : 0;
-    const back = payOwedTotal(name);
+    const back = payOwedTotal(name) - (payEditingId
+      ? (function(){ const r=(DB.payroll||[]).find(x=>x.id===payEditingId);
+                     return r && sameName(r.employee,name) ? Math.max(0,payBalance(r)) : 0; })()
+      : 0);
     hint.innerHTML = (owed > 0.004
         ? 'He is owed <b>' + fmtMoney(owed) + '</b> for things he bought out of his own pocket.'
         : 'Nothing outstanding from his own receipts.')
@@ -7947,50 +8672,105 @@ function prefillRate(){
   }
   payFormCalc();
 }
-function savePayroll(){
+/* Puts back the receipts a pay record had marked as paid, so the figure can be
+   changed without the money being counted twice or vanishing. */
+function unlinkPayrollReceipts(recId){
+  let put = 0;
+  (DB.expenses||[]).forEach(function(e){
+    const keep = (e.payments||[]).filter(function(pm){
+      if(pm.batch === recId && pm.viaPayroll){ put += Number(pm.amount)||0; return false; }
+      return true;
+    });
+    if(keep.length === (e.payments||[]).length) return;
+    e.payments = keep;
+    e.paidAmount = Math.round(keep.reduce(function(t,pm){ return t+(Number(pm.amount)||0); }, 0)*100)/100;
+    e.status = expenseBalance(e) <= 0.004 ? 'paid' : (e.paidAmount > 0.004 ? 'partial' : 'owed');
+  });
+  return Math.round(put*100)/100;
+}
+/* Marks his receipts paid back out of the money-back figure, oldest first. */
+function linkPayrollReceipts(rec, employee){
+  if(!(rec.reimbursement > 0.004) || typeof bulkPlan !== 'function'){ delete rec.reimbursedReceipts; return 0; }
+  const plan = bulkPlan(employee, rec.reimbursement);
+  let used = 0;
+  plan.forEach(function(r){
+    if(r.take <= 0.004) return;
+    r.e.payments = r.e.payments || [];
+    r.e.payments.push({date: todayISO(), amount: r.take, method:'Payroll',
+                       batch: rec.id, viaPayroll:true});
+    r.e.paidAmount = Math.round(((Number(r.e.paidAmount)||0) + r.take)*100)/100;
+    r.e.status = r.clears ? 'paid' : 'partial';
+    used += r.take;
+  });
+  used = Math.round(used*100)/100;
+  if(used > 0.004) rec.reimbursedReceipts = used; else delete rec.reimbursedReceipts;
+  return used;
+}
+function savePayroll(id){
   if(!isManager()) return;
+  const old = id ? (DB.payroll||[]).find(function(x){ return x.id===id; }) : null;
+  if(id && !old) return;
+  if(old && !isSuperAdmin()){ alert('Only a Super Admin can change a pay record.'); return; }
   const sel = document.getElementById('p_emp');
   const employee = sel.value; if(!employee){alert('Add a team member first');return;}
   const userEmail = sel.selectedOptions[0].dataset.email || null;
-  const num = function(id){ return Number((document.getElementById(id)||{value:0}).value)||0; };
-  const rec = {id:nextId('pay'), employee, userEmail,
+  const num = function(k){ return Number((document.getElementById(k)||{value:0}).value)||0; };
+  const before = old ? JSON.parse(JSON.stringify(old)) : null;
+  if(old) captureUndo({t:'payEdit', id:old.id, before:before});
+
+  const rec = {id: old ? old.id : nextId('pay'), employee, userEmail,
     period: document.getElementById('p_period').value,
     daysWorked: num('p_days'), dayRate: num('p_rate'),
     carsSold: num('p_cars'), commissionRate: num('p_comm'),
     reimbursement: num('p_reim'), deductions: num('p_ded'),
     cashPaid: num('p_cash'), bankPaid: num('p_bank')};
-  DB.payroll.push(rec);
+  if(old){
+    /* Reverse whatever this record had settled, then settle again from the new
+       figure. Doing it in that order means lowering the money back puts the
+       difference straight back on his receipts rather than losing it. */
+    unlinkPayrollReceipts(old.id);
+    Object.keys(old).forEach(function(k){ delete old[k]; });
+    Object.assign(old, rec);
+  } else {
+    DB.payroll.push(rec);
+  }
+  const target = old || rec;
   /* Paying him back for his own receipts has to settle those receipts too, or
      the same debt sits in the pay record and in the Owed-by-employee table. */
   const mark = document.getElementById('p_reim_mark');
-  if(rec.reimbursement > 0.004 && mark && mark.checked && typeof bulkPlan === 'function'){
-    const plan = bulkPlan(employee, rec.reimbursement);
-    let used = 0;
-    plan.forEach(function(r){
-      if(r.take <= 0.004) return;
-      r.e.payments = r.e.payments || [];
-      r.e.payments.push({date: todayISO(), amount: r.take, method:'Payroll',
-                         batch: rec.id, viaPayroll:true});
-      r.e.paidAmount = (Number(r.e.paidAmount)||0) + r.take;
-      r.e.status = r.clears ? 'paid' : 'partial';
-      used += r.take;
-    });
-    if(used > 0.004) rec.reimbursedReceipts = Math.round(used*100)/100;
+  if(mark && mark.checked) linkPayrollReceipts(target, employee);
+  else delete target.reimbursedReceipts;
+
+  const line = function(r){
+    return (r.period||'') + ' · ' + (r.daysWorked||0) + ' days at ' + fmtMoney(r.dayRate)
+      + (payCommission(r) ? ' · commission ' + fmtMoney(payCommission(r)) + ' on ' + (r.carsSold||0) + ' cars' : '')
+      + (r.reimbursement ? ' · money back ' + fmtMoney(r.reimbursement) : '')
+      + (r.deductions ? ' · deductions ' + fmtMoney(r.deductions) : '')
+      + ' · due ' + fmtMoney(payDue(r)) + ' · paid ' + fmtMoney(payPaid(r))
+      + ' · still owed ' + fmtMoney(payBalance(r));
+  };
+  if(before){
+    logChange('money','Changed payroll for', {id:target.id, label:employee}, 'Pay record',
+      line(before), line(target), 'Changed by ' + currentUserName);
+  } else {
+    logChange('money','Added payroll for', {id:target.id, label:employee}, 'Paid', '',
+      fmtMoney(payPaid(target)), line(target));
   }
-  logChange('money','Added payroll for', {id:rec.id, label:employee}, 'Paid', '',
-    fmtMoney(payPaid(rec)),
-    rec.period + ' · ' + rec.daysWorked + ' days'
-      + (payCommission(rec) ? ' · commission ' + fmtMoney(payCommission(rec)) + ' on ' + rec.carsSold + ' cars' : '')
-      + (rec.reimbursement ? ' · money back ' + fmtMoney(rec.reimbursement) : '')
-      + (rec.deductions ? ' · deductions ' + fmtMoney(rec.deductions) : '')
-      + ' · still owed ' + fmtMoney(payBalance(rec)));
   saveDB(); closeModal(); render();
 }
 function deletePayroll(id){
   if(!isManager()) return;
   const r = DB.payroll.find(x=>x.id===id);
-  if(r) logChange('money','Deleted payroll for', {id:r.id, label:r.employee}, '', '', '',
-    (r.period||'') + ' · ' + fmtMoney((r.cashPaid||0)+(r.bankPaid||0)));
+  if(r && !confirm('Delete the pay record for ' + (r.employee||'') + ', ' + (r.period||'') + '?'
+      + ((Number(r.reimbursedReceipts)||0) > 0.004
+         ? '\n\n' + fmtMoney(r.reimbursedReceipts) + ' of his receipts were marked paid by it. '
+           + 'Those go back to outstanding.' : ''))) return;
+  if(r) captureUndo({t:'payDel', id:r.id, rec:JSON.parse(JSON.stringify(r))});
+  /* The receipts it settled are no longer settled by anything. */
+  const back = r ? unlinkPayrollReceipts(r.id) : 0;
+  if(r) logChange('money','Deleted payroll for', {id:r.id, label:r.employee}, '',
+    (r.period||'') + ' · paid ' + fmtMoney((r.cashPaid||0)+(r.bankPaid||0)), '',
+    back > 0.004 ? fmtMoney(back) + ' of receipts put back as outstanding' : '');
   DB.payroll=DB.payroll.filter(x=>x.id!==id); saveDB(); render();
 }
 
@@ -10784,6 +11564,8 @@ function renderMuzaribProfile(id){
         ? `<button class="btn btn-ghost" onclick="markAllCapitalCarried('${id}')"
              title="He handed over no cash — his whole position came across as value">No cash came in</button>` : ''}
       <button class="btn btn-ghost" onclick="openMzTx('${id}','withdrawal')">Withdraw</button>
+      <button class="btn btn-ghost" onclick="openMzTx('${id}','adjustment')"
+        title="A correction that is neither money in nor money out">Other adjustment</button>
       <button class="btn btn-ghost" onclick="openMuzaribForm('${id}')">Edit</button>
       ${isSuperAdmin() ? (isArchivedMz(m)
         ? `<button class="btn btn-ghost" onclick="unarchiveMuzarib('${id}')">↩ Bring back into turns</button>`
@@ -10874,37 +11656,13 @@ function renderMuzaribProfile(id){
         than he has put in. Check the entries below.</span></div>`;
     })()}
 
-  ${(isManager() && p.usedByCompany > 0 && !p.noCash) ? (function(){
-    const spend = muzaribTx(id).filter(function(t){ return t.type==='spend'; })
-      .slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); });
-    return `
-  <div class="section-title"><h2>His cash used by the business</h2>
-    <span class="small-muted">Internal — not on his statement. What he is owed is unchanged; this is only where the money physically went.</span></div>
-  <div class="card">
-    <div class="grid kpi-grid" style="margin-bottom:12px">
-      <div class="card kpi"><div class="label">He is owed</div><div class="value small">${fmtMoney(p.cash)}</div>
-        <div class="sub">settled in stock or cash</div></div>
-      <div class="card kpi"><div class="label">Spent on the business</div><div class="value small" style="color:var(--amber)">${fmtMoney(p.usedByCompany)}</div>
-        <div class="sub">${spend.length} entr${spend.length===1?'y':'ies'}</div></div>
-      <div class="card kpi"><div class="label">Cash actually in hand</div><div class="value small" style="color:${p.cashInHand<0?'var(--red)':'inherit'}">${fmtMoney(p.cashInHand)}</div>
-        <div class="sub">what is really here to spend</div></div>
-    </div>
-    ${p.cashInHand < 0 ? `<div class="overdue-banner" style="margin:0 0 12px;display:block">
-      <div><b>⚠ His cash in hand is below zero.</b> That happens when more has gone out than he has put in —
-      or when a car he physically brought in was recorded as though it was bought with his money.</div>
-      ${carsWithoutCapital(id).length ? `<div style="margin-top:7px">
-        ${carsWithoutCapital(id).length} of his ${muzaribCars(id).length === 1 ? 'car does' : 'cars do'} not say where
-        ${carsWithoutCapital(id).length === 1 ? 'it' : 'they'} came from.
-        <a class="link" onclick="openCarsBroughtIn('${id}')">Say which he brought in</a></div>`:''}
-    </div>`:''}
-    <table><thead><tr><th>Date</th><th>What it went on</th><th>Entered by</th><th class="num">Amount</th></tr></thead>
-      <tbody>${spend.map(function(t){ return `<tr>
-        <td>${fmtDate(t.date)}</td><td>${escapeHtml(t.note||'')}</td>
-        <td>${escapeHtml(t.addedBy||'')}</td><td class="num">${fmtMoney(t.amount)}</td></tr>`; }).join('')}
-        <tr><td colspan="3" style="font-weight:700">Total</td>
-          <td class="num" style="font-weight:700">${fmtMoney(p.usedByCompany)}</td></tr></tbody></table>
-  </div>`; })() : ''}
-
+  ${(isManager() && p.usedByCompany > 0 && !p.noCash) ? `
+  <div class="card" style="box-shadow:none;padding:13px 15px;margin-bottom:14px">
+    <b>${fmtMoney(p.usedByCompany)} of his cash has been spent on the business.</b>
+    <div class="small-muted" style="margin-top:4px">It makes no difference to what he is owed &mdash; it is only
+      where the money physically went, so it lives with the rest of the spend, under
+      <a class="link" onclick="App.go('team')">Team &amp; Pay</a>, and never on his statement.</div>
+  </div>`:''}
   <div class="section-title"><h2>Cars in stock</h2></div>
   <div class="card" style="padding:0;">
     ${p.unsold.length ? `<table><thead><tr><th>Car</th><th>Status</th><th>Purchase</th><th>Costs</th><th>Total in</th><th>Asking</th><th>Est. gross</th></tr></thead><tbody>
@@ -10954,7 +11712,8 @@ function renderMuzaribProfile(id){
             ? 'car handed in'
             : (t.method==='Paid direct' ? 'his own pocket' : 'from the old business')}</span>`:''}</td>
       <td>${t.method ? escapeHtml(t.method) : '—'}</td>
-      <td style="font-weight:700;color:${t.type==='withdrawal'?'var(--red)':'inherit'}">${t.type==='withdrawal'?'&minus; ':''}${fmtMoney(Math.abs(t.amount))}</td>
+      ${(function(){ const down = t.type==='withdrawal' || Number(t.amount) < 0;
+        return `<td style="font-weight:700;color:${down?'var(--red)':'inherit'}">${down?'&minus; ':''}${fmtMoney(Math.abs(t.amount))}</td>`; })()}
       <td style="white-space:nowrap">
         ${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" onclick="openEditMzTx('${t.id}')" title="Change the amount, date or type">Edit</button>`:''}
         ${isManager()?`<button class="btn btn-sm btn-danger" onclick="deleteMzTx('${t.id}')" title="Delete this entry — the Super Admin can undo it">✕</button>`:''}</td>
@@ -10970,8 +11729,6 @@ function renderMuzaribProfile(id){
 
   <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn btn-ghost" onclick="printMuzaribStatement('${id}')">🖨 Print statement</button>
-    ${isManager()?`<button class="btn btn-ghost" onclick="printMzSpendBreakdown('${id}')"
-      title="Internal only — shows how the business used his cash">🔒 Where his money went</button>`:''}
   </div>
   `;
 }
@@ -11178,33 +11935,48 @@ function mzKindHint(){
     : 'Counts towards what he has to buy cars with.';
 }
 function openMzTx(id, type){
-  const isW = type==='withdrawal';
+  const isW = type==='withdrawal', isA = type==='adjustment';
   const p = muzaribPosition(id);
   openModal(`
     <button class="close-x" onclick="closeModal()">✕</button>
-    <h3>${isW?'Record a withdrawal':'Add capital'}</h3>
+    <h3>${isW?'Record a withdrawal':(isA?'Other adjustment':'Add capital')}</h3>
     ${isW?`<div class="small-muted" style="margin-bottom:10px;">Cash owed: <b>${fmtMoney(p.cash)}</b></div>`:''}
+    ${isA?`<div class="small-muted" style="margin-bottom:10px;">A correction that is neither money he handed over
+      nor money he took out &mdash; a figure that was wrong, a cost the business agreed to carry, money that
+      came back. He is owed <b>${fmtMoney(p.cash)}</b> at the moment.</div>`:''}
+    ${isA?`<div class="field"><label>Which way *</label>
+      <select id="mtx_dir">
+        <option value="up">Add to what he is owed</option>
+        <option value="down">Take off what he is owed</option>
+      </select></div>`:''}
     <div class="field-row">
       <div class="field"><label>Amount (£) *</label><input id="mtx_amt" type="number" step="0.01"/></div>
       <div class="field"><label>Date</label><input id="mtx_date" type="date" value="${todayISO()}"/></div>
     </div>
-    ${isW?'':`<div class="field"><label>What kind *</label>
+    ${(isW||isA)?'':`<div class="field"><label>What kind *</label>
       <select id="mtx_kind" onchange="mzKindHint()">
         <option value="cash">Cash in — real money handed over</option>
         <option value="owed">From the old business — no cash arrived</option>
       </select>
       <div class="small-muted" id="mtx_kind_hint" style="margin-top:4px">
         Counts towards what he has to buy cars with.</div></div>`}
-    <div class="field"><label>Paid by</label><select id="mtx_method"><option>Bank transfer</option><option>Cash</option><option>Other</option></select></div>
-    <div class="field"><label>Note</label><input id="mtx_note" placeholder="${isW?'e.g. requested withdrawal':'e.g. additional investment'}"/></div>
+    <div class="field"><label>Paid by</label><select id="mtx_method">${isA?'<option>Adjustment</option>':''}<option>Bank transfer</option><option>Cash</option><option>Other</option></select></div>
+    <div class="field"><label>Note ${isA?'*':''}</label><input id="mtx_note" placeholder="${isW?'e.g. requested withdrawal':(isA?'e.g. £86 correction on the Mirwaise line':'e.g. additional investment')}"/></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-brand" onclick="saveMzTx('${id}','${type}')">Save</button>
     </div>`);
 }
 function saveMzTx(id, type){
-  const amt = Number(document.getElementById('mtx_amt').value)||0;
+  let amt = Number(document.getElementById('mtx_amt').value)||0;
   if(amt<=0){ alert('Enter an amount greater than zero'); return; }
+  if(type==='adjustment'){
+    const note = document.getElementById('mtx_note').value.trim();
+    /* An adjustment with no reason on it is unreadable a month later. */
+    if(!note){ alert('Say what the adjustment is for, so it still makes sense later.'); return; }
+    const dir = (document.getElementById('mtx_dir')||{value:'up'}).value;
+    if(dir === 'down') amt = -amt;
+  }
   if(type==='withdrawal'){
     const p = muzaribPosition(id);
     if(amt > p.cash && !confirm(`This is more than the ${fmtMoney(p.cash)} we owe him.\n\nRecord it anyway? The balance will go negative.`)) return;
@@ -11221,7 +11993,8 @@ function saveMzTx(id, type){
   DB.muzaribTx.push(newTx);
   const m = muzarib(id);
   captureUndo({t:'mzTxAdd', id:newTx.id});
-  logChange('money', type==='withdrawal'?'Recorded withdrawal for':'Added capital for', mzRef(m),
+  logChange('money', type==='withdrawal' ? 'Recorded withdrawal for'
+                   : (type==='adjustment' ? 'Adjusted the balance for' : 'Added capital for'), mzRef(m),
     MZ_TX_TYPES[type].label, '', fmtMoney(amt),
     method + (note?' · '+note:'') + ' · cash now ' + fmtMoney(muzaribPosition(id).cash));
   saveDB(); closeModal(); render();
@@ -11699,7 +12472,34 @@ const AUDIT_AREAS = {
    captureUndo() is called immediately before a change and hands the next
    logChange() enough to reverse exactly that one edit.                       */
 let pendingUndo = null;
-function captureUndo(payload){ pendingUndo = payload; }
+/* A restore point for the big correction tools. It is held in this tab's memory
+   and never written to the change log: the log lives inside the database, so a
+   snapshot written there puts a copy of the database inside itself, and the next
+   snapshot copies that one again. Three of them on 8 Nov took one row from 850 KB
+   to 6.9 MB and stopped the database saving at all. Memory is the right home for
+   it - the point of it is to undo a tool run you have just made, in the session
+   you made it. */
+let sessionRestore = null;
+const MAX_UNDO_BYTES = 64 * 1024;
+function captureUndo(payload){
+  if(payload && payload.t === 'full'){
+    sessionRestore = {db: payload.db, at: Date.now(),
+                      label: payload.label || 'before the last correction'};
+    pendingUndo = {t:'restore', at: sessionRestore.at};
+    return;
+  }
+  /* Nothing else should ever be large, but a guard here costs nothing and the
+     failure it prevents takes the whole system down. */
+  if(payload){
+    try{
+      if(JSON.stringify(payload).length > MAX_UNDO_BYTES){
+        console.warn('undo payload too large, not kept', payload.t);
+        pendingUndo = null; return;
+      }
+    }catch(e){ pendingUndo = null; return; }
+  }
+  pendingUndo = payload;
+}
 
 function undoLabel(e){
   if(!e || !e.undo) return '';
@@ -11709,7 +12509,12 @@ function undoLabel(e){
     case 'mzField':  return 'Put ' + (e.field||'this') + ' back to ' + (e.from||'blank');
     case 'mzTxEdit': return 'Put this entry back to ' + (e.from||'what it was');
     case 'mzTxAdd':  return 'Remove this entry again';
+    case 'restore':  return sessionRestore && sessionRestore.at === e.undo.at
+                       ? 'Put everything back to before this'
+                       : 'Cannot be undone - the restore point was in a browser tab that has since been closed';
     case 'mzTxDel':  return 'Put this entry back';
+    case 'payEdit':  return 'Put this pay record back to what it was';
+    case 'payDel':   return 'Put this pay record back';
     default: return 'Undo';
   }
 }
@@ -11720,7 +12525,10 @@ function canUndo(e){
   if(u.t==='mzField')  return !!(DB.muzaribs||[]).find(m=>m.id===u.id);
   if(u.t==='mzTxAdd')  return !!(DB.muzaribTx||[]).find(t=>t.id===u.id);
   if(u.t==='mzTxEdit') return !!(DB.muzaribTx||[]).find(t=>t.id===u.id);
+  if(u.t==='restore')  return !!sessionRestore && sessionRestore.at === u.at;
   if(u.t==='mzTxDel')  return !!u.tx && !(DB.muzaribTx||[]).some(t=>t.id===u.tx.id);
+  if(u.t==='payEdit')  return !!(DB.payroll||[]).find(p=>p.id===u.id);
+  if(u.t==='payDel')   return !!u.rec && !(DB.payroll||[]).some(p=>p.id===u.rec.id);
   return false;
 }
 function undoChange(logId){
@@ -11753,10 +12561,38 @@ function undoChange(logId){
   } else if(u.t==='mzTxAdd'){
     DB.muzaribTx = (DB.muzaribTx||[]).filter(t=>t.id!==u.id);
     what = 'cash entry removed';
+  } else if(u.t==='restore'){
+    if(!sessionRestore || sessionRestore.at !== u.at){
+      alert('That restore point was held in a browser tab that has since been closed, so it is no longer available.');
+      return;
+    }
+    if(!confirm('Put the whole system back to ' + sessionRestore.label + '?\n\n'
+      + 'Everything changed since then is undone.')) return;
+    const keepAudit = DB.audit;
+    Object.keys(DB).forEach(function(k){ delete DB[k]; });
+    Object.assign(DB, JSON.parse(JSON.stringify(sessionRestore.db)));
+    DB.audit = keepAudit;          // the history of what happened is not rolled back
+    sessionRestore = null;
+    what = 'everything put back';
   } else if(u.t==='mzTxDel'){
     if(!DB.muzaribTx) DB.muzaribTx = [];
     DB.muzaribTx.push(u.tx);
     what = 'cash entry restored';
+  } else if(u.t==='payEdit'){
+    const p = (DB.payroll||[]).find(x=>x.id===u.id); if(!p) return;
+    /* Undo the receipt settlement the edit made, then put the record back and
+       settle again exactly as it was. */
+    unlinkPayrollReceipts(p.id);
+    Object.keys(p).forEach(function(k){ delete p[k]; });
+    Object.assign(p, u.before);
+    if((Number(p.reimbursedReceipts)||0) > 0.004) linkPayrollReceipts(p, p.employee);
+    what = (p.employee||'') + ' · ' + (p.period||'');
+  } else if(u.t==='payDel'){
+    if(!DB.payroll) DB.payroll = [];
+    const rec = JSON.parse(JSON.stringify(u.rec));
+    DB.payroll.push(rec);
+    if((Number(rec.reimbursedReceipts)||0) > 0.004) linkPayrollReceipts(rec, rec.employee);
+    what = (rec.employee||'') + ' · ' + (rec.period||'') + ' put back';
   }
 
   e.undone = { at: new Date().toISOString(), by: currentUserName || '' };
@@ -11784,6 +12620,14 @@ function logChange(area, action, ref, field, from, to, note){
   });
   pendingUndo = null;
   if(DB.audit.length > MAX_AUDIT) DB.audit = DB.audit.slice(-MAX_AUDIT);
+  /* The count cap above does not bound the size, which is what actually broke:
+     three oversized entries sat well inside 3000 and still took the row to
+     6.9 MB. Anything past the limit loses its undo payload, never its history. */
+  DB.audit.forEach(function(e){
+    if(!e || !e.undo) return;
+    try{ if(JSON.stringify(e.undo).length > MAX_UNDO_BYTES) delete e.undo; }
+    catch(err){ delete e.undo; }
+  });
 }
 const vehRef = v => ({id:v.id, label: v.reg + (v.make?' · '+[v.make,v.model].filter(Boolean).join(' '):'')});
 const mzRef  = m => ({id:m.id, label: m.name});
