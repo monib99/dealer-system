@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b157</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b158</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -14452,7 +14452,7 @@ function cbLooksDuplicate(r){
   });
   return hit || null;
 }
-/* ---- the Tide statement, 29 October to 14 November -----------------------------------
+/* ---- the Tide statement, 29 October to 6 November -----------------------------------
    Typed in from the bank app, and every day reconciles against Tide's own daily
    figure. Two lines are deliberately missing: an Amazon payment that was still
    pending and an Uber fare that was cancelled - neither has left the account,
@@ -14461,56 +14461,6 @@ function cbLooksDuplicate(r){
    The category is our best reading of each payee; the Tide wording is kept on
    every line so anything miscategorised can be put right.                      */
 const TIDE_NOV = [
-  {date:"2026-11-14",dir:"out",amount:200,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-14",dir:"in",amount:5600,cat:"Car sale",who:"Colleen Orton",note:"Tide · Income"},
-  {date:"2026-11-14",dir:"out",amount:35,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-14",dir:"out",amount:17.33,cat:"Other",who:"Uber",note:"Tide · Travel"},
-  {date:"2026-11-14",dir:"out",amount:235,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-13",dir:"out",amount:50,cat:"Wages",who:"Zahid Scandari",note:"Tide · Staff costs"},
-  {date:"2026-11-13",dir:"out",amount:2402.8,cat:"Car purchase",who:"British Car Auctions Limited",note:"Tide · Stock"},
-  {date:"2026-11-13",dir:"out",amount:100,cat:"Car purchase",who:"Ghulam Nabi Wafa",note:"Tide · Stock"},
-  {date:"2026-11-13",dir:"out",amount:500,cat:"Car purchase",who:"Ghulam Nabi Wafa",note:"Tide · Stock"},
-  {date:"2026-11-13",dir:"out",amount:100,cat:"Car purchase",who:"Ghulam Nabi Wafa",note:"Tide · Stock"},
-  {date:"2026-11-13",dir:"out",amount:6.99,cat:"Office",who:"Apple",note:"Tide · Software and IT costs"},
-  {date:"2026-11-13",dir:"out",amount:240,cat:"Car purchase",who:"Dinithi Gammacharige",note:"Tide · Stock"},
-  {date:"2026-11-13",dir:"out",amount:120,cat:"Car purchase",who:"Dinithi Gammacharige",note:"Tide · Stock"},
-  {date:"2026-11-13",dir:"out",amount:400,cat:"Car purchase",who:"Dinithi Gammacharige",note:"Tide · Stock"},
-  {date:"2026-11-13",dir:"in",amount:5075,cat:"Car sale",who:"Hope Olivia Thackeray",note:"Tide · Income"},
-  {date:"2026-11-12",dir:"out",amount:101,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-11",dir:"out",amount:18.45,cat:"Other",who:"Bolt.eu/o/2611112147",note:"Tide · Travel"},
-  {date:"2026-11-11",dir:"out",amount:119,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-11",dir:"out",amount:268,cat:"Transport / recovery",who:"D & E Transport Limited",note:"Tide · Stock"},
-  {date:"2026-11-11",dir:"out",amount:600,cat:"Repairs / garage",who:"Autofix Sandy Ltd",note:"Tide · Stock"},
-  {date:"2026-11-11",dir:"out",amount:29.96,cat:"Other",who:"Uber",note:"Tide · Travel"},
-  {date:"2026-11-11",dir:"out",amount:690,cat:"Repairs / garage",who:"L F Engine Services",note:"Tide · Stock"},
-  {date:"2026-11-11",dir:"out",amount:1313,cat:"Car purchase",who:"British Car Auctions Limited",note:"Tide · Stock"},
-  {date:"2026-11-11",dir:"in",amount:2215,cat:"Car sale",who:"L Oussaada",note:"Tide · Income"},
-  {date:"2026-11-11",dir:"out",amount:18.06,cat:"Utilities",who:"Voipfone",note:"Tide · Phone and internet"},
-  {date:"2026-11-10",dir:"out",amount:79.13,cat:"Repairs / garage",who:"Copart",note:"Tide · Vehicle maintenance"},
-  {date:"2026-11-09",dir:"out",amount:1300,cat:"Other",who:"Prashant Tamang",note:"Tide · Income"},
-  {date:"2026-11-09",dir:"out",amount:50,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-09",dir:"out",amount:200,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-09",dir:"out",amount:34.99,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-08",dir:"out",amount:300,cat:"Transport / recovery",who:"D & E Transport Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:300,cat:"Transport / recovery",who:"D & E Transport Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:200,cat:"Wages",who:"Monibullah Monib",note:"Tide · Staff costs"},
-  {date:"2026-11-08",dir:"out",amount:200,cat:"Wages",who:"Zahid Scandari",note:"Tide · Staff costs"},
-  {date:"2026-11-08",dir:"out",amount:126,cat:"Wages",who:"Mr Ilyas Sekanderie",note:"Tide · Staff costs"},
-  {date:"2026-11-08",dir:"out",amount:39.99,cat:"Parts",who:"Hardings (Hemel Hempstead) Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:39.99,cat:"Parts",who:"Hardings (Hemel Hempstead) Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:120,cat:"Parts",who:"Hardings (Hemel Hempstead) Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:134.38,cat:"Parts",who:"Hardings (Hemel Hempstead) Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:120,cat:"Parts",who:"Hardings (Hemel Hempstead) Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:159.99,cat:"Parts",who:"Hardings (Hemel Hempstead) Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:139.92,cat:"Parts",who:"Hardings (Hemel Hempstead) Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:39.99,cat:"Parts",who:"Hardings (Hemel Hempstead) Limited",note:"Tide · Stock"},
-  {date:"2026-11-08",dir:"out",amount:754,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-07",dir:"out",amount:300,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
-  {date:"2026-11-07",dir:"out",amount:868.12,cat:"Repairs / garage",who:"Copart",note:"Tide · Vehicle maintenance"},
-  {date:"2026-11-07",dir:"in",amount:900,cat:"Car sale",who:"T Egan-Perry",note:"Tide · Income"},
-  {date:"2026-11-07",dir:"in",amount:3100,cat:"Car sale",who:"T Egan-Perry",note:"Tide · Income"},
-  {date:"2026-11-07",dir:"in",amount:246,cat:"Car sale",who:"L Oussaada",note:"Tide · Income"},
-  {date:"2026-11-07",dir:"out",amount:70,cat:"Parts",who:"Hummet Zorlu Trading As Zorlu Tyres Luton",note:"Tide · Stock"},
   {date:"2026-10-29",dir:"out",amount:112.5,cat:"Office",who:"Google",note:"Tide · Software and IT costs"},
   {date:"2026-10-29",dir:"out",amount:250,cat:"Wages",who:"Mr Faisal Imran",note:"Tide · Staff costs"},
   {date:"2026-10-29",dir:"out",amount:250,cat:"Wages",who:"Mr Faisal Imran",note:"Tide · Staff costs"},
@@ -14574,11 +14524,11 @@ const TIDE_NOV = [
 function tideImportPlan(){
   const have = {}, used = {}, plan = [];
   (DB.cashbook||[]).forEach(function(r){
-    const k = r.date + '|' + (Number(r.amount)||0).toFixed(2) + '|' + r.dir + '|' + (r.who||'');
+    const k = r.date + '|' + (Number(r.amount)||0).toFixed(2) + '|' + r.dir;
     have[k] = (have[k]||0) + 1;
   });
   TIDE_NOV.forEach(function(t){
-    const key = t.date + '|' + t.amount.toFixed(2) + '|' + t.dir + '|' + t.who;
+    const key = t.date + '|' + t.amount.toFixed(2) + '|' + t.dir;
     used[key] = (used[key]||0) + 1;
     if(used[key] > (have[key]||0)) plan.push(t);
   });
@@ -14595,8 +14545,8 @@ function openTideImport(){
   plan.forEach(function(t){ days[t.date] = (days[t.date]||0) + 1; });
   openModal(`<button class="close-x" onclick="closeModal()">\u2715</button>
     <h3>Bring in the Tide statement</h3>
-    <div class="small-muted" style="margin-bottom:11px">29 October to 14 November, as it reads in the bank app.
-      ${(TIDE_NOV.length - plan.length) ? (TIDE_NOV.length - plan.length) + ' of these are already in the day book and will be left alone.' : ''}</div>
+    <div class="small-muted" style="margin-bottom:11px">29 October to 6 November, as it reads in the bank app.
+      ${(TIDE_NOV.length - plan.length) ? (TIDE_NOV.length - plan.length) + ' of these are already in the day book — they are left exactly as you have them, names and all.' : ''}</div>
     <div class="grid kpi-grid" style="margin-bottom:12px">
       <div class="card kpi"><div class="label">Lines</div><div class="value small">${plan.length}</div>
         <div class="sub">${Object.keys(days).length} days</div></div>
@@ -14977,7 +14927,7 @@ function renderCashbook(){
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="cbCsvPick()">⬇ Import bank CSV</button>
       ${tideImportPlan().length?`<button class="btn btn-brand" onclick="openTideImport()"
-        title="The statement from 29 October to 14 November, typed in from the bank app">+ Tide 29 Oct – 14 Nov (${tideImportPlan().length})</button>`:''}
+        title="The statement from 29 October to 6 November, typed in from the bank app. Anything already in the day book is left exactly as you have it.">+ Tide 29 Oct – 6 Nov (${tideImportPlan().length})</button>`:''}
       <input type="file" id="cb_csv" accept=".csv,text/csv" style="display:none" onchange="cbCsvLoaded(this)"/>
       ${isManager()?`<button class="btn btn-ghost" onclick="openDbCheck()">🔎 Check the day book sheet</button>`:''}
       ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="cbOpeningModal()">Opening balances</button>`:''}
