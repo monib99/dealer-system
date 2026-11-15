@@ -536,7 +536,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-13 b151</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b153</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -2911,9 +2911,65 @@ function focusRestore(k){
     if(k.start !== null && typeof el.setSelectionRange === 'function') el.setSelectionRange(k.start, k.end);
   }catch(e){}
 }
+/* The daily board is a row of seven day columns that scrolls sideways, and on a
+   phone one day fills the screen. Every render builds it again from nothing, so
+   it reopened at Monday - and ticking a task off is a render, which is why the
+   board jumped away mid-job. Remember where it was, and on first sight of a week
+   put today in view rather than Monday. */
+let boardAt = null;        /* {week, left} - where the board was left */
+function boardKeep(){
+  const el = document.querySelector('.board');
+  if(!el) return null;
+  return {week: taskDayOffset, left: el.scrollLeft};
+}
+let boardReanchor = false;   /* set by Today: ignore where the board was */
+function goToToday(){ taskDayOffset = 0; boardAt = null; boardReanchor = true; render(); }
+function boardRestore(k){
+  const el = document.querySelector('.board');
+  if(!el) return;
+  if(boardReanchor){
+    boardReanchor = false;
+    const c = el.querySelector('.day-col[data-date="' + todayISO() + '"]') || el.querySelector('.day-col');
+    if(c) el.scrollLeft = Math.max(0, c.offsetLeft - el.offsetLeft - 8);
+    boardAt = {week: taskDayOffset, left: el.scrollLeft};
+    return;
+  }
+  /* same week as a moment ago: put it back exactly where it was */
+  if(k && k.week === taskDayOffset){ el.scrollLeft = k.left; boardAt = k; return; }
+  /* a week we have already looked at: go back to where we left it */
+  if(boardAt && boardAt.week === taskDayOffset){ el.scrollLeft = boardAt.left; return; }
+  /* first sight of this week: show today, or the start of the week if today
+     is not in it */
+  const col = el.querySelector('.day-col[data-date="' + todayISO() + '"]')
+           || el.querySelector('.day-col');
+  if(col) el.scrollLeft = Math.max(0, col.offsetLeft - el.offsetLeft - 8);
+  boardAt = {week: taskDayOffset, left: el.scrollLeft};
+}
+/* Ticking a task off rebuilds the page, which sends it back to the top - so the
+   job you were half way down vanishes off the screen. Stay where you are when
+   it is the same screen; go to the top when it is a different one. */
+let lastRenderTab = null, lastRenderSub = null;
+function pageKeep(){
+  const sub = (typeof taskView !== 'undefined' ? taskView : '') + '|'
+            + (typeof activeVehicleId !== 'undefined' ? (activeVehicleId||'') : '');
+  const same = lastRenderTab === currentTab && lastRenderSub === sub;
+  lastRenderTab = currentTab; lastRenderSub = sub;
+  return same ? (window.scrollY || document.documentElement.scrollTop || 0) : null;
+}
+function pageRestore(y){
+  if(y === null || y <= 0) return;
+  /* after the new markup has been laid out, and only as far as it now reaches */
+  requestAnimationFrame(function(){
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo(0, Math.min(y, max));
+  });
+}
 function render(){
   const __focus = focusKeep();
-  try{ renderInner(); } finally { focusRestore(__focus); }
+  const __board = boardKeep();
+  const __page  = pageKeep();
+  try{ renderInner(); }
+  finally { focusRestore(__focus); boardRestore(__board); pageRestore(__page); }
 }
 function renderInner(){
   document.querySelectorAll('.nav-item').forEach(n=> n.classList.toggle('active', n.dataset.tab===currentTab));
@@ -7480,16 +7536,16 @@ function renderDailyBoardView(days, overdue){
   ${overdue.length?`<div class="overdue-banner"><span>⚠ ${overdue.length} task${overdue.length===1?'':'s'} overdue and not marked done.</span></div>`:''}
   <div class="toolbar">
     <button class="btn btn-ghost btn-sm" onclick="taskDayOffset-=7;render()">← Previous week</button>
-    <button class="btn btn-ghost btn-sm" onclick="taskDayOffset=0;render()">This week</button>
+    <button class="btn btn-ghost btn-sm" onclick="goToToday()" title="Back to today">Today</button>
     <button class="btn btn-ghost btn-sm" onclick="taskDayOffset+=7;render()">Next week →</button>
     <span style="flex:1"></span>
     <button class="btn btn-ghost btn-sm" onclick="taskReport('day')">\u{1F4C4} Today's report</button>
     <button class="btn btn-brand btn-sm" onclick="taskReport('week')">\u{1F4C4} Week report (PDF)</button>
   </div>
   ${taskPeopleStrip(days)}
-  <div class="board">
+  <div class="board" onscroll="boardAt={week:taskDayOffset,left:this.scrollLeft}">
     ${days.map(d=>`
-      <div class="day-col ${d===todayISO()?'is-today':''}">
+      <div class="day-col ${d===todayISO()?'is-today':''}" data-date="${d}">
         <div class="flex-between" style="margin-bottom:6px;">
           <strong>${new Date(d).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</strong>
           ${d===todayISO()?'<span class="tag tag-brand">Today</span>':''}
