@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b156</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b157</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -14452,7 +14452,7 @@ function cbLooksDuplicate(r){
   });
   return hit || null;
 }
-/* ---- the Tide statement, 6 to 14 November -----------------------------------
+/* ---- the Tide statement, 29 October to 14 November -----------------------------------
    Typed in from the bank app, and every day reconciles against Tide's own daily
    figure. Two lines are deliberately missing: an Amazon payment that was still
    pending and an Uber fare that was cancelled - neither has left the account,
@@ -14511,17 +14511,76 @@ const TIDE_NOV = [
   {date:"2026-11-07",dir:"in",amount:3100,cat:"Car sale",who:"T Egan-Perry",note:"Tide · Income"},
   {date:"2026-11-07",dir:"in",amount:246,cat:"Car sale",who:"L Oussaada",note:"Tide · Income"},
   {date:"2026-11-07",dir:"out",amount:70,cat:"Parts",who:"Hummet Zorlu Trading As Zorlu Tyres Luton",note:"Tide · Stock"},
+  {date:"2026-10-29",dir:"out",amount:112.5,cat:"Office",who:"Google",note:"Tide · Software and IT costs"},
+  {date:"2026-10-29",dir:"out",amount:250,cat:"Wages",who:"Mr Faisal Imran",note:"Tide · Staff costs"},
+  {date:"2026-10-29",dir:"out",amount:250,cat:"Wages",who:"Mr Faisal Imran",note:"Tide · Staff costs"},
+  {date:"2026-10-29",dir:"out",amount:240,cat:"Wages",who:"Mr Faisal Imran",note:"Tide · Staff costs"},
+  {date:"2026-10-29",dir:"in",amount:5200,cat:"Car sale",who:"Hills S",note:"Tide · Income"},
+  {date:"2026-10-29",dir:"out",amount:96,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-10-29",dir:"out",amount:101,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-10-30",dir:"out",amount:100,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-10-30",dir:"out",amount:900,cat:"Repairs / garage",who:"Autofix Sandy Ltd",note:"Tide · Stock"},
+  {date:"2026-10-30",dir:"out",amount:20.98,cat:"Parts",who:"Onlineradiocodes",note:"Tide · To be categorised"},
+  {date:"2026-10-30",dir:"out",amount:650,cat:"Wages",who:"Monibullah Monib",note:"Tide · Staff costs"},
+  {date:"2026-10-30",dir:"out",amount:324.57,cat:"Wages",who:"Zahid Scandari",note:"Tide · Staff costs"},
+  {date:"2026-10-30",dir:"out",amount:126.16,cat:"Wages",who:"Mr Ilyas Sekanderie",note:"Tide · Staff costs"},
+  {date:"2026-10-30",dir:"out",amount:67.37,cat:"Parts",who:"Amazon",note:"Tide · Stock"},
+  {date:"2026-10-30",dir:"out",amount:20,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-10-31",dir:"out",amount:40,cat:"Parts",who:"S A Hashmi",note:"Tide · Stock"},
+  {date:"2026-10-31",dir:"out",amount:60,cat:"Parts",who:"S A Hashmi",note:"Tide · Stock"},
+  {date:"2026-10-31",dir:"out",amount:10.99,cat:"Office",who:"Apple",note:"Tide · Software and IT costs"},
+  {date:"2026-10-31",dir:"out",amount:100,cat:"Other",who:"Kamel Halima Rihoum",note:"Tide · Other expenses"},
+  {date:"2026-10-31",dir:"out",amount:10,cat:"Utilities",who:"Voipfone",note:"Tide · Phone and internet"},
+  {date:"2026-11-01",dir:"in",amount:225,cat:"Car sale",who:"Linda Ann Lynch",note:"Tide · Income"},
+  {date:"2026-11-01",dir:"out",amount:25,cat:"Wages",who:"Zahid Scandari",note:"Tide · Staff costs"},
+  {date:"2026-11-01",dir:"out",amount:200,cat:"Wages",who:"Zahid Scandari",note:"Tide · Staff costs"},
+  {date:"2026-11-01",dir:"out",amount:12.49,cat:"Office",who:"Tide",note:"Tide · Bank fees · Smart Plan Subscription Nov 2026"},
+  {date:"2026-11-02",dir:"out",amount:120,cat:"Parts",who:"Mds Parts Ltd",note:"Tide · Stock"},
+  {date:"2026-11-02",dir:"in",amount:42,cat:"Other",who:"Apex Motors",note:"Tide · Income"},
+  {date:"2026-11-02",dir:"out",amount:9.99,cat:"Office",who:"Vcheck.uk",note:"Tide · Software and IT costs"},
+  {date:"2026-11-02",dir:"out",amount:15,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-11-02",dir:"out",amount:39.99,cat:"Parts",who:"Argos Woodhall Farm",note:"Tide · To be categorised"},
+  {date:"2026-11-02",dir:"out",amount:69.98,cat:"Parts",who:"Argos Woodhall Farm",note:"Tide · To be categorised"},
+  {date:"2026-11-02",dir:"out",amount:3683.33,cat:"Rent",who:"M A Hyseni",note:"Tide · Rent"},
+  {date:"2026-11-02",dir:"out",amount:40,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-11-02",dir:"out",amount:2,cat:"Office",who:"Tide",note:"Tide · Bank fees · Bank Transfer Fees Oct 2026"},
+  {date:"2026-11-03",dir:"out",amount:30,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-11-03",dir:"out",amount:104.63,cat:"Parts",who:"Euro Car Parts",note:"Tide · Vehicle maintenance"},
+  {date:"2026-11-03",dir:"in",amount:20,cat:"Other",who:"Autofix Sandy Ltd",note:"Tide · Income"},
+  {date:"2026-11-03",dir:"in",amount:80,cat:"Other",who:"Zahid Scandari",note:"Tide · Income"},
+  {date:"2026-11-04",dir:"out",amount:24.98,cat:"Parts",who:"Ebay",note:"Tide · Stock"},
+  {date:"2026-11-04",dir:"out",amount:1120.71,cat:"Repairs / garage",who:"Copart",note:"Tide · Vehicle maintenance"},
+  {date:"2026-11-04",dir:"out",amount:1171.43,cat:"Repairs / garage",who:"Copart",note:"Tide · Vehicle maintenance"},
+  {date:"2026-11-04",dir:"in",amount:2300,cat:"Other",who:"Apex Motors",note:"Tide · Income"},
+  {date:"2026-11-04",dir:"in",amount:2700,cat:"Other",who:"Apex Motors",note:"Tide · Income"},
+  {date:"2026-11-04",dir:"in",amount:29.99,cat:"Refund",who:"Argos Ltd",note:"Tide · To be categorised"},
+  {date:"2026-11-04",dir:"in",amount:39.99,cat:"Refund",who:"Argos Woodhall Farm",note:"Tide · To be categorised"},
+  {date:"2026-11-05",dir:"out",amount:500,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-11-05",dir:"out",amount:10,cat:"Utilities",who:"Voipfone",note:"Tide · Phone and internet"},
+  {date:"2026-11-05",dir:"out",amount:6.5,cat:"Other",who:"One Stop 6416",note:"Tide · Meals"},
+  {date:"2026-11-05",dir:"in",amount:57.48,cat:"Refund",who:"Amazon",note:"Tide · Stock"},
   {date:"2026-11-06",dir:"out",amount:3000,cat:"Wages",who:"Mohammad H Scandari",note:"Tide · Staff costs"},
-  {date:"2026-11-06",dir:"in",amount:2858.7,cat:"Car sale",who:"Car Express Group Ltd",note:"Tide · Income"}
+  {date:"2026-11-06",dir:"in",amount:2858.7,cat:"Car sale",who:"Car Express Group Ltd",note:"Tide · Income"},
+  {date:"2026-11-06",dir:"out",amount:190,cat:"Wages",who:"Monibullah Monib",note:"Tide · Staff costs"},
+  {date:"2026-11-06",dir:"out",amount:58.89,cat:"Other",who:"Trainline",note:"Tide · Travel"},
+  {date:"2026-11-06",dir:"out",amount:50,cat:"Other",who:"Drive Safe Limited",note:"Tide · Stock"},
+  {date:"2026-11-06",dir:"in",amount:575,cat:"Car sale",who:"Hope Olivia Thackeray",note:"Tide · Income"},
+  {date:"2026-11-06",dir:"out",amount:80,cat:"Wages",who:"Zahid Scandari",note:"Tide · Staff costs"},
+  {date:"2026-11-06",dir:"out",amount:15,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-11-06",dir:"out",amount:40,cat:"Wages",who:"Mirwais Hamedi",note:"Tide · Staff costs"},
+  {date:"2026-11-06",dir:"out",amount:30,cat:"Utilities",who:"Ee Topup",note:"Tide · Phone and internet"},
+  {date:"2026-11-06",dir:"out",amount:20.32,cat:"Parts",who:"Euro Car Parts P",note:"Tide · Vehicle maintenance"}
 ];
 function tideImportPlan(){
-  const have = {}, plan = [];
+  const have = {}, used = {}, plan = [];
   (DB.cashbook||[]).forEach(function(r){
-    have[r.date + '|' + (Number(r.amount)||0).toFixed(2) + '|' + r.dir + '|' + (r.who||'')] = true;
+    const k = r.date + '|' + (Number(r.amount)||0).toFixed(2) + '|' + r.dir + '|' + (r.who||'');
+    have[k] = (have[k]||0) + 1;
   });
   TIDE_NOV.forEach(function(t){
     const key = t.date + '|' + t.amount.toFixed(2) + '|' + t.dir + '|' + t.who;
-    if(!have[key]) plan.push(t);
+    used[key] = (used[key]||0) + 1;
+    if(used[key] > (have[key]||0)) plan.push(t);
   });
   return plan;
 }
@@ -14536,7 +14595,7 @@ function openTideImport(){
   plan.forEach(function(t){ days[t.date] = (days[t.date]||0) + 1; });
   openModal(`<button class="close-x" onclick="closeModal()">\u2715</button>
     <h3>Bring in the Tide statement</h3>
-    <div class="small-muted" style="margin-bottom:11px">6 to 14 November, as it reads in the bank app.
+    <div class="small-muted" style="margin-bottom:11px">29 October to 14 November, as it reads in the bank app.
       ${(TIDE_NOV.length - plan.length) ? (TIDE_NOV.length - plan.length) + ' of these are already in the day book and will be left alone.' : ''}</div>
     <div class="grid kpi-grid" style="margin-bottom:12px">
       <div class="card kpi"><div class="label">Lines</div><div class="value small">${plan.length}</div>
@@ -14918,7 +14977,7 @@ function renderCashbook(){
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="cbCsvPick()">⬇ Import bank CSV</button>
       ${tideImportPlan().length?`<button class="btn btn-brand" onclick="openTideImport()"
-        title="The statement from 6 to 14 November, typed in from the bank app">+ Tide 6–14 Nov (${tideImportPlan().length})</button>`:''}
+        title="The statement from 29 October to 14 November, typed in from the bank app">+ Tide 29 Oct – 14 Nov (${tideImportPlan().length})</button>`:''}
       <input type="file" id="cb_csv" accept=".csv,text/csv" style="display:none" onchange="cbCsvLoaded(this)"/>
       ${isManager()?`<button class="btn btn-ghost" onclick="openDbCheck()">🔎 Check the day book sheet</button>`:''}
       ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="cbOpeningModal()">Opening balances</button>`:''}
