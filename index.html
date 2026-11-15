@@ -448,6 +448,41 @@
 .flt-act{display:flex;flex-direction:column;gap:5px;justify-content:center;padding:10px 11px 10px 0}
 .flt-hist{margin-top:7px;border-top:1px solid var(--line);padding-top:6px;font-size:11px;
   color:var(--muted);line-height:1.75}
+.flt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:13px}
+.fcard{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  display:flex;flex-direction:column;transition:box-shadow .13s,border-color .13s}
+.fcard:hover{box-shadow:0 4px 16px rgba(0,0,0,.09);border-color:#c8ced6}
+.fcard::before{content:"";display:block;height:4px;background:var(--line)}
+.fcard.fc-green::before{background:#1a9a52}.fcard.fc-amber::before{background:#e08900}
+.fcard.fc-blue::before{background:#2b6fd6}.fcard.fc-red::before{background:#d12b20}
+.fcard.fc-grey::before{background:#9aa1ab}
+.fc-top{position:relative;background:#eef0f2}
+.fc-shot{display:block;width:100%;height:132px;object-fit:cover;cursor:pointer}
+.fc-shot.fc-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  background:repeating-linear-gradient(45deg,#f4f6f8,#f4f6f8 9px,#eef1f4 9px,#eef1f4 18px);
+  border:0;color:#8b949e;cursor:pointer}
+.fc-shot.fc-empty span{font-size:21px;opacity:.75}
+.fc-shot.fc-empty em{font-style:normal;font-size:10.5px;letter-spacing:.02em}
+.fc-cam{position:absolute;top:8px;right:8px;width:27px;height:27px;border-radius:50%;cursor:pointer;
+  background:rgba(14,17,20,.62);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
+.fc-ok{position:absolute;top:8px;right:41px;height:27px;padding:0 8px;border-radius:14px;font-size:12px;
+  background:rgba(26,154,82,.92);color:#fff;display:flex;align-items:center;font-weight:700}
+.fc-loc{position:absolute;left:8px;bottom:8px;box-shadow:0 1px 5px rgba(0,0,0,.22)}
+.fc-body{padding:10px 12px 2px;flex:1;min-width:0}
+.fc-reg{font-weight:800;font-size:15.5px;letter-spacing:.02em}
+.fc-desc{color:var(--muted);font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc-where{font-size:12px;color:#4a515b;margin-top:5px}
+.fc-start{margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fc-note{margin-top:6px;font-size:12.5px}
+.fc-meta{margin-top:7px;font-size:10.5px;color:var(--muted)}
+.fc-hist{margin-top:6px;border-top:1px solid var(--line);padding-top:5px;font-size:10.5px;color:var(--muted);
+  line-height:1.55}
+.fc-act{display:flex;gap:5px;align-items:center;padding:9px 10px 10px;border-top:1px solid var(--line);
+  margin-top:9px}
+@media(max-width:560px){
+  .flt-grid{grid-template-columns:1fr;gap:11px}
+  .fc-shot{height:150px}
+}
 .flt-sites{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;margin:0 0 10px}
 .flt-sites .fs{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;
   cursor:pointer;transition:border-color .12s,box-shadow .12s}
@@ -536,7 +571,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b153</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b154</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3265,7 +3300,7 @@ function syncFleetFromStock(){
   return changed;
 }
 function fleetCount(loc){
-  if(loc === 'All') return fleet().length;
+  if(loc === 'All') return fleetHere();
   if(loc === 'Due') return fleetStartNeeded().length;
   if(loc === 'Fault') return fleetStartFaults().length;
   if(loc === 'Out') return fleetSiteCount('Out');
@@ -3274,7 +3309,10 @@ function fleetCount(loc){
   return fleet().filter(function(f){ return f.loc === loc; }).length;
 }
 function fleetMatchesFilter(f){
-  if(fleetLoc === 'All') return true;
+  /* "All" means every car we still have. A car that has been sold or scrapped
+     is history, not somewhere a car is, so it only shows under its own heading
+     - otherwise the list grows forever and the count stops meaning anything. */
+  if(fleetLoc === 'All') return fleetStartable(f);
   if(fleetLoc === 'Due')   return fleetStartNeeded().some(function(x){ return x.id === f.id; });
   if(fleetLoc === 'Fault') return fleetStartStatus(f) === 'fault';
   if(fleetLoc === 'Out') return FLEET_OFFSITE.indexOf(f.loc) >= 0;
@@ -3475,7 +3513,9 @@ function renderFleet(){
   const rows = fleetShown();
   const tabs = ['All'].concat(FLEET_LOCS).filter(function(l){
     return l === 'All' || fleetCount(l) > 0 || fleetLoc === l; });
-  const needPhoto = fleet().filter(function(f){ return !f.photoId; }).length;
+  const tabLabel = function(l){ return l === 'All' ? 'On the books' : l; };
+  /* only the cars we still have - a sold car's whereabouts is no longer ours */
+  const needPhoto = fleet().filter(function(f){ return fleetStartable(f) && !f.photoId; }).length;
   return `
   <div class="topbar">
     <div><h1>Car manager</h1><div class="date">Where every vehicle is right now</div></div>
@@ -3511,7 +3551,7 @@ function renderFleet(){
 
   <div class="flt-sum">
     ${tabs.map(function(l){ return `<div class="s ${fleetLoc===l?'on':''}" style="cursor:pointer"
-      onclick="fleetLoc='${l}';render()"><b>${fleetCount(l)}</b><span>${escapeHtml(l)}</span></div>`; }).join('')}
+      onclick="fleetLoc='${l}';render()"><b>${fleetCount(l)}</b><span>${escapeHtml(tabLabel(l))}</span></div>`; }).join('')}
   </div>
 
   ${(!fleet().length)?`<div class="card" style="box-shadow:none;padding:16px;margin-bottom:12px">
@@ -3526,8 +3566,8 @@ function renderFleet(){
     <span class="link" style="cursor:pointer" onclick="importFleetSeed()">Set them from the printed sheet</span>
     to put the Sandy and Luton cars where they really are.</div>`:''}
 
-  ${(needPhoto && fleet().length)?`<div class="small-muted" style="margin:0 0 9px">
-    ${needPhoto} of ${fleet().length} have no photo against ${needPhoto===1?'its':'their'} location yet —
+  ${(needPhoto && fleetHere())?`<div class="small-muted" style="margin:0 0 9px">
+    ${needPhoto} of ${fleetHere()} have no photo against ${needPhoto===1?'its':'their'} location yet —
     a photo is what turns "it should be at Sandy" into "it is at Sandy".</div>`:''}
 
   <div class="field" style="margin-bottom:10px">
@@ -3535,52 +3575,53 @@ function renderFleet(){
       oninput="fleetQ=this.value;clearTimeout(window.__fq);window.__fq=setTimeout(render,250)"/>
   </div>
 
-  ${rows.length ? rows.map(function(f){
+  ${rows.length ? `<div class="flt-grid">` + rows.map(function(f){
     const sc = fleetStockCar(f);
     const where = fleetWhere(f);
-    return `<div class="flt">
-      <div class="flt-spine flt-sp-${fleetSpine(f.loc)}"></div>
-      ${f.photoId
-        ? `<img class="flt-shot" src="${getPhotoUrl(f.photoId)}" title="Taken ${f.photoAt?fmtDateTime(f.photoAt):''} — tap to open"
-             onclick="window.open('${getPhotoUrl(f.photoId)}','_blank')"/>`
-        : `<label class="flt-none" title="Add a photo of where it is">\u{1F4F7}
-             <input type="file" accept="image/*" capture="environment" hidden
-               onchange="uploadFleetPhoto('${f.id}', this)"/></label>`}
-      <div class="flt-body">
-        <div><span class="flt-reg">${escapeHtml(f.reg||'')}</span>
-          <span class="flt-desc">${escapeHtml([f.name,f.year,f.colour].filter(Boolean).join(' · '))}</span></div>
-        <div class="flt-line2">
-          <span class="tag ${fleetTagClass(f.loc)}">${escapeHtml(f.loc||'Unassigned')}</span>
-          ${where?`<span class="flt-where">${where}</span>`:''}
-          ${f.photoId?`<span class="tag tag-green" title="A photo was taken where it is">✓ confirmed</span>`:''}
-        </div>
-        ${fleetStartable(f)?`<div class="flt-line2" style="margin-top:3px">
-          ${fleetStartLine(f)}
-          <span class="link" style="cursor:pointer;font-size:12px"
-            onclick="openFleetStart('${f.id}')">record a start-up</span>
-        </div>`:''}
-        ${f.note?`<div class="flt-note">${escapeHtml(f.note)}</div>`:''}
-        <div class="flt-meta">
+    const hist = (f.history && f.history.length > 1);
+    return `<div class="fcard fc-${fleetSpine(f.loc)}">
+      <div class="fc-top">
+        ${f.photoId
+          ? `<img class="fc-shot" src="${getPhotoUrl(f.photoId)}"
+               title="Taken ${f.photoAt?fmtDateTime(f.photoAt):''} — tap to open"
+               onclick="window.open('${getPhotoUrl(f.photoId)}','_blank')"/>
+             <label class="fc-cam" title="Replace the photo">\u{1F4F7}
+               <input type="file" accept="image/*" capture="environment" hidden
+                 onchange="uploadFleetPhoto('${f.id}', this)"/></label>
+             <span class="fc-ok" title="A photo was taken where it is">✓</span>`
+          : `<label class="fc-shot fc-empty" title="Add a photo of where it is">
+               <span>\u{1F4F7}</span><em>confirm with a photo</em>
+               <input type="file" accept="image/*" capture="environment" hidden
+                 onchange="uploadFleetPhoto('${f.id}', this)"/></label>`}
+        <span class="tag ${fleetTagClass(f.loc)} fc-loc">${escapeHtml(f.loc||'Unassigned')}</span>
+      </div>
+      <div class="fc-body">
+        <div class="fc-reg">${escapeHtml(f.reg||'')}</div>
+        <div class="fc-desc">${escapeHtml([f.name,f.year,f.colour].filter(Boolean).join(' · ')) || '&nbsp;'}</div>
+        ${where?`<div class="fc-where">${where}</div>`:''}
+        ${fleetStartable(f)?`<div class="fc-start">${fleetStartLine(f)}</div>`:''}
+        ${f.note?`<div class="fc-note">${escapeHtml(f.note)}</div>`:''}
+        <div class="fc-meta">
           ${f.updAt?('Moved '+fmtDateTime(f.updAt)+(f.updBy?(' by '+escapeHtml(f.updBy)):'')):'Not moved yet'}
-          ${(f.history&&f.history.length>1)?` · <span class="link" style="cursor:pointer"
+          ${hist?` · <span class="link" style="cursor:pointer"
             onclick="fleetOpenHist['${f.id}']=!fleetOpenHist['${f.id}'];render()">${
-              fleetOpenHist[f.id]?'hide history':'history'}</span>`:''}
+              fleetOpenHist[f.id]?'hide':'history'}</span>`:''}
         </div>
-        ${(fleetOpenHist[f.id] && f.history && f.history.length)?`<div class="flt-hist">
+        ${(fleetOpenHist[f.id] && f.history && f.history.length)?`<div class="fc-hist">
           ${f.history.slice().reverse().map(function(h){
             return `${escapeHtml(h.loc)}${h.extra?(' · '+escapeHtml(h.extra)):''} — ${fmtDateTime(h.at)}${
               h.by?(' by '+escapeHtml(h.by)):''}`; }).join('<br>')}</div>`:''}
       </div>
-      <div class="flt-act">
+      <div class="fc-act">
         <button class="btn btn-sm btn-brand" onclick="openFleetMove('${f.id}')">Move</button>
-        ${f.photoId?`<label class="btn btn-sm btn-ghost" style="cursor:pointer;text-align:center">Photo
-          <input type="file" accept="image/*" capture="environment" hidden
-            onchange="uploadFleetPhoto('${f.id}', this)"/></label>`:''}
+        ${fleetStartable(f)?`<button class="btn btn-sm btn-ghost" onclick="openFleetStart('${f.id}')"
+          title="Record a start-up">\u{1F511}</button>`:''}
         ${sc?`<button class="btn btn-sm btn-ghost" onclick="openVehicle('${sc.id}')">Stock</button>`:''}
+        <span style="flex:1"></span>
         ${isSuperAdmin()?`<button class="btn btn-sm btn-ghost" style="color:var(--red)"
-          onclick="deleteFleet('${f.id}')">✕</button>`:''}
+          onclick="deleteFleet('${f.id}')" title="Remove from the manager">✕</button>`:''}
       </div></div>`;
-  }).join('') : `<div class="empty">${fleetQ?'Nothing matches that.':'No vehicles on this list yet.'}</div>`}
+  }).join('') + `</div>` : `<div class="empty">${fleetQ?'Nothing matches that.':'No vehicles on this list yet.'}</div>`}
 
   ${(isSuperAdmin() && !fleet().length)?`<div class="card" style="padding:14px;margin-top:10px">
     <b>Start from your existing list</b>
