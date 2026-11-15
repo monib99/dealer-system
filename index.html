@@ -467,7 +467,13 @@
   background:rgba(14,17,20,.62);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px}
 .fc-ok{position:absolute;top:8px;right:41px;height:27px;padding:0 8px;border-radius:14px;font-size:12px;
   background:rgba(26,154,82,.92);color:#fff;display:flex;align-items:center;font-weight:700}
-.fc-loc{position:absolute;left:8px;bottom:8px;box-shadow:0 1px 5px rgba(0,0,0,.22)}
+.fc-stocktag{position:absolute;top:8px;right:41px;height:27px;padding:0 9px;border-radius:14px;font-size:10.5px;
+  background:rgba(14,17,20,.52);color:#e9edf1;display:flex;align-items:center;font-weight:600;letter-spacing:.02em}
+.fc-shot.fc-stock{opacity:.9}
+/* It sits on top of a photograph that could be any colour, so it carries its
+   own solid backing rather than the translucent one tags use elsewhere. */
+.fc-loc{position:absolute;left:8px;bottom:8px;background:#fff !important;
+  box-shadow:0 1px 6px rgba(0,0,0,.3);border:1px solid rgba(0,0,0,.08);font-weight:700}
 .fc-body{padding:10px 12px 2px;flex:1;min-width:0}
 .fc-reg{font-weight:800;font-size:15.5px;letter-spacing:.02em}
 .fc-desc{color:var(--muted);font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -571,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b154</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b155</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3265,6 +3271,23 @@ let fleetQ = '';
 let fleetOpenHist = {};
 
 function fleet(){ return DB.fleet || (DB.fleet = []); }
+/* The picture on a card. A photo taken where the car is beats everything, and
+   is the only one that counts as confirming the location. Failing that we show
+   the car's own photo from Stock, because a card with a picture of the car is
+   far easier to pick out than a grey box - it just does not prove where it is,
+   so the tick stays off and the camera button stays. */
+function fleetPhoto(f, sc){
+  if(f.photoId) return {url: getPhotoUrl(f.photoId), confirmed: true};
+  const car = sc || fleetStockCar(f);
+  const ph = car && (car.photos||[]).length
+    ? ((car.photos.find(function(p){ return !p.origId; })) || car.photos[0])
+    : null;
+  if(ph && ph.id){
+    const u = getPhotoUrl(ph.id);
+    if(u) return {url: u, confirmed: false};
+  }
+  return {url: '', confirmed: false};
+}
 function fleetRegKey(r){ return String(r||'').replace(/\s+/g,'').toUpperCase(); }
 /* Car manager is a view of the cars we actually have, not a second list to be
    kept up to date by hand. Every vehicle in Stock gets a row here the first
@@ -3580,21 +3603,25 @@ function renderFleet(){
     const where = fleetWhere(f);
     const hist = (f.history && f.history.length > 1);
     return `<div class="fcard fc-${fleetSpine(f.loc)}">
-      <div class="fc-top">
-        ${f.photoId
-          ? `<img class="fc-shot" src="${getPhotoUrl(f.photoId)}"
-               title="Taken ${f.photoAt?fmtDateTime(f.photoAt):''} — tap to open"
-               onclick="window.open('${getPhotoUrl(f.photoId)}','_blank')"/>
-             <label class="fc-cam" title="Replace the photo">\u{1F4F7}
+      ${(function(){ const pic = fleetPhoto(f, sc); return `<div class="fc-top">
+        ${pic.url
+          ? `<img class="fc-shot${pic.confirmed?'':' fc-stock'}" src="${pic.url}"
+               title="${pic.confirmed
+                 ? 'Taken where it is'+(f.photoAt?', '+fmtDateTime(f.photoAt):'')+' — tap to open'
+                 : 'From the stock record — tap to open. It does not show where the car is now.'}"
+               onclick="window.open('${pic.url}','_blank')"/>
+             <label class="fc-cam" title="${pic.confirmed?'Replace the photo':'Photograph it where it is'}">\u{1F4F7}
                <input type="file" accept="image/*" capture="environment" hidden
                  onchange="uploadFleetPhoto('${f.id}', this)"/></label>
-             <span class="fc-ok" title="A photo was taken where it is">✓</span>`
+             ${pic.confirmed
+               ? `<span class="fc-ok" title="A photo was taken where it is">✓</span>`
+               : `<span class="fc-stocktag" title="The car's own photo from Stock, not proof of where it is">stock photo</span>`}`
           : `<label class="fc-shot fc-empty" title="Add a photo of where it is">
                <span>\u{1F4F7}</span><em>confirm with a photo</em>
                <input type="file" accept="image/*" capture="environment" hidden
                  onchange="uploadFleetPhoto('${f.id}', this)"/></label>`}
         <span class="tag ${fleetTagClass(f.loc)} fc-loc">${escapeHtml(f.loc||'Unassigned')}</span>
-      </div>
+      </div>`; })()}
       <div class="fc-body">
         <div class="fc-reg">${escapeHtml(f.reg||'')}</div>
         <div class="fc-desc">${escapeHtml([f.name,f.year,f.colour].filter(Boolean).join(' · ')) || '&nbsp;'}</div>
