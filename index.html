@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-15 b158</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-18 b159</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -5912,6 +5912,8 @@ function vehicleSaleTab(v){
         <tr><td>Warranty</td><td>${fmtMoney(s.warranty)}</td></tr>
         <tr><td>Extra package</td><td>${fmtMoney(s.extraPackage)}</td></tr>
         ${saleExtrasLine(s)?`<tr><td>Included</td><td>${escapeHtml(saleExtrasLine(s))}</td></tr>`:''}
+        ${Number(s.payFinance)?`<tr><td>Paid by finance</td><td>${fmtMoney(s.payFinance)}${s.financeCo?' <span class="small-muted">'+escapeHtml(s.financeCo)+'</span>':''}</td></tr>`:''}
+        ${(s.motExpiry||v.motExpiry)?`<tr><td>MOT expires</td><td>${fmtDate(s.motExpiry||v.motExpiry)}</td></tr>`:''}
         <tr><td style="font-weight:700">Sold for</td><td style="font-weight:700">${fmtMoney(vehicleSaleValue(v))}</td></tr>
         ${(Number(s.partExValue)||0)?`<tr><td>Money received</td><td>${fmtMoney(vehicleCashReceived(v))}<div class="small-muted">the rest was paid with the part exchange, which is in stock at ${fmtMoney(s.partExValue)}</div></td></tr>`:''}
         <tr><td style="font-weight:700">Profit</td><td style="font-weight:700;color:${vehicleProfit(v)>=0?'var(--green)':'var(--red)'}">${fmtMoney(vehicleProfit(v))}</td></tr>
@@ -6020,8 +6022,19 @@ function vehicleSaleTab(v){
       <div class="field"><label>Card (£)</label><input id="s_payCard" type="number" step="0.01" value="${(v.sale&&v.sale.payCard)||0}" oninput="updatePayTotal('${v.id}')"/></div>
       <div class="field"><label>Cash (£)</label><input id="s_payCash" type="number" step="0.01" value="${(v.sale&&v.sale.payCash)||0}" oninput="updatePayTotal('${v.id}')"/></div>
     </div>
+    <div class="field-row">
+      <div class="field"><label>Finance (£)</label><input id="s_payFinance" type="number" step="0.01" value="${(v.sale&&v.sale.payFinance)||0}" oninput="updatePayTotal('${v.id}')"/>
+        <div class="small-muted" style="margin-top:4px">What the finance company is paying towards this car.</div></div>
+      <div class="field"><label>Finance company</label><input id="s_financeCo" placeholder="e.g. Close Brothers, Zuto" value="${escapeAttr((v.sale&&v.sale.financeCo)||'')}"/>
+        <div class="small-muted" style="margin-top:4px">Prints beside the finance amount on the invoice.</div></div>
+    </div>
     <div id="payTotalLine" style="margin:-2px 0 10px;font-size:13.5px"></div>
-    <div class="field" style="max-width:220px"><label>Sale time</label><input id="s_time" type="time" value="${(v.sale&&v.sale.time)||nowTime()}"/></div>
+    <div class="field-row">
+      <div class="field" style="max-width:220px"><label>Sale time</label><input id="s_time" type="time" value="${(v.sale&&v.sale.time)||nowTime()}"/></div>
+      <div class="field" style="max-width:240px"><label>MOT expires</label>
+        <input id="s_mot" type="date" value="${escapeAttr((v.sale&&v.sale.motExpiry)||v.motExpiry||'')}"/>
+        <div class="small-muted" style="margin-top:4px">Prints on the invoice. Saved back to the car record too.</div></div>
+    </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-brand" onclick="confirmSale('${v.id}')">Confirm sale &amp; generate invoice</button>
       <button class="btn btn-ghost" onclick="printDraftInvoice('${v.id}')">\u{1F4E7} Draft invoice to send</button>
@@ -6177,12 +6190,16 @@ function confirmSale(vId){
     payBank: Number((document.getElementById('s_payBank')||{value:0}).value)||0,
     payCard: Number((document.getElementById('s_payCard')||{value:0}).value)||0,
     payCash: Number((document.getElementById('s_payCash')||{value:0}).value)||0,
+    payFinance: Number((document.getElementById('s_payFinance')||{value:0}).value)||0,
+    financeCo: ((document.getElementById('s_financeCo')||{value:''}).value||'').trim(),
+    motExpiry: ((document.getElementById('s_mot')||{value:''}).value||'') || v.motExpiry || '',
     advertisedPrice: Number(v.askingPrice)||0,
     pxFaults: pxTicked() ? (document.getElementById('s_pxFaults')||{value:''}).value.trim() : '',
     tradeSale: !!(document.getElementById('s_tradeSale')||{}).checked,
     soldBy: (v.sale && v.sale.soldBy) || currentUserName || '',
     invoiceRef: (v.sale && v.sale.invoiceRef) || nextInvoiceRef(),
   };
+  if(v.sale.motExpiry) v.motExpiry = v.sale.motExpiry;   // typed on the invoice page, kept on the car
   v.status='sold';
   /* freeze the wording as issued, so reprinting an old invoice shows what was signed
      rather than whatever the terms say today */
@@ -6488,7 +6505,7 @@ function depositFromLead(vId){
 const SALE_DRAFT_FIELDS = ['s_customer','s_price','s_discount','s_date','s_time',
   's_pxreg','s_pxval','s_pxmake','s_pxmodel','s_pxyear','s_pxmiles','s_pxcolour','s_pxFaults',
   's_admin','s_delivery','s_warranty','s_motInc','s_warrMonths','s_warrCover','s_extrasText',
-  's_deposit','s_payBank','s_payCard','s_payCash'];
+  's_deposit','s_payBank','s_payCard','s_payCash','s_payFinance','s_financeCo','s_mot'];
 const SALE_DRAFT_TICKS = ['s_hasPx','s_tradeSale'];
 let saleDraftTimer = null;
 
@@ -6658,8 +6675,9 @@ function invoiceTotals(v, sale){
   const dep = Number(s.deposit)||0;
   const total = price - disc - px + admin + del + warr + extra;
   /* every penny taken, counted once: the deposit is a payment like any other */
-  const paid = dep + (Number(s.payBank)||0) + (Number(s.payCard)||0) + (Number(s.payCash)||0);
-  return {price, disc, px, admin, del, warr, extra, dep, total, paid, due: total - paid,
+  const fin  = Number(s.payFinance)||0;
+  const paid = dep + (Number(s.payBank)||0) + (Number(s.payCard)||0) + (Number(s.payCash)||0) + fin;
+  return {price, disc, px, admin, del, warr, extra, dep, fin, total, paid, due: total - paid,
           advertised: Number(s.advertisedPrice)||Number(v.askingPrice)||0};
 }
 
@@ -6692,6 +6710,8 @@ function draftSaleFromForm(v){
     warranty: num('s_warranty'), extras: readExtras(), extraPackage: 0,
     deposit: num('s_deposit'),
     payBank: num('s_payBank'), payCard: num('s_payCard'), payCash: num('s_payCash'),
+    payFinance: num('s_payFinance'), financeCo: txt('s_financeCo'),
+    motExpiry: txt('s_mot') || v.motExpiry || '',
     advertisedPrice: Number(v.askingPrice)||0,
     warrantyMonths: txt('s_warrMonths'),
     tradeSale: !!(document.getElementById('s_tradeSale')||{}).checked,
@@ -7009,7 +7029,7 @@ function printInvoice(vId, draftSale){
         ${pair('First registered', v.firstReg ? fmtDate(v.firstReg) : v.year)}
         ${pair('Mileage', v.mileage ? Number(v.mileage).toLocaleString('en-GB') : '')}
         ${pair('VIN number', v.vin)}
-        ${pair('MOT', v.motExpiry ? fmtDate(v.motExpiry) : '')}
+        ${pair('MOT', (s.motExpiry || v.motExpiry) ? fmtDate(s.motExpiry || v.motExpiry) : '')}
         ${pair('Warranty', saleExtrasLine(s))}
         ${DB.marginScheme?pair('Stock book ref', v.stockNo || v.reg):''}
       </table>
@@ -7026,6 +7046,7 @@ function printInvoice(vId, draftSale){
         ${Number(s.extraPackage)?row('Extra package', m(Number(s.extraPackage))):''}
         ${row('Total balance', m(t.total), 'sub')}
         ${t.dep?row('Deposit received', m(t.dep)):''}
+        ${t.fin?row('Paid by finance'+(s.financeCo?' ('+e(s.financeCo)+')':''), m(t.fin)):''}
         ${t.paid!==t.dep?row('Total money received', m(t.paid), 'sub'):''}
         ${row(t.due>0?'BALANCE DUE':(t.due<0?'OVERPAID — TO REFUND':'BALANCE DUE'), m(Math.abs(t.due)), 'due')}
       </table>
@@ -7051,10 +7072,11 @@ function printInvoice(vId, draftSale){
     </div>
   </div>
 
-  ${(s.payBank||s.payCard||s.payCash)?`<div class="pay">
+  ${(s.payBank||s.payCard||s.payCash||s.payFinance)?`<div class="pay">
     <div><div class="k">Bank transfer</div><div class="v">${m(Number(s.payBank)||0)}</div></div>
     <div><div class="k">Card</div><div class="v">${m(Number(s.payCard)||0)}</div></div>
     <div><div class="k">Cash</div><div class="v">${m(Number(s.payCash)||0)}</div></div>
+    ${Number(s.payFinance)?`<div><div class="k">Finance${s.financeCo?' \u2014 '+e(s.financeCo):''}</div><div class="v">${m(Number(s.payFinance)||0)}</div></div>`:''}
   </div>`:''}
 
   ${isDraft?'':`<div class="sigs">
