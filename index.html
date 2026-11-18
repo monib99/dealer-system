@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-18 b159</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-18 b160</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -3315,10 +3315,23 @@ function syncFleetFromStock(){
       history:[]});
     have[k] = true; changed++;
   });
-  /* a car that has since been sold should not still read as on the forecourt */
+  /* A car that has been sold should stop reading as on the forecourt - but only
+     while nobody has deliberately moved it since the sale. A sold car very often
+     sits in the body shop, at a workshop or with a driver until the customer
+     collects it, and somebody recording that is stating where the car actually
+     is. Overwriting it made a manager's move spring straight back to Sold the
+     moment the screen redrew, which looked exactly like the Move button not
+     working. If we cannot prove the sale came after the move, the person wins. */
   list.forEach(function(f){
     const sc = fleetStockCar(f);
-    if(sc && sc.sale && f.loc !== 'Sold' && f.loc !== 'Scrapped'){ f.loc = 'Sold'; changed++; }
+    if(!sc || !sc.sale) return;
+    if(f.loc === 'Sold' || f.loc === 'Scrapped') return;
+    const saleAt = sc.sale.issuedAt || (sc.sale.date ? sc.sale.date + 'T00:00:00' : '');
+    if(f.updAt && (!saleAt || f.updAt > saleAt)) return;      // moved since it sold - leave it alone
+    f.loc = 'Sold';
+    f.history = (f.history || []).concat([{loc:'Sold', extra:'', note:'Marked sold automatically',
+      at:new Date().toISOString(), by:''}]);
+    changed++;
   });
   return changed;
 }
