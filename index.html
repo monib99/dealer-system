@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b161</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b162</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -629,7 +629,7 @@ const DEFAULT_DB = () => ({
   audit: [],
   seq: 1
 });
-const CHECKLIST_GROUPS = [
+const CHECKLIST_GROUPS_FULL = [
   {name:'Paperwork & legal', icon:'\u{1F4C4}', items:[
     'V5C logbook present', 'Registration & VIN match the V5C', 'MOT valid or MOT history checked', 'HPI / history check clear',
     'Mileage matches the records', 'Service history / book', 'Next service due date noted', 'Outstanding recalls checked',
@@ -685,6 +685,13 @@ const QUICK_CHECK = new Set([
   'Seats and seatbelts work','No damp or smoke smells',
   'Test drive','Drives straight, no pulling','Brakes pull up straight','Gears change smoothly','Warning lights stay off after the drive'
 ]);
+/* The check is the 36 essentials, drawn out of the full sheet above. The long
+   117-point version is no longer filled in, but it stays as the source of the
+   wording so the two can never drift apart. */
+const CHECKLIST_GROUPS = CHECKLIST_GROUPS_FULL
+  .map(function(g){ return {name:g.name, icon:g.icon,
+        items:g.items.filter(function(n){ return QUICK_CHECK.has(n); })}; })
+  .filter(function(g){ return g.items.length; });
 const CHECKLIST_TEMPLATE = CHECKLIST_GROUPS.reduce((a,g)=>a.concat(g.items),[]);
 
 let DB = DEFAULT_DB();
@@ -5673,20 +5680,18 @@ let clFilter = 'all';
 function vehicleChecklistTab(v){
   const list = ensureChecklist(v);
   const counts = clCounts(list);
-  const inScope = c => clFilter!=='quick' || QUICK_CHECK.has(c.name);
-  const sum = clFilter==='quick' ? clCounts(list.filter(inScope)) : counts;
+  const inScope = c => true;
+  const sum = counts;
   const groups = CHECKLIST_GROUPS.map(g=>({g, rows:list.map((c,idx)=>({c,idx})).filter(x=>clGroupOf(x.c.name)===g.name)}));
-  const other = list.map((c,idx)=>({c,idx})).filter(x=>!clGroupOf(x.c.name));
-  if(other.length) groups.push({g:{name:'Other', icon:'📝'}, rows:other});
-  const show = x => clFilter==='all' ? true : clFilter==='quick' ? QUICK_CHECK.has(x.c.name) : clFilter==='todo' ? !x.c.ans : x.c.ans==='no';
+  const show = x => clFilter==='todo' ? !x.c.ans : clFilter==='no' ? x.c.ans==='no' : true;
   return `
   <div class="cl">
     <div class="cl-top">
-      <div class="cl-sum"><div><b id="clDone">${sum.done}</b> of ${sum.total} ${clFilter==='quick'?'essentials ':''}checked
+      <div class="cl-sum"><div><b id="clDone">${sum.done}</b> of ${sum.total} checked
         <span class="cl-yes" id="clYes">${sum.yes} yes</span> <span class="cl-no" id="clNo">${sum.no} no</span> <span class="cl-left" id="clLeft">${sum.left} left</span></div>
         <div class="cl-bar"><i id="clBar" style="width:${sum.total?Math.round(sum.done/sum.total*100):0}%"></i></div></div>
       <div class="cl-filters">
-        ${[['all',`Everything (${counts.total})`],['quick',`Quick check (${counts.quick})`],['todo','Still to do'],['no','Failed (No)']].map(([k,l])=>`<button class="${clFilter===k?'on':''}" onclick="clFilter='${k}';renderVehicleDetail()">${l}</button>`).join('')}
+        ${[['all',`All ${counts.total}`],['todo','Still to do'],['no','Failed (No)']].map(([k,l])=>`<button class="${clFilter===k?'on':''}" onclick="clFilter='${k}';renderVehicleDetail()">${l}</button>`).join('')}
         <button class="pr" onclick="printChecklist('${v.id}')">\u{1F5A8} Print sheet</button>
       </div>
     </div>
@@ -5716,20 +5721,24 @@ function ensureChecklist(v){
   have.forEach(c=>{ if(!c) return; if(c.ans===undefined) c.ans = c.ok ? 'yes' : ''; byName[c.name] = c; });
   const out = [];
   CHECKLIST_GROUPS.forEach(g=>g.items.forEach(n=>{ out.push(byName[n] || {name:n, ok:false, ans:'', note:''}); delete byName[n]; }));
-  Object.keys(byName).forEach(n=>out.push(byName[n]));
+  /* Anything answered on the old 117-point sheet is kept to one side rather
+     than thrown away, so a car checked under the old system keeps its record. */
+  const old = Object.keys(byName).map(n=>byName[n]).filter(c=>c.ans||c.note||c.photoId);
+  if(old.length) v.checklistOld = old; else delete v.checklistOld;
   v.checklist = out; return out;
 }
 function clGroupOf(name){ const g = CHECKLIST_GROUPS.find(g=>g.items.includes(name)); return g ? g.name : null; }
 /* what sits at the end of a check row: log it, and the picture of the fault */
 function clIssueCell(v, c, idx){
-  if(c.ans !== 'no' && !c.photoId) return '';
   const thumb = c.photoId
     ? `<img src="${getPhotoUrl(c.photoId)}" class="cl-shot" title="Open"
          onclick="openCheckPhoto('${v.id}',${idx})"/>`
     : '';
   const btn = c.issueId
     ? '<span class="tag tag-amber">Logged as issue</span>'
-    : `<button class="btn btn-sm btn-amber" onclick="checkToIssue('${v.id}',${idx})">+ Log issue</button>`;
+    : (c.ans === 'no'
+        ? `<button class="btn btn-sm btn-amber" onclick="checkToIssue('${v.id}',${idx})">+ Log issue</button>`
+        : '');
   const cam = `<label class="btn btn-sm btn-ghost" style="cursor:pointer;white-space:nowrap">
       ${c.photoId ? 'Replace' : '\u{1F4F7} Photo'}
       <input type="file" accept="image/*" capture="environment" hidden
@@ -5742,8 +5751,11 @@ async function clPhoto(vId, idx, input){
   const file = input.files && input.files[0]; if(!file) return;
   const v = DB.vehicles.find(x=>x.id===vId); if(!v) return;
   const c = v.checklist && v.checklist[idx]; if(!c) return;
-  if(c.ans !== 'no'){ c.ans = 'no'; c.ok = false; }   // a photo means there is a fault
-  if(!c.issueId) checkToIssue(vId, idx);              // make sure it reaches the outstanding list
+  /* A photo records what was seen, it is not a verdict. Photographing the
+     bodywork or the interior while working through the sheet must not mark
+     the car as failed. It reaches the outstanding list only when the check
+     itself was answered No. */
+  if(c.ans === 'no' && !c.issueId) checkToIssue(vId, idx);
   if(typeof wbToast==='function') wbToast('Saving the photo…');
   try{
     const blob = await compressImage(file);
@@ -5770,8 +5782,7 @@ function clCounts(list){
 /* updates the screen without jumping back to the top */
 function clRefresh(v){
   const list = v.checklist;
-  const inScope = c => clFilter!=='quick' || QUICK_CHECK.has(c.name);
-  const k = clFilter==='quick' ? clCounts(list.filter(inScope)) : clCounts(list);
+  const k = clCounts(list);
   list.forEach((c,idx)=>{
     const r = document.getElementById('clr_'+idx); if(!r) return;
     r.className = 'cl-row ' + (c.ans||'');
@@ -5784,7 +5795,7 @@ function clRefresh(v){
   const set = (id,t)=>{ const e = document.getElementById(id); if(e) e.textContent = t; };
   set('clDone',k.done); set('clYes',k.yes+' yes'); set('clNo',k.no+' no'); set('clLeft',k.left+' left');
   const bar = document.getElementById('clBar'); if(bar) bar.style.width = (k.total?Math.round(k.done/k.total*100):0)+'%';
-  CHECKLIST_GROUPS.forEach((g,gi)=>{ const rows = list.filter(c=>clGroupOf(c.name)===g.name && inScope(c)); set('clg_'+gi, rows.filter(c=>c.ans).length+'/'+rows.length); });
+  CHECKLIST_GROUPS.forEach((g,gi)=>{ const rows = list.filter(c=>clGroupOf(c.name)===g.name); set('clg_'+gi, rows.filter(c=>c.ans).length+'/'+rows.length); });
 }
 function setCheck(vId, idx, ans){
   const v = DB.vehicles.find(x=>x.id===vId); const c = v.checklist[idx]; if(!c) return;
