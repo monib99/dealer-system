@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b163</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b164</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -14757,7 +14757,7 @@ async function bsPick(input){
     if(BSHOT.shots.length >= 8){ BSHOT.why = 'Eight pictures at a time is the limit.'; break; }
     try{
       /* bigger and sharper than a car photo: statement text is small */
-      const blob = await compressImage(f, 1400, 0.82);
+      const blob = await compressImage(f, 1600, 0.86);
       const b64  = await bsToBase64(blob);
       BSHOT.shots.push({ url: URL.createObjectURL(blob), b64: b64, kb: Math.round(blob.size/1024) });
     }catch(e){ BSHOT.why = "One of those pictures could not be read: " + (e.message||e); }
@@ -14783,10 +14783,19 @@ async function bsRead(){
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_ANON_KEY,
                 'Authorization':'Bearer ' + ((session && session.access_token) || SUPABASE_ANON_KEY) },
-      body: JSON.stringify({ images: BSHOT.shots.map(function(s){ return s.b64; }), today: todayISO() })
+      body: JSON.stringify({ images: BSHOT.shots.map(function(s){ return s.b64; }),
+                             today: todayISO(), known: bsKnown(),
+                             team: (DB.team||[]).map(function(m){ return m.name; }).filter(Boolean).slice(0,40),
+                             cars: (DB.vehicles||[]).filter(function(v){ return !v.sale; })
+                                     .map(function(v){ return String(v.reg||'').toUpperCase(); })
+                                     .filter(Boolean).slice(0,80) })
     });
     const out = await res.json().catch(function(){ return {}; });
-    if(res.ok && out && Array.isArray(out.rows)) rows = out.rows;
+    if(res.ok && out && Array.isArray(out.rows)){
+      rows = out.rows;
+      if(out.truncated) BSHOT.why = 'There were more lines than fitted in one reading. '
+        + 'Check the last few, and do the rest in a second batch.';
+    }
     else why = (out && (out.error||out.detail)) ? String(out.error||'') + (out.detail?(' — '+out.detail):'') : ('HTTP ' + res.status);
   }catch(e){ why = String(e.message||e); }
   BSHOT.busy = false;
@@ -14794,11 +14803,14 @@ async function bsRead(){
   if(!rows){ BSHOT.why = "The statement could not be read. " + why; bsRedraw(); return; }
   if(!rows.length){ BSHOT.why = "No transactions could be made out in those pictures. Try a sharper screenshot, or one screenful at a time."; bsRedraw(); return; }
 
+  const byReg = {};
+  (DB.vehicles||[]).forEach(function(v){ if(v.reg) byReg[String(v.reg).toUpperCase().replace(/\s+/g,'')] = v.id; });
   BSHOT.rows = rows.map(function(r){
     const dup = bsDupOf(r);
+    const reg = String(r.vehReg||'').toUpperCase().replace(/\s+/g,'');
     return { date:r.date, dir:r.dir, amount:r.amount, who:r.who,
              note: r.bankWording || '', cat: r.cat || 'Other',
-             status: r.status, sure: r.sure, veh:'',
+             status: r.status, sure: r.sure, veh: byReg[reg] || '',
              dup: dup ? (dup.who||'an entry') : '',
              /* a line already in the book, or one the bank has not taken yet,
                 starts unticked - the person opts in rather than opts out */
@@ -14806,6 +14818,25 @@ async function bsRead(){
   });
   BSHOT.stage = 'review';
   bsRedraw();
+}
+
+/* Who you have paid before and what you called it. Giving the model this makes
+   it spell a payee the way you already spell it, and put the money in the
+   category you yourself use for that payee, instead of guessing afresh. */
+function bsKnown(){
+  const seen = {};
+  (DB.cashbook||[]).forEach(function(c){
+    const who = String(c.who||'').trim(); if(!who) return;
+    const k = who.toLowerCase();
+    const e = seen[k] || (seen[k] = {who:who, n:0, cats:{}});
+    e.n++; if(c.cat) e.cats[c.cat] = (e.cats[c.cat]||0) + 1;
+  });
+  return Object.keys(seen).map(function(k){ return seen[k]; })
+    .sort(function(a,b){ return b.n - a.n; }).slice(0, 120)
+    .map(function(e){
+      const best = Object.keys(e.cats).sort(function(a,b){ return e.cats[b]-e.cats[a]; })[0] || '';
+      return { who: e.who, cat: best, n: e.n };
+    });
 }
 
 /* already in the day book? matched on date, amount and direction only, so a
