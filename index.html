@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b165</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b166</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -8550,8 +8550,9 @@ function renderTeamOverview(){
     <table><thead><tr><th>Employee</th><th>Period</th><th>Days</th><th>Day rate</th><th>Salary</th><th>Commission</th><th>Money back</th><th>Deductions</th><th>Due</th><th>Paid</th><th>Still owed</th><th></th></tr></thead><tbody>
     ${DB.payroll.slice().sort((a,b)=>String(b.period||'').localeCompare(String(a.period||''))).map(p=>{
       const balance = payBalance(p);
-      return `<tr><td>${escapeHtml(p.employee||'')}</td><td>${p.period||''}</td><td>${p.daysWorked||0}</td>
-      <td>${fmtMoney(p.dayRate)}</td><td>${fmtMoney(payGross(p))}</td>
+      return `<tr><td>${escapeHtml(p.employee||'')}</td><td>${p.period||''}</td>
+      <td>${payIsSalary(p)?'<span class="small-muted">salary</span>':(p.daysWorked||0)}</td>
+      <td>${payIsSalary(p)?'—':fmtMoney(p.dayRate)}</td><td>${fmtMoney(payGross(p))}</td>
       <td>${payCommission(p) ? fmtMoney(payCommission(p)) + ' <span class="small-muted">' + (p.carsSold||0) + ' × ' + fmtMoney(p.commissionRate) + '</span>' : '—'}</td>
       <td>${payReimburse(p) ? fmtMoney(payReimburse(p)) : '—'}</td>
       <td>${payDeductions(p) ? fmtMoney(payDeductions(p)) : '—'}</td>
@@ -8570,7 +8571,9 @@ function renderTeamOverview(){
     <table><thead><tr><th>Period</th><th>Days</th><th>Day rate</th><th>Salary</th><th>Commission</th><th>Money back</th><th>Due</th><th>Paid</th><th>Still owed</th></tr></thead><tbody>
     ${myPayroll.slice().sort((a,b)=>String(b.period||'').localeCompare(String(a.period||''))).map(p=>{
       const balance = payBalance(p);
-      return `<tr><td>${p.period||''}</td><td>${p.daysWorked||0}</td><td>${fmtMoney(p.dayRate)}</td>
+      return `<tr><td>${p.period||''}</td>
+      <td>${payIsSalary(p)?'<span class="small-muted">salary</span>':(p.daysWorked||0)}</td>
+      <td>${payIsSalary(p)?'—':fmtMoney(p.dayRate)}</td>
       <td>${fmtMoney(payGross(p))}</td>
       <td>${payCommission(p)?fmtMoney(payCommission(p)):'—'}</td>
       <td>${payReimburse(p)?fmtMoney(payReimburse(p)):'—'}</td>
@@ -9308,7 +9311,26 @@ function openIssuePhoto(vId, issueId){
    he sold, and may be getting back money he spent on the business out of his
    own pocket. He may also be paid only part of it, with the rest carried as
    salary we still owe - which is the position with Zack and Moneeb. */
-function payGross(p){ return (Number(p.daysWorked)||0) * (Number(p.dayRate)||0); }
+/* Some people are on a flat monthly salary and some are paid for the days they
+   work. basis says which; a record written before this existed has no basis and
+   is days times rate, as it always was. */
+function payIsSalary(p){ return (p && p.basis) === 'salary'; }
+function payGross(p){
+  return payIsSalary(p) ? (Number(p.salary)||0)
+                        : (Number(p.daysWorked)||0) * (Number(p.dayRate)||0);
+}
+/* How this person is normally paid. The team record decides it once he has been
+   paid that way; until then these three are on a salary, as he asked. */
+const SALARIED_BY_DEFAULT = ['Monib','Zack','Haji Sahib'];
+function payBasisFor(name){
+  const m = (DB.team||[]).find(function(x){ return sameName(x.name, name); });
+  if(m && m.payBasis) return m.payBasis;
+  return SALARIED_BY_DEFAULT.some(function(n){ return sameName(n, name); }) ? 'salary' : 'daily';
+}
+function paySalaryFor(name){
+  const m = (DB.team||[]).find(function(x){ return sameName(x.name, name); });
+  return Number(m && m.salary) || 0;
+}
 function payCommission(p){ return (Number(p.carsSold)||0) * (Number(p.commissionRate)||0); }
 function payReimburse(p){ return Number(p.reimbursement)||0; }
 function payDeductions(p){ return Number(p.deductions)||0; }
@@ -9335,7 +9357,8 @@ function payrollPeople(){
 /* Live total on the add-pay form, so part payment is never a guess. */
 function payFormCalc(){
   const v = function(id){ return Number((document.getElementById(id)||{value:0}).value)||0; };
-  const gross = v('p_days') * v('p_rate');
+  const basis = (document.getElementById('p_basis')||{value:'daily'}).value;
+  const gross = basis==='salary' ? v('p_salary') : v('p_days') * v('p_rate');
   const comm  = v('p_cars') * v('p_comm');
   const reim  = v('p_reim');
   const due   = Math.round((gross + comm + reim - v('p_ded'))*100)/100;
@@ -9343,7 +9366,8 @@ function payFormCalc(){
   const bal   = Math.round((due - paid)*100)/100;
   const box = document.getElementById('p_sum'); if(!box) return;
   box.innerHTML =
-    `<div class="k"><span class="muted">Salary · ${v('p_days')} days at ${fmtMoney(v('p_rate'))}</span><b>${fmtMoney(gross)}</b></div>` +
+    `<div class="k"><span class="muted">${basis==='salary' ? 'Salary for the month'
+        : 'Salary \u00b7 ' + v('p_days') + ' days at ' + fmtMoney(v('p_rate'))}</span><b>${fmtMoney(gross)}</b></div>` +
     (comm ? `<div class="k"><span class="muted">Commission · ${v('p_cars')} car${v('p_cars')===1?'':'s'} at ${fmtMoney(v('p_comm'))}</span><b>${fmtMoney(comm)}</b></div>`:'') +
     (reim ? `<div class="k"><span class="muted">Money back for what he spent</span><b>${fmtMoney(reim)}</b></div>`:'') +
     (v('p_ded') ? `<div class="k"><span class="muted">Less deductions / advances</span><b>− ${fmtMoney(v('p_ded'))}</b></div>`:'') +
@@ -9372,6 +9396,10 @@ function openAddPayroll(id){
   if(p && !team.some(function(m){ return m.name===p.employee; }))
     team.unshift({name:p.employee, dayRate:p.dayRate, email:p.userEmail||''});
   payEditingId = p ? p.id : null;
+  /* An existing record keeps the basis it was written on. A new one follows
+     however that person is normally paid. */
+  const basis = p ? (p.basis || 'daily')
+                  : payBasisFor((team[0]||{}).name || '');
   openModal(`<button class="close-x" onclick="closeModal()">✕</button>
     <h3>${p?'Change pay record':'Add pay record'}</h3>
     ${p?`<div class="small-muted" style="margin:-4px 0 10px">${escapeHtml(p.employee||'')} · ${p.period||''}.
@@ -9380,7 +9408,17 @@ function openAddPayroll(id){
       <div class="field"><label>Employee</label><select id="p_emp" onchange="prefillRate()">${team.map(m=>`<option data-rate="${m.dayRate}" data-email="${m.email||''}" ${(p&&p.employee===m.name)?'selected':''}>${m.name}</option>`).join('')}</select></div>
       <div class="field"><label>Period (month)</label><input id="p_period" type="month" value="${p?(p.period||''):thisMonth}"/></div>
     </div>
-    <div class="field-row">
+    <div class="field"><label>How he is paid</label>
+      <select id="p_basis" onchange="payBasisSwitch()">
+        <option value="salary"${basis==='salary'?' selected':''}>A set salary for the month</option>
+        <option value="daily"${basis==='daily'?' selected':''}>Days worked × a day rate</option>
+      </select></div>
+    <div class="field-row" id="p_salaryRow" style="${basis==='salary'?'':'display:none'}">
+      <div class="field"><label>Salary for the month (£)</label>
+        <input id="p_salary" type="number" step="0.01" value="${p?n(p.salary):''}" oninput="payFormCalc()"/>
+        <div class="small-muted" style="margin-top:4px">The whole figure. No days, no rate.</div></div>
+    </div>
+    <div class="field-row" id="p_daysRow" style="${basis==='daily'?'':'display:none'}">
       <div class="field"><label>Days worked</label><input id="p_days" type="number" value="${p?n(p.daysWorked):''}" oninput="payFormCalc()"/></div>
       <div class="field"><label>Day rate (£)</label><input id="p_rate" type="number" value="${p?n(p.dayRate):((DB.team[0]||{}).dayRate||0)}" oninput="payFormCalc()"/></div>
     </div>
@@ -9412,11 +9450,26 @@ function openAddPayroll(id){
   prefillRate();
 }
 function openEditPayroll(id){ openAddPayroll(id); }
+function payBasisSwitch(){
+  const b = (document.getElementById('p_basis')||{value:'daily'}).value;
+  const sal = document.getElementById('p_salaryRow'), day = document.getElementById('p_daysRow');
+  if(sal) sal.style.display = b==='salary' ? '' : 'none';
+  if(day) day.style.display = b==='daily'  ? '' : 'none';
+  payFormCalc();
+}
 let payEditingId = null;   /* the record open in the form, so it is not counted as owed from before */
 function prefillRate(){
   const sel = document.getElementById('p_emp'); if(!sel) return;
   const r = document.getElementById('p_rate'); if(r) r.value = sel.selectedOptions[0].dataset.rate||0;
   const name = sel.value;
+  /* Only on a new record: an existing one keeps whatever it was written on. */
+  if(!payEditingId){
+    const bs = document.getElementById('p_basis');
+    if(bs){ bs.value = payBasisFor(name); payBasisSwitch(); }
+    const sf = document.getElementById('p_salary');
+    if(sf && !Number(sf.value)) sf.value = paySalaryFor(name) || '';
+    payFormCalc();
+  }
   const hint = document.getElementById('p_reim_hint');
   if(hint){
     const owed = typeof staffOwedTotal==='function' ? staffOwedTotal(name) : 0;
@@ -9477,9 +9530,12 @@ function savePayroll(id){
   const before = old ? JSON.parse(JSON.stringify(old)) : null;
   if(old) captureUndo({t:'payEdit', id:old.id, before:before});
 
-  const rec = {id: old ? old.id : nextId('pay'), employee, userEmail,
+  const basis = (document.getElementById('p_basis')||{value:'daily'}).value === 'salary' ? 'salary' : 'daily';
+  const rec = {id: old ? old.id : nextId('pay'), employee, userEmail, basis: basis,
     period: document.getElementById('p_period').value,
-    daysWorked: num('p_days'), dayRate: num('p_rate'),
+    salary: basis==='salary' ? num('p_salary') : 0,
+    daysWorked: basis==='daily' ? num('p_days') : 0,
+    dayRate:    basis==='daily' ? num('p_rate') : 0,
     carsSold: num('p_cars'), commissionRate: num('p_comm'),
     reimbursement: num('p_reim'), deductions: num('p_ded'),
     cashPaid: num('p_cash'), bankPaid: num('p_bank')};
@@ -9500,8 +9556,18 @@ function savePayroll(id){
   if(mark && mark.checked) linkPayrollReceipts(target, employee);
   else delete target.reimbursedReceipts;
 
+  /* Remember how this one is paid, so next month's form opens the right way
+     round without being told again. */
+  const mem = (DB.team||[]).find(function(x){ return sameName(x.name, employee); });
+  if(mem){
+    mem.payBasis = basis;
+    if(basis==='salary' && rec.salary) mem.salary = rec.salary;
+  }
+
   const line = function(r){
-    return (r.period||'') + ' · ' + (r.daysWorked||0) + ' days at ' + fmtMoney(r.dayRate)
+    return (r.period||'') + ' \u00b7 ' + (payIsSalary(r)
+        ? 'salary ' + fmtMoney(r.salary)
+        : (r.daysWorked||0) + ' days at ' + fmtMoney(r.dayRate))
       + (payCommission(r) ? ' · commission ' + fmtMoney(payCommission(r)) + ' on ' + (r.carsSold||0) + ' cars' : '')
       + (r.reimbursement ? ' · money back ' + fmtMoney(r.reimbursement) : '')
       + (r.deductions ? ' · deductions ' + fmtMoney(r.deductions) : '')
