@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-18 b160</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b161</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -4980,10 +4980,42 @@ function openAddVehicle(){
       <div class="field"><label>Year</label><input id="f_year" placeholder="2018"/></div>
     </div>
     <div class="field-row">
+      <div class="field"><label>VIN number</label>
+        <input id="f_vin" style="text-transform:uppercase" placeholder="17 characters"/></div>
       <div class="field"><label>Colour</label><input id="f_color"/></div>
       <div class="field"><label>Mileage</label><input id="f_mileage"/></div>
-      <div class="field"><label>Asking price</label><input id="f_asking" type="number"/></div>
     </div>
+
+    <h4 style="margin:16px 0 8px;font-size:14px">Where it came from</h4>
+    <div class="field-row">
+      <div class="field"><label>Bought from</label>
+        <select id="f_source"><option value="">Not recorded yet</option>${sourceOptions('')}</select></div>
+      <div class="field"><label>Seller or auction reference</label>
+        <input id="f_seller" placeholder="e.g. BCA Blackbushe, or Mr A Trader"/></div>
+      <div class="field"><label>Date bought</label>
+        <input id="f_bought" type="date" value="${todayISO()}"/></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Purchase price (£)</label><input id="f_purchase" type="number" step="0.01"/>
+        <div class="small-muted" style="margin-top:4px">What you paid for the car itself. Fees and transport go in Cost &amp; invoice.</div></div>
+      <div class="field"><label>Asking price (£)</label><input id="f_asking" type="number"/>
+        <div class="small-muted" style="margin-top:4px">What you plan to advertise it at. Change it any time.</div></div>
+    </div>
+
+    <details style="margin:10px 0">
+      <summary style="cursor:pointer;font-size:13.5px;color:var(--muted)">More about the car — fuel, gearbox, engine</summary>
+      <div class="field-row" style="margin-top:10px">
+        <div class="field"><label>Fuel</label><select id="f_fuel">${['','Petrol','Diesel','Hybrid','Electric'].map(function(o){return '<option>'+o+'</option>';}).join('')}</select></div>
+        <div class="field"><label>Gearbox</label><select id="f_trans">${['','Manual','Automatic'].map(function(o){return '<option>'+o+'</option>';}).join('')}</select></div>
+        <div class="field"><label>Body</label><select id="f_body">${['','Hatchback','Saloon','Estate','SUV','MPV','Coupe','Convertible','Van'].map(function(o){return '<option>'+o+'</option>';}).join('')}</select></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Engine</label><input id="f_engine" placeholder="e.g. 1.0L"/></div>
+        <div class="field"><label>Doors</label><input id="f_doors"/></div>
+        <div class="field"><label>MOT expires</label><input id="f_mot" type="date"/></div>
+      </div>
+    </details>
+
     <div class="field"><label>Who is funding this car?</label>
       <select id="f_owner">
         <option value="company">Company stock</option>
@@ -4998,6 +5030,18 @@ function openAddVehicle(){
   `;
   openModal(body);
 }
+/* Where a car was bought. Used by the add form and by the bought-from card,
+   so the two never disagree. sourceOptions keeps whatever is already on a
+   record even if it is not on this list, so old entries are never silently
+   changed to something else. */
+const PURCHASE_SOURCES = ['BCA','Copart','Other auction','Private seller',
+  'Trade / another dealer','Part exchange','Other'];
+function sourceOptions(sel){
+  const list = PURCHASE_SOURCES.slice();
+  if(sel && list.indexOf(sel) < 0) list.unshift(sel);
+  return list.map(function(o){
+    return '<option'+(sel===o?' selected':'')+'>'+escapeHtml(o)+'</option>'; }).join('');
+}
 function normaliseReg(r){ return (r||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 function findVehicleByReg(reg, excludeId){
   const key = normaliseReg(reg);
@@ -5005,6 +5049,7 @@ function findVehicleByReg(reg, excludeId){
   return DB.vehicles.find(v => normaliseReg(v.reg)===key && v.id!==excludeId) || null;
 }
 function saveNewVehicle(){
+  const val = function(id){ const el=document.getElementById(id); return el ? String(el.value||'').trim() : ''; };
   const reg = document.getElementById('f_reg').value.trim().toUpperCase();
   if(!reg){ alert('Registration is required'); return; }
   // Block duplicates — ignores spacing/case so "LP19KFX" and "LP19 KFX" count as the same car.
@@ -5026,15 +5071,28 @@ function saveNewVehicle(){
     year:document.getElementById('f_year').value, color:document.getElementById('f_color').value,
     mileage:document.getElementById('f_mileage').value, status:document.getElementById('f_status').value,
     askingPrice: Number(document.getElementById('f_asking').value)||0,
+    vin: val('f_vin').toUpperCase(),
+    fuel: val('f_fuel'), transmission: val('f_trans'), body: val('f_body'),
+    engine: val('f_engine'), doors: val('f_doors'), motExpiry: val('f_mot'),
     dateAdded: todayISO(),
-    costs:{purchase:0,delivery:0,service:0,mot:0,bodywork:0,mechanical:0,autotrader:0,fuel:0,other:0},
+    purchase: {
+      source: val('f_source'), name: val('f_seller'),
+      date: val('f_bought') || todayISO(),
+      mileage: document.getElementById('f_mileage').value,
+      pay: 'Bank transfer', ref: '', notes: '',
+      v5:false, keys2:false, history:false, mot:false, locknut:false
+    },
+    costs:{purchase: Number(val('f_purchase'))||0,
+           delivery:0,service:0,mot:0,bodywork:0,mechanical:0,autotrader:0,fuel:0,other:0},
     checklist: CHECKLIST_TEMPLATE.map(name=>({name, ok:false, ans:'', note:''})),
     issues:[], photos:[], invoicePhotoIds:[], sale:null
   };
   DB.vehicles.push(v);
   logChange('stock','Added to stock', vehRef(v), '', '', '',
     (v.ownerType==='muzarib' ? 'Funded by ' + muzaribName(v.muzaribId) : 'Company stock') +
-    (Number((v.costs||{}).purchase) ? ' · purchase ' + fmtMoney(v.costs.purchase) : ''));
+    (Number((v.costs||{}).purchase) ? ' · purchase ' + fmtMoney(v.costs.purchase) : '') +
+    (v.purchase && v.purchase.source ? ' · from ' + v.purchase.source : '') +
+    (v.purchase && v.purchase.name ? ' (' + v.purchase.name + ')' : ''));
   saveDB(); closeModal(); openVehicle(v.id);
 }
 
@@ -6818,8 +6876,7 @@ function purchaseCard(v){
       ${f('pu_mileage','Mileage at purchase', q.mileage || v.mileage || '', 'number')}
       <div class="field"><label>Where it came from</label>
         <select id="pu_source" onchange="savePurchase('${v.id}')">
-          ${['Private seller','Trade / another dealer','Auction','Part exchange','Other'].map(function(o){
-            return '<option'+(((q.source)||'Private seller')===o?' selected':'')+'>'+o+'</option>'; }).join('')}
+          ${sourceOptions(q.source || 'Private seller')}
         </select></div>
       ${f('pu_ref','Purchase invoice no.', q.ref, '', nextPurchaseRef())}
     </div>
