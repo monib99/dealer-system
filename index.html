@@ -577,7 +577,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b162</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b163</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -14692,6 +14692,254 @@ function runTideImport(){
   saveDB(); closeModal(); render();
   if(typeof wbToast === 'function') wbToast(plan.length + ' entries added to the day book');
 }
+/* ============================================================
+   Reading a bank statement from a photo.
+
+   The pictures go to the read-bank-shot function, which asks the
+   model what is on them and hands back the lines. Nothing it says
+   is taken on trust: every line lands in a table here, with the
+   date, the amount, who it was and the description all editable,
+   and nothing reaches the day book until somebody ticks it and
+   presses the button.
+   ============================================================ */
+let BSHOT = { shots:[], rows:[], busy:false, stage:'pick', why:'' };
+
+function openBankShot(){
+  if(!isManager()){ alert('Only a manager can bring a statement in.'); return; }
+  BSHOT = { shots:[], rows:[], busy:false, stage:'pick', why:'' };
+  openModal(bsBody());
+}
+function bsRedraw(){ const b = document.getElementById('bsWrap'); if(b) b.innerHTML = bsBody(true); }
+
+function bsBody(inner){
+  const body = BSHOT.stage === 'review' ? bsReview() : bsPickStage();
+  return inner ? body : '<div id="bsWrap">' + body + '</div>';
+}
+
+function bsPickStage(){
+  const n = BSHOT.shots.length;
+  return `<button class="close-x" onclick="closeModal()">✕</button>
+  <h3>Read a bank statement from a photo</h3>
+  <div class="small-muted" style="margin-bottom:12px">
+    Take a screenshot of the statement in your banking app, or photograph a paper one, and add it here.
+    You can add up to eight at once — scroll the app and shoot each screenful.
+    Every line comes back for you to check and correct before any of it is saved.</div>
+
+  <label class="btn btn-brand" style="cursor:pointer;display:inline-block;margin-bottom:12px">
+    ${n ? '+ Add more pictures' : '+ Choose pictures'}
+    <input type="file" accept="image/*" multiple hidden onchange="bsPick(this)"/></label>
+
+  ${n ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+    ${BSHOT.shots.map(function(s,i){ return `<div style="position:relative">
+      <img src="${s.url}" style="width:92px;height:150px;object-fit:cover;border-radius:7px;border:1px solid var(--line)"/>
+      <button class="btn btn-sm" style="position:absolute;top:3px;right:3px;padding:1px 6px"
+        onclick="bsDrop(${i})" title="Take this one out">✕</button></div>`; }).join('')}
+  </div>` : ''}
+
+  ${BSHOT.why ? `<div style="margin-bottom:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--amber,#b8860b);background:rgba(184,134,11,.10);font-size:13px">${escapeHtml(BSHOT.why)}</div>` : ''}
+
+  <div class="small-muted" style="margin-bottom:12px">
+    The pictures are sent to be read and are not kept afterwards. They are not saved to the car records or the day book.</div>
+
+  <div class="modal-actions">
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-brand" ${(!n||BSHOT.busy)?'disabled':''} onclick="bsRead()">
+      ${BSHOT.busy ? 'Reading…' : 'Read ' + (n===1?'the picture':'the ' + n + ' pictures')}</button>
+  </div>`;
+}
+
+async function bsPick(input){
+  const files = Array.prototype.slice.call(input.files||[]);
+  input.value = '';
+  if(!files.length) return;
+  BSHOT.why = '';
+  for(const f of files){
+    if(BSHOT.shots.length >= 8){ BSHOT.why = 'Eight pictures at a time is the limit.'; break; }
+    try{
+      /* bigger and sharper than a car photo: statement text is small */
+      const blob = await compressImage(f, 1400, 0.82);
+      const b64  = await bsToBase64(blob);
+      BSHOT.shots.push({ url: URL.createObjectURL(blob), b64: b64, kb: Math.round(blob.size/1024) });
+    }catch(e){ BSHOT.why = "One of those pictures could not be read: " + (e.message||e); }
+  }
+  bsRedraw();
+}
+function bsDrop(i){ BSHOT.shots.splice(i,1); bsRedraw(); }
+function bsToBase64(blob){
+  return new Promise(function(res, rej){
+    const r = new FileReader();
+    r.onload = function(){ const s = String(r.result||''); res(s.slice(s.indexOf(',')+1)); };
+    r.onerror = rej; r.readAsDataURL(blob);
+  });
+}
+
+async function bsRead(){
+  if(BSHOT.busy || !BSHOT.shots.length) return;
+  BSHOT.busy = true; BSHOT.why = ''; bsRedraw();
+  let rows = null, why = '';
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    const res = await fetch(SUPABASE_URL + '/functions/v1/read-bank-shot', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_ANON_KEY,
+                'Authorization':'Bearer ' + ((session && session.access_token) || SUPABASE_ANON_KEY) },
+      body: JSON.stringify({ images: BSHOT.shots.map(function(s){ return s.b64; }), today: todayISO() })
+    });
+    const out = await res.json().catch(function(){ return {}; });
+    if(res.ok && out && Array.isArray(out.rows)) rows = out.rows;
+    else why = (out && (out.error||out.detail)) ? String(out.error||'') + (out.detail?(' — '+out.detail):'') : ('HTTP ' + res.status);
+  }catch(e){ why = String(e.message||e); }
+  BSHOT.busy = false;
+
+  if(!rows){ BSHOT.why = "The statement could not be read. " + why; bsRedraw(); return; }
+  if(!rows.length){ BSHOT.why = "No transactions could be made out in those pictures. Try a sharper screenshot, or one screenful at a time."; bsRedraw(); return; }
+
+  BSHOT.rows = rows.map(function(r){
+    const dup = bsDupOf(r);
+    return { date:r.date, dir:r.dir, amount:r.amount, who:r.who,
+             note: r.bankWording || '', cat: r.cat || 'Other',
+             status: r.status, sure: r.sure, veh:'',
+             dup: dup ? (dup.who||'an entry') : '',
+             /* a line already in the book, or one the bank has not taken yet,
+                starts unticked - the person opts in rather than opts out */
+             keep: !dup && r.status === 'settled' };
+  });
+  BSHOT.stage = 'review';
+  bsRedraw();
+}
+
+/* already in the day book? matched on date, amount and direction only, so a
+   renamed payee is still recognised */
+function bsDupOf(r){
+  return (DB.cashbook||[]).find(function(c){
+    return c.date === r.date && c.dir === r.dir
+        && Math.abs((Number(c.amount)||0) - r.amount) < 0.005;
+  });
+}
+function bsKept(){ return BSHOT.rows.filter(function(r){ return r.keep; }); }
+
+function bsReview(){
+  const k = bsKept();
+  const sum = function(d){ return k.filter(function(r){ return r.dir===d; })
+                            .reduce(function(a,r){ return a + r.amount; }, 0); };
+  const cars = (DB.vehicles||[]).filter(function(v){ return !v.sale; });
+  return `<button class="close-x" onclick="closeModal()">✕</button>
+  <h3>Check the lines before they go in</h3>
+  <div class="small-muted" style="margin-bottom:10px">
+    ${BSHOT.rows.length} line${BSHOT.rows.length===1?'':'s'} read from ${BSHOT.shots.length} picture${BSHOT.shots.length===1?'':'s'}.
+    Correct anything that came out wrong — every box is editable. Untick a line to leave it out.</div>
+
+  <div class="grid kpi-grid" style="margin-bottom:12px">
+    <div class="card kpi"><div class="label">Going in</div><div class="value small" id="bsN">${k.length}</div>
+      <div class="sub">of ${BSHOT.rows.length} read</div></div>
+    <div class="card kpi"><div class="label">Money in</div>
+      <div class="value small" style="color:var(--green)" id="bsIn">${fmtMoney(sum('in'))}</div></div>
+    <div class="card kpi"><div class="label">Money out</div>
+      <div class="value small" style="color:var(--red)" id="bsOut">${fmtMoney(sum('out'))}</div></div>
+  </div>
+
+  <div style="max-height:46vh;overflow:auto;margin-bottom:12px">
+  <table style="min-width:860px"><thead><tr>
+    <th style="width:28px"></th><th style="width:132px">Date</th><th style="width:92px">In / out</th>
+    <th class="num" style="width:104px">Amount</th><th style="width:170px">Who</th>
+    <th style="width:210px">Description</th><th style="width:150px">As</th><th style="width:150px">Against a car</th>
+  </tr></thead><tbody>
+  ${BSHOT.rows.map(function(r,i){
+    const flag = r.dup ? `<span class="tag tag-amber" title="Already in the day book">already in</span>`
+               : r.status==='pending' ? `<span class="tag tag-amber">pending</span>`
+               : r.status==='cancelled' ? `<span class="tag tag-red">cancelled</span>`
+               : !r.sure ? `<span class="tag tag-amber" title="Hard to read — please check it">check this</span>` : '';
+    return `<tr id="bsr_${i}" style="${r.keep?'':'opacity:.5'}">
+      <td><input type="checkbox" ${r.keep?'checked':''} onchange="bsKeep(${i},this.checked)"
+           aria-label="Include this line"/></td>
+      <td><input type="date" value="${escapeAttr(r.date)}" onchange="bsSet(${i},'date',this.value)"
+           style="width:124px"/>${flag?'<div style="margin-top:3px">'+flag+'</div>':''}</td>
+      <td><select onchange="bsSet(${i},'dir',this.value)">
+          <option value="out"${r.dir==='out'?' selected':''}>Out</option>
+          <option value="in"${r.dir==='in'?' selected':''}>In</option></select></td>
+      <td class="num"><input type="number" step="0.01" value="${r.amount}" style="width:96px;text-align:right"
+           onchange="bsSet(${i},'amount',this.value)"/></td>
+      <td><input value="${escapeAttr(r.who)}" onchange="bsSet(${i},'who',this.value)" style="width:160px"/></td>
+      <td><input value="${escapeAttr(r.note)}" placeholder="What it was for"
+           onchange="bsSet(${i},'note',this.value)" style="width:200px"/></td>
+      <td><select onchange="bsSet(${i},'cat',this.value)" id="bsc_${i}">
+          ${cbCats(r.dir).map(function(c){ return '<option'+(r.cat===c?' selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('')}
+          </select></td>
+      <td><select onchange="bsSet(${i},'veh',this.value)">
+          <option value="">—</option>
+          ${cars.map(function(v){ return '<option value="'+v.id+'"'+(r.veh===v.id?' selected':'')+'>'
+             + escapeHtml((v.reg||'') + ' ' + [v.make,v.model].filter(Boolean).join(' ')) + '</option>'; }).join('')}
+          </select></td>
+    </tr>`; }).join('')}
+  </tbody></table></div>
+
+  <div class="small-muted" style="margin-bottom:12px">
+    Everything goes in as <b>bank</b>, funded by the company. Put a car against a line if the money belongs to it.
+    Anything already in the day book, and anything the bank has not taken yet, starts unticked.</div>
+
+  <div class="modal-actions">
+    <button class="btn btn-ghost" onclick="BSHOT.stage='pick';bsRedraw()">‹ Back to the pictures</button>
+    <button class="btn btn-brand" id="bsGo" ${k.length?'':'disabled'} onclick="bsSave()">
+      Add ${k.length} entr${k.length===1?'y':'ies'}</button>
+  </div>`;
+}
+
+/* editing one box must not redraw the table: that would throw away the
+   half-typed value in whatever box the cursor is in */
+function bsSet(i, field, val){
+  const r = BSHOT.rows[i]; if(!r) return;
+  if(field === 'amount') r.amount = Math.abs(Number(val)||0);
+  else r[field] = String(val);
+  if(field === 'dir'){
+    const sel = document.getElementById('bsc_' + i);
+    if(sel){ const list = cbCats(r.dir);
+      if(list.indexOf(r.cat) < 0) r.cat = 'Other';
+      sel.innerHTML = list.map(function(c){ return '<option'+(r.cat===c?' selected':'')+'>'+escapeHtml(c)+'</option>'; }).join('');
+    }
+  }
+  bsTotals();
+}
+function bsKeep(i, on){
+  const r = BSHOT.rows[i]; if(!r) return;
+  r.keep = !!on;
+  const tr = document.getElementById('bsr_' + i); if(tr) tr.style.opacity = on ? '' : '.5';
+  bsTotals();
+}
+function bsTotals(){
+  const k = bsKept();
+  const sum = function(d){ return k.filter(function(r){ return r.dir===d; })
+                            .reduce(function(a,r){ return a + r.amount; }, 0); };
+  const set = function(id,t){ const e = document.getElementById(id); if(e) e.textContent = t; };
+  set('bsN', k.length); set('bsIn', fmtMoney(sum('in'))); set('bsOut', fmtMoney(sum('out')));
+  const go = document.getElementById('bsGo');
+  if(go){ go.disabled = !k.length; go.textContent = 'Add ' + k.length + ' entr' + (k.length===1?'y':'ies'); }
+}
+
+function bsSave(){
+  if(!isManager()) return;
+  const keep = bsKept();
+  if(!keep.length){ closeModal(); return; }
+  const bad = keep.filter(function(r){ return !r.date || !(r.amount > 0); });
+  if(bad.length){ alert(bad.length + ' of the ticked lines has no date or no amount. Fix those first.'); return; }
+  const dups = keep.filter(function(r){ return bsDupOf(r); });
+  if(dups.length && !confirm(dups.length + ' of these look like entries already in the day book.\n\nAdd them anyway?')) return;
+
+  captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB)), label:'before the statement photo went in'});
+  const now = new Date().toISOString();
+  keep.forEach(function(r){
+    (DB.cashbook = DB.cashbook||[]).push({
+      id: nextId('cb'), date: r.date, dir: r.dir, amount: r.amount,
+      method:'bank', cat: r.cat || 'Other', vehicleId: r.veh || '', costType:'other',
+      who: r.who, note: r.note, fundedBy:'company', muzaribId: null,
+      onVehicle: false, createdBy: currentUserName||'', createdAt: now, fromStatement:'photo'
+    });
+  });
+  logChange('money','Read a bank statement from a photo', {id:'cashbook', label:'Day book'},
+    'Entries', '', String(keep.length), 'by ' + (currentUserName||''));
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast(keep.length + ' entries added to the day book');
+}
+
 function cbAdd(){
   if(!isManager()) return;
   const v = function(i){ const el=document.getElementById(i); return el ? String(el.value).trim() : ''; };
@@ -15029,6 +15277,8 @@ function renderCashbook(){
     <div><h1>Day book</h1><div class="date">Every pound in and out, and what is left in the till and the bank</div></div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="cbCsvPick()">⬇ Import bank CSV</button>
+      <button class="btn btn-brand" onclick="openBankShot()"
+        title="Photograph the statement in your banking app and check each line before it is saved">📷 Read a bank screenshot</button>
       ${tideImportPlan().length?`<button class="btn btn-brand" onclick="openTideImport()"
         title="The statement from 29 October to 6 November, typed in from the bank app. Anything already in the day book is left exactly as you have it.">+ Tide 29 Oct – 6 Nov (${tideImportPlan().length})</button>`:''}
       <input type="file" id="cb_csv" accept=".csv,text/csv" style="display:none" onchange="cbCsvLoaded(this)"/>
