@@ -215,7 +215,30 @@
           border-radius:999px; padding:2px 9px 2px 2px; }
   .pchip .av{ width:19px; height:19px; border-radius:50%; display:flex; align-items:center;
               justify-content:center; font-size:9.5px; font-weight:800; }
-  .day-col.is-today{ background:var(--brand-dim); border-radius:10px; padding:8px; margin:-8px; }
+  .day-col.is-today{ background:var(--brand-dim); border-radius:10px; padding:10px; margin:-10px; }
+  /* The board, weighted round today */
+  .day-col{ transition:opacity .14s ease; }
+  .day-col.w-today{ min-width:296px; }
+  .day-col.w-next { min-width:232px; opacity:.88; }
+  .day-col.w-later{ min-width:196px; opacity:.55; }
+  .day-col.w-past { min-width:186px; opacity:.42; }
+  .day-col.w-later.has-open, .day-col.w-past.has-open{ opacity:.82; }
+  .day-col:hover, .day-col:focus-within{ opacity:1; }
+  .day-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px;
+             margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+  .dh-day{ font-size:13px; font-weight:700; line-height:1.15; }
+  .dh-date{ font-size:11.5px; color:var(--grey); margin-top:1px; }
+  .day-col.w-today .day-head{ border-bottom:2px solid var(--brand); padding-bottom:7px; }
+  .day-col.w-today .dh-day{ font-size:19px; letter-spacing:-.3px; }
+  .day-col.w-today .dh-date{ font-size:13px; color:var(--ink); font-weight:600; }
+  .day-col.w-today .task-card{ font-size:13px; }
+  .day-col.w-past .task-card{ box-shadow:none; }
+  @media(max-width:700px){
+    .day-col.w-today{ min-width:84vw; }
+    .day-col.w-next { min-width:66vw; }
+    .day-col.w-later, .day-col.w-past{ min-width:56vw; }
+  }
+
   .swatch{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:7px; vertical-align:middle; }
   .chip-row{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
   .chip{ padding:6px 13px; border-radius:20px; border:1px solid var(--line); font-size:13px; font-weight:600; cursor:pointer; background:#fff; transition:background-color .12s ease, color .12s ease, border-color .12s ease;}
@@ -606,7 +629,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-26 b167</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-26 b168</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -736,6 +759,23 @@ let currentUserTeamId = null;
 let stockFilter = 'current';
 let stockSearch = '';
 let taskDayOffset = 0;
+/* The board is read standing at the forecourt on the day. Today is the
+   column that matters, tomorrow the one you glance at, and the rest is
+   context. So they are not all drawn at the same strength. A past day
+   still holding unfinished work is kept legible: faded work is work you
+   stop noticing. */
+function dayWeight(d){
+  const t = todayISO();
+  if(d === t) return 'today';
+  const diff = Math.round((new Date(d + 'T12:00:00') - new Date(t + 'T12:00:00')) / 86400000);
+  if(diff === 1) return 'next';
+  return diff > 1 ? 'later' : 'past';
+}
+function dayHasOpen(d){
+  return (DB.tasks||[]).some(function(t){
+    return t.date === d && taskWhoMatches(t) && taskState(t) !== 'done';
+  });
+}
 let lastSavedJson = null;      // last JSON we wrote/received, used to ignore echoes of our own save
 let justSavedLocally = false;
 
@@ -7745,10 +7785,15 @@ function renderDailyBoardView(days, overdue){
   ${taskPeopleStrip(days)}
   <div class="board" onscroll="boardAt={week:taskDayOffset,left:this.scrollLeft}">
     ${days.map(d=>`
-      <div class="day-col ${d===todayISO()?'is-today':''}" data-date="${d}">
-        <div class="flex-between" style="margin-bottom:6px;">
-          <strong>${new Date(d).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}</strong>
-          ${d===todayISO()?'<span class="tag tag-brand">Today</span>':''}
+      <div class="day-col w-${dayWeight(d)} ${dayHasOpen(d)?'has-open':''} ${d===todayISO()?'is-today':''}" data-date="${d}">
+        <div class="day-head">
+          <div>
+            <div class="dh-day">${new Date(d+'T12:00:00').toLocaleDateString('en-GB',{weekday: d===todayISO()?'long':'short'})}</div>
+            <div class="dh-date">${new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div>
+          </div>
+          ${d===todayISO() ? '<span class="tag tag-brand">Today</span>'
+            : dayWeight(d)==='next' ? '<span class="tag tag-grey">Tomorrow</span>'
+            : (dayWeight(d)==='past' && dayHasOpen(d)) ? '<span class="tag tag-amber">Not done</span>' : ''}
         </div>
         ${DB.tasks.filter(t=>t.date===d && taskWhoMatches(t)).length===0?'<div class="small-muted">No tasks</div>':''}
         ${DB.tasks.filter(t=>t.date===d && taskWhoMatches(t)).slice().sort((a,b)=>priorityRank(a.priority)-priorityRank(b.priority)).map(t=>`
