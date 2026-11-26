@@ -277,6 +277,35 @@
     #mobileMenuToggle{ display:none; }
     #sidebarNavItems{ display:flex !important; flex-direction:column; }
   }
+
+.cal-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.cal-grid-head{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.cal-grid-head div{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-cell{min-height:74px;border:1px solid var(--line);border-radius:8px;padding:4px 5px;cursor:pointer;
+          background:var(--card);overflow:hidden}
+.cal-cell:hover{border-color:var(--grey)}
+.cal-blank{border:0;background:none;cursor:default;min-height:0}
+.cal-cell.is-today{border-color:var(--brand);border-width:2px}
+.cal-cell.is-open{box-shadow:0 0 0 2px var(--brand) inset}
+.cal-cell.has-appt{background:color-mix(in srgb,var(--brand) 7%,var(--card))}
+.cal-d{font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;margin-bottom:3px}
+.cal-tag{font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--brand)}
+.cal-chip{font-size:10px;line-height:1.35;background:var(--brand);color:#fff;border-radius:4px;
+          padding:1px 4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-more,.cal-fu{font-size:9.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-row{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer}
+.cal-row:last-child{border-bottom:0}
+.cal-row:hover{background:color-mix(in srgb,var(--brand) 4%,transparent)}
+.cal-when{min-width:96px;font-weight:700;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.cal-what{flex:1;min-width:0}
+.cal-what a{display:block}
+@media(max-width:640px){
+  .cal-cell{min-height:58px;padding:3px 4px}
+  .cal-chip{font-size:9px}
+  .cal-fu,.cal-more{display:none}
+  .cal-when{min-width:74px;font-size:13px}
+}
 </style>
 <style id="wbStyle">
 /* ===== Website builder v2 ===== */
@@ -577,7 +606,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-23 b166</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-26 b167</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -10459,10 +10488,12 @@ function renderLeads(){
     <div class="chip ${leadView==='board'?'active':''}" onclick="leadView='board';render()">Pipeline</div>
     <div class="chip ${leadView==='list'?'active':''}" onclick="leadView='list';render()">List</div>
     <div class="chip ${leadView==='bycar'?'active':''}" onclick="leadView='bycar';render()">By car</div>
+    <div class="chip ${leadView==='calendar'?'active':''}" onclick="leadView='calendar';render()">Calendar</div>
     <div class="chip ${leadView==='sources'?'active':''}" onclick="leadView='sources';render()">Sources</div>
   </div>
 
-  ${leadView==='bycar' ? renderLeadsByCar() : leadView==='sources' ? renderLeadSources() : `
+  ${leadView==='calendar' ? renderLeadCalendar() :
+     leadView==='bycar' ? renderLeadsByCar() : leadView==='sources' ? renderLeadSources() : `
   <div class="toolbar">
     <input id="q_lead" placeholder="Search name, phone, reg&hellip;" value="${escapeAttr(leadSearch)}" oninput="leadSearch=this.value;render()" style="flex:1;min-width:180px;"/>
     <select onchange="leadFilter=this.value;render()">
@@ -10601,9 +10632,152 @@ function vehicleOptions(selectedId){
     avail.map(v=>`<option value="${v.id}" ${v.id===selectedId?'selected':''}>${escapeHtml(v.reg)} · ${escapeHtml([v.make,v.model].filter(Boolean).join(' '))}${v.status==='sold'?' (sold)':''}</option>`).join('');
 }
 
+/* ============================================================
+   Leads on a calendar.
+
+   The pipeline answers "where is this customer up to". It does
+   not answer "what is booked in tomorrow", which is the question
+   you ask before you leave at night. This does: a month at a
+   glance, and the day you tap written out in full - the time,
+   who is coming, and which car they are coming to see.
+   ============================================================ */
+let leadCalMonth = '';          /* YYYY-MM, empty means this month */
+let leadCalDay   = '';          /* the day written out below */
+
+function leadCalShift(n){
+  const base = (leadCalMonth || todayISO().slice(0,7)) + '-01';
+  const d = new Date(base + 'T12:00:00');
+  d.setMonth(d.getMonth() + n);
+  leadCalMonth = d.toISOString().slice(0,7);
+  leadCalDay = '';
+  render();
+}
+function leadCalPick(day){ leadCalDay = day; render(); }
+
+/* Every appointment and every follow-up that falls on a day, as one list. */
+function leadCalItems(){
+  const out = {};
+  const put = function(date, item){ if(!date) return; (out[date] = out[date] || []).push(item); };
+  (DB.leads||[]).forEach(function(l){
+    if(!ACTIVE_STAGES.includes(l.stage)) return;
+    const car = l.vehicleId ? (DB.vehicles||[]).find(function(v){ return v.id===l.vehicleId; }) : null;
+    const carLabel = car ? ((car.reg||'') + ' · ' + [car.make,car.model].filter(Boolean).join(' ')).trim()
+                         : (l.wanted || '');
+    if(l.appointment && l.appointment.date){
+      put(l.appointment.date, {kind:l.appointment.kind==='testdrive'?'Test drive':'Viewing',
+        appt:true, time:l.appointment.time||'', lead:l, car:carLabel, note:l.appointment.note||''});
+    }
+    if(l.nextFollowUp) put(l.nextFollowUp, {kind:'Follow up', appt:false, time:'', lead:l, car:carLabel, note:''});
+  });
+  Object.keys(out).forEach(function(d){
+    out[d].sort(function(a,b){
+      if(a.appt !== b.appt) return a.appt ? -1 : 1;      // appointments before follow-ups
+      return String(a.time||'99').localeCompare(String(b.time||'99'));
+    });
+  });
+  return out;
+}
+
+function renderLeadCalendar(){
+  const items = leadCalItems();
+  const today = todayISO();
+  const month = leadCalMonth || today.slice(0,7);
+  const first = new Date(month + '-01T12:00:00');
+  const daysIn = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
+  const lead0  = (first.getDay() + 6) % 7;              /* Monday first */
+  const monthName = first.toLocaleDateString('en-GB', {month:'long', year:'numeric'});
+
+  const tomorrow = (function(){ const d=new Date(today+'T12:00:00'); d.setDate(d.getDate()+1);
+                                return d.toISOString().slice(0,10); })();
+  const cells = [];
+  for(let i=0;i<lead0;i++) cells.push('<div class="cal-cell cal-blank"></div>');
+  for(let d=1; d<=daysIn; d++){
+    const iso = month + '-' + String(d).padStart(2,'0');
+    const list = items[iso] || [];
+    const appts = list.filter(function(x){ return x.appt; });
+    const fus   = list.length - appts.length;
+    const cls = ['cal-cell'];
+    if(iso === today) cls.push('is-today');
+    if(iso === leadCalDay) cls.push('is-open');
+    if(appts.length) cls.push('has-appt');
+    cells.push(`<div class="${cls.join(' ')}" onclick="leadCalPick('${iso}')">
+      <div class="cal-d">${d}${iso===today?'<span class="cal-tag">today</span>':(iso===tomorrow?'<span class="cal-tag">tmrw</span>':'')}</div>
+      ${appts.slice(0,2).map(function(x){
+        return `<div class="cal-chip" title="${escapeAttr(x.lead.name+' · '+x.car)}">${x.time?escapeHtml(x.time)+' ':''}${escapeHtml((x.car||x.lead.name).split(' · ')[0])}</div>`;
+      }).join('')}
+      ${appts.length>2?`<div class="cal-more">+${appts.length-2} more</div>`:''}
+      ${fus?`<div class="cal-fu">${fus} follow-up${fus===1?'':'s'}</div>`:''}
+    </div>`);
+  }
+  while(cells.length % 7) cells.push('<div class="cal-cell cal-blank"></div>');
+
+  const open = leadCalDay || today;
+  const openList = items[open] || [];
+  const openName = new Date(open+'T12:00:00').toLocaleDateString('en-GB',
+      {weekday:'long', day:'numeric', month:'long'});
+  const nextDays = [];
+  for(let i=0;i<14;i++){
+    const d = new Date(today+'T12:00:00'); d.setDate(d.getDate()+i);
+    const iso = d.toISOString().slice(0,10);
+    const a = (items[iso]||[]).filter(function(x){ return x.appt; });
+    if(a.length) nextDays.push({iso, n:a.length});
+  }
+
+  return `
+  <div class="cal-top">
+    <button class="btn btn-ghost btn-sm" onclick="leadCalShift(-1)">‹</button>
+    <b style="font-size:15px">${monthName}</b>
+    <button class="btn btn-ghost btn-sm" onclick="leadCalShift(1)">›</button>
+    <button class="btn btn-ghost btn-sm" onclick="leadCalMonth='';leadCalDay='';render()">This month</button>
+    <span class="small-muted" style="margin-left:auto">
+      ${nextDays.length ? nextDays.reduce(function(a,x){return a+x.n;},0) + ' booked in the next fortnight'
+                        : 'Nothing booked in the next fortnight'}</span>
+  </div>
+
+  <div class="cal-grid-head">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(function(d){
+      return '<div>'+d+'</div>'; }).join('')}</div>
+  <div class="cal-grid">${cells.join('')}</div>
+
+  <div class="section-title" style="margin-top:18px"><h2>${escapeHtml(openName)}</h2></div>
+  <div class="card" style="padding:0">
+    ${openList.length === 0
+      ? '<div class="empty">Nothing booked and nobody to chase on this day.</div>'
+      : openList.map(function(x){
+          const l = x.lead;
+          return `<div class="cal-row" onclick="openLead('${l.id}')">
+            <div class="cal-when">${x.appt ? (x.time ? escapeHtml(x.time) : 'No time') : ''}
+              <span class="tag ${x.appt?'tag-brand':'tag-grey'}">${x.kind}</span></div>
+            <div class="cal-what">
+              <b>${escapeHtml(l.name||'No name')}</b>
+              ${l.phone?`<a href="tel:${escapeAttr(l.phone)}" onclick="event.stopPropagation()" class="small-muted">${escapeHtml(l.phone)}</a>`:''}
+              <div class="small-muted">${escapeHtml(x.car || 'No car picked')}</div>
+              ${x.note?`<div class="small-muted">“${escapeHtml(x.note)}”</div>`:''}
+            </div>
+            <div><span class="tag ${(LEAD_STAGES.find(function(s){return s.key===l.stage;})||{}).tag||'tag-grey'}">${
+              (LEAD_STAGES.find(function(s){return s.key===l.stage;})||{}).label||l.stage}</span></div>
+          </div>`;
+        }).join('')}
+  </div>`;
+}
 function toggleAppt(){
   const sel=document.getElementById('ld_apptype'), w=document.getElementById('ld_appt_wrap');
   if(sel&&w) w.style.display = sel.value ? '' : 'none';
+}
+/* Marking a lead Viewing booked and then being asked only for a follow-up date
+   is the wrong question: what matters is when they are coming in. Picking the
+   stage opens the appointment and puts tomorrow in, which is the usual answer. */
+function stageWantsAppt(){
+  const st = (document.getElementById('ld_stage')||{value:''}).value;
+  if(st !== 'viewing') return;
+  const kind = document.getElementById('ld_apptype');
+  if(kind && !kind.value){ kind.value = 'viewing'; toggleAppt(); }
+  const d = document.getElementById('ld_apdate');
+  if(d && !d.value){
+    const t = new Date(todayISO()+'T12:00:00'); t.setDate(t.getDate()+1);
+    d.value = t.toISOString().slice(0,10);
+  }
+  const note = document.getElementById('ld_apthint');
+  if(note) note.style.display = '';
 }
 function nextApptForVehicle(vid){
   const t=todayISO();
@@ -10694,6 +10868,8 @@ function openLeadForm(id, presetVehicleId){
         <option value="viewing" ${l&&l.appointment&&l.appointment.kind==='viewing'?'selected':''}>Viewing</option>
         <option value="testdrive" ${l&&l.appointment&&l.appointment.kind==='testdrive'?'selected':''}>Test drive</option>
       </select></div>
+    <div class="small-muted" id="ld_apthint" style="margin:-6px 0 8px;display:${(l&&l.stage==='viewing'&&!l.appointment)?'':'none'}">
+      This is the day they are coming in. The follow-up date below is a separate thing — when to chase them.</div>
     <div id="ld_appt_wrap" style="display:${l&&l.appointment?'':'none'}">
       <div class="field-row">
         <div class="field"><label>Date</label><input id="ld_apdate" type="date" value="${l&&l.appointment?l.appointment.date||'':''}"/></div>
@@ -10705,7 +10881,7 @@ function openLeadForm(id, presetVehicleId){
     <div class="field"><label>Or describe what they want (if not in stock)</label><input id="ld_vtext" value="${l?escapeAttr(l.vehicleText||''):''}" placeholder="e.g. Automatic hatchback under £6k"/></div>
     <div class="field-row">
       <div class="field"><label>Source</label><select id="ld_source">${LEAD_SOURCES.map(s=>`<option ${l&&l.source===s?'selected':''}>${s}</option>`).join('')}</select></div>
-      <div class="field"><label>Stage</label><select id="ld_stage">${LEAD_STAGES.map(s=>`<option value="${s.key}" ${(l?l.stage:'new')===s.key?'selected':''}>${s.label}</option>`).join('')}</select></div>
+      <div class="field"><label>Stage</label><select id="ld_stage" onchange="stageWantsAppt()">${LEAD_STAGES.map(s=>`<option value="${s.key}" ${(l?l.stage:'new')===s.key?'selected':''}>${s.label}</option>`).join('')}</select></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Budget (£)</label><input id="ld_budget" type="number" value="${l&&l.budget?l.budget:''}"/></div>
@@ -10749,6 +10925,11 @@ function saveLead(id){
     finance: document.getElementById('ld_fin').value,
   };
   const newStage = document.getElementById('ld_stage').value;
+  /* A lead sitting in Viewing booked with no day against it is the thing that
+     makes the calendar lie, so it is worth one question. */
+  if(newStage === 'viewing' && !data.appointment &&
+     !confirm('This is marked Viewing booked but no day has been put against it,\n'
+            + 'so it will not show on the calendar.\n\nSave it anyway?')) return;
   if(!DB.leads) DB.leads = [];
   let l;
   if(id){
