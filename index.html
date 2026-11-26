@@ -629,7 +629,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-26 b168</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-26 b169</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -12528,6 +12528,159 @@ function renderMzFairness(){
   </div>
   `;
 }
+/* ============================================================
+   Putting the agreed allocation onto the cars.
+
+   Run once. It writes ownerType and muzaribId onto each car so
+   every investor page, settlement and statement follows from the
+   car records themselves rather than from a list on paper.
+
+   It shows what it will do before it does anything, skips a car
+   that has gone, and refuses to take a car off an investor it is
+   already against. A restore point is taken first.
+   ============================================================ */
+const ALLOC_19NOV = {
+  'Haji Sahib':   ['VN14WCG','RRZ9816','OE16GJJ','WV18WMC','AO13UHA','VE55YDV','VU60XFV',
+                   'DU66XRD','BK12UZY','LY59FME','AK60ZHF','PN14CWP','BD13DWJ'],
+  'H Shirullah':  ['LS63SVU','SC63WCF','GV58KNN','LR61JVW','SK14YED','HY60HGL','MT12YBN',
+                   'SL66JOA','NX15WNM','ST12AGZ','AV67ULS'],
+  'Moneebullah Moneeb': ['GL13PXA','SM66GYP','BJ67RZL','KM67HNT','LP08KDV'],
+  'Hamza':        ['YM16YWC','VO13ZNV','WX63WMK','SG63JVA','WD65CDK'],
+  'Zahid':        ['WR60LYN','EF19YOR'],
+  'Anas':         ['EJ64ZDZ','CU13UEM'],
+  '__company__':  ['YS63WZE','Y845VBP','LC18XUU','CE61VZP','AK62HNH','VN07UPA','DV09OOB',
+                   'SV61JDO','KN54FWK']
+};
+/* A cost that was paid but never written down. Without it the car looks more
+   profitable than it was, and the investor would be paid on a wrong figure. */
+const ALLOC_EXTRA_COSTS = [
+  {reg:'AV67ULS', field:'mechanical', add:730, why:'Head repair'}
+];
+
+function allocKey(r){ return String(r||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function allocCar(reg){
+  const k = allocKey(reg);
+  return (DB.vehicles||[]).find(function(v){ return allocKey(v.reg) === k; });
+}
+function allocMz(name){
+  return (DB.muzaribs||[]).find(function(m){ return sameName(m.name, name); });
+}
+
+function allocPlan(){
+  const plan = [], trouble = [];
+  Object.keys(ALLOC_19NOV).forEach(function(who){
+    const company = who === '__company__';
+    const mz = company ? null : allocMz(who);
+    if(!company && !mz){ trouble.push({why:'No investor on record called ' + who, regs:ALLOC_19NOV[who]}); return; }
+    ALLOC_19NOV[who].forEach(function(reg){
+      const v = allocCar(reg);
+      if(!v){ trouble.push({why:'No car with this registration', regs:[reg]}); return; }
+      const already = v.ownerType === 'muzarib' ? (v.muzaribId||'') : '';
+      if(already && (!mz || already !== mz.id)){
+        const other = (DB.muzaribs||[]).find(function(m){ return m.id === already; });
+        trouble.push({why:'Already against ' + ((other&&other.name)||'another investor'), regs:[reg]});
+        return;
+      }
+      const same = company ? (v.ownerType === 'company' && !v.muzaribId)
+                           : (v.ownerType === 'muzarib' && v.muzaribId === mz.id);
+      plan.push({v:v, reg:v.reg, who: company ? 'Car Express' : mz.name,
+                 mzId: company ? null : mz.id, company:company, same:same,
+                 sold: !!v.sale});
+    });
+  });
+  const costs = ALLOC_EXTRA_COSTS.map(function(c){
+    const v = allocCar(c.reg);
+    return {c:c, v:v, done: !v ? false : (Number((v.costs||{})[c.field])||0) >= c.add};
+  });
+  return {plan:plan, trouble:trouble, costs:costs};
+}
+
+function openAllocApply(){
+  if(!isSuperAdmin()){ alert('Only a Super Admin can put the allocation onto the cars.'); return; }
+  const p = allocPlan();
+  const todo = p.plan.filter(function(x){ return !x.same; });
+  const byWho = {};
+  p.plan.forEach(function(x){ (byWho[x.who] = byWho[x.who] || []).push(x); });
+
+  openModal(`<button class="close-x" onclick="closeModal()">✕</button>
+    <h3>Put the agreed allocation onto the cars</h3>
+    <div class="small-muted" style="margin-bottom:12px">
+      This writes the owner onto each car, so the investor pages, the settlements and the statements
+      all come from the car records instead of a list on paper. A restore point is taken first.</div>
+
+    <div class="grid kpi-grid" style="margin-bottom:12px">
+      <div class="card kpi"><div class="label">Cars to change</div><div class="value small">${todo.length}</div>
+        <div class="sub">of ${p.plan.length} on the list</div></div>
+      <div class="card kpi"><div class="label">Already right</div>
+        <div class="value small">${p.plan.length - todo.length}</div><div class="sub">left alone</div></div>
+      <div class="card kpi"><div class="label">Needs a look</div>
+        <div class="value small" style="${p.trouble.length?'color:var(--amber)':''}">${p.trouble.length}</div>
+        <div class="sub">skipped</div></div>
+    </div>
+
+    ${p.costs.filter(function(c){ return c.v && !c.done; }).map(function(c){
+      return `<div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px">
+        <b>${escapeHtml(c.c.reg)}</b> — adding ${fmtMoney(c.c.add)} of cost for ${escapeHtml(c.c.why)},
+        which was paid but never recorded.
+        <div class="small-muted">Cost goes from ${fmtMoney(vehicleCostTotal(c.v))} to
+          ${fmtMoney(vehicleCostTotal(c.v) + c.c.add)}${c.v.sale
+            ? ', so the profit on it settles at the right figure' : ''}.</div></div>`; }).join('')}
+
+    <div style="max-height:40vh;overflow:auto;margin-bottom:12px">
+      ${Object.keys(byWho).map(function(who){
+        const list = byWho[who];
+        return `<div style="margin-bottom:12px">
+          <div style="font-weight:700;border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:6px">
+            ${escapeHtml(who)} <span class="small-muted">· ${list.length} car${list.length===1?'':'s'}</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${list.map(function(x){
+              return `<span class="tag ${x.same?'tag-grey':'tag-brand'}" title="${x.same?'already right':'will change'}">
+                ${escapeHtml(x.reg)}${x.sold?' · sold':''}</span>`; }).join('')}
+          </div></div>`; }).join('')}
+    </div>
+
+    ${p.trouble.length?`<div style="padding:10px 12px;border:1px solid var(--amber);border-radius:8px;margin-bottom:12px">
+      <b>Skipped</b>
+      ${p.trouble.map(function(t){ return `<div class="small-muted">${escapeHtml(t.regs.join(', '))} — ${escapeHtml(t.why)}</div>`; }).join('')}
+    </div>`:''}
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-brand" ${todo.length||p.costs.some(function(c){return c.v&&!c.done;})?'':'disabled'}
+        onclick="runAllocApply()">Apply it</button>
+    </div>`);
+}
+
+function runAllocApply(){
+  if(!isSuperAdmin()) return;
+  const p = allocPlan();
+  const todo = p.plan.filter(function(x){ return !x.same; });
+  const costs = p.costs.filter(function(c){ return c.v && !c.done; });
+  if(!todo.length && !costs.length){ closeModal(); return; }
+  if(!confirm('This puts ' + todo.length + ' car' + (todo.length===1?'':'s') +
+              ' onto their owners' + (costs.length?' and adds ' + costs.length + ' missing cost':'') +
+              '.\n\nCarry on?')) return;
+
+  captureUndo({t:'full', db: JSON.parse(JSON.stringify(DB)), label:'before the allocation went on the cars'});
+
+  costs.forEach(function(c){
+    c.v.costs = c.v.costs || {};
+    c.v.costs[c.c.field] = (Number(c.v.costs[c.c.field])||0) + c.c.add;
+    logChange('vehicle', c.c.why + ' added', {id:c.v.id, label:(c.v.reg||'')},
+      'Cost', '', fmtMoney(c.c.add), 'paid but never recorded');
+  });
+
+  todo.forEach(function(x){
+    if(x.company){ x.v.ownerType = 'company'; x.v.muzaribId = null; }
+    else { x.v.ownerType = 'muzarib'; x.v.muzaribId = x.mzId; }
+  });
+
+  logChange('muzarib','Allocation put onto the cars', {id:'alloc', label:'Muzaribat'},
+    'Cars', '', String(todo.length), 'by ' + (currentUserName||''));
+  saveDB(); closeModal(); render();
+  if(typeof wbToast === 'function') wbToast(todo.length + ' cars put onto their owners');
+}
+
 function renderMuzaribat(){
   if(activeMuzaribId) return renderMuzaribProfile(activeMuzaribId);
   const list = muzaribs();
@@ -12540,6 +12693,7 @@ function renderMuzaribat(){
         title="Internal only — every investor's money in and out">📊 Money in and out</button>`:''}
       ${isSuperAdmin()?`<button class="btn btn-ghost" onclick="openRepair()">🔧 Fix the data</button>`:''}
       <button class="btn btn-brand" onclick="openMuzaribForm()">+ Add investor</button>
+      ${isSuperAdmin() && allocPlan().plan.some(function(x){return !x.same;}) ? `<button class="btn btn-ghost" onclick="openAllocApply()" title="Write the agreed allocation onto the car records">Apply the agreed allocation</button>` : ''}
     </div>
   </div>
 
