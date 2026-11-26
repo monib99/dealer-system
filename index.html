@@ -629,7 +629,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-26 b169</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-26 b170</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -12581,10 +12581,16 @@ function allocPlan(){
         trouble.push({why:'Already against ' + ((other&&other.name)||'another investor'), regs:[reg]});
         return;
       }
-      const same = company ? (v.ownerType === 'company' && !v.muzaribId)
-                           : (v.ownerType === 'muzarib' && v.muzaribId === mz.id);
+      /* The flag is part of being right, not an extra. A car put against an
+         investor by the earlier build carries no flag, so the app reads it as
+         one he handed in and credits him capital he never paid. Those cars
+         look placed but are still wrong, so they must come back through here. */
+      const same = company ? (v.ownerType === 'company' && !v.muzaribId && !v.boughtWithInvestorCash)
+                           : (v.ownerType === 'muzarib' && v.muzaribId === mz.id
+                              && v.boughtWithInvestorCash === true);
+      const repair = !same && !company && v.ownerType === 'muzarib' && v.muzaribId === mz.id;
       plan.push({v:v, reg:v.reg, who: company ? 'Car Express' : mz.name,
-                 mzId: company ? null : mz.id, company:company, same:same,
+                 mzId: company ? null : mz.id, company:company, same:same, repair:repair,
                  sold: !!v.sale});
     });
   });
@@ -12599,6 +12605,7 @@ function openAllocApply(){
   if(!isSuperAdmin()){ alert('Only a Super Admin can put the allocation onto the cars.'); return; }
   const p = allocPlan();
   const todo = p.plan.filter(function(x){ return !x.same; });
+  const fixing = todo.filter(function(x){ return x.repair; });
   const byWho = {};
   p.plan.forEach(function(x){ (byWho[x.who] = byWho[x.who] || []).push(x); });
 
@@ -12612,6 +12619,12 @@ function openAllocApply(){
       Each car is company stock moving across against money the business already owes that investor,
       so his cash with us goes down by what the car cost and his total position does not move.
       When the car sells, the money comes back to his cash and the profit is settled on top.</div>
+
+    ${fixing.length?`<div style="padding:10px 12px;border:1px solid var(--amber);border-radius:8px;margin-bottom:12px;font-size:13px">
+      <b>Putting right ${fixing.length} car${fixing.length===1?'':'s'} from the earlier run.</b>
+      They are already against the right man, but they went on before this was fixed, so the app is
+      reading each one as a car he handed in and crediting him capital he never paid — his total
+      position is too high by what they cost. Running this corrects them; nothing moves owner.</div>`:''}
 
     <div class="grid kpi-grid" style="margin-bottom:12px">
       <div class="card kpi"><div class="label">Cars to change</div><div class="value small">${todo.length}</div>
