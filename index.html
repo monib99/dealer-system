@@ -12607,6 +12607,11 @@ function openAllocApply(){
     <div class="small-muted" style="margin-bottom:12px">
       This writes the owner onto each car, so the investor pages, the settlements and the statements
       all come from the car records instead of a list on paper. A restore point is taken first.</div>
+    <div style="padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:12px;font-size:13px">
+      <b>This does not add stock on top of what they are owed.</b>
+      Each car is company stock moving across against money the business already owes that investor,
+      so his cash with us goes down by what the car cost and his total position does not move.
+      When the car sells, the money comes back to his cash and the profit is settled on top.</div>
 
     <div class="grid kpi-grid" style="margin-bottom:12px">
       <div class="card kpi"><div class="label">Cars to change</div><div class="value small">${todo.length}</div>
@@ -12671,8 +12676,22 @@ function runAllocApply(){
   });
 
   todo.forEach(function(x){
-    if(x.company){ x.v.ownerType = 'company'; x.v.muzaribId = null; }
-    else { x.v.ownerType = 'muzarib'; x.v.muzaribId = x.mzId; }
+    if(x.company){
+      x.v.ownerType = 'company'; x.v.muzaribId = null;
+      delete x.v.boughtWithInvestorCash;
+      return;
+    }
+    x.v.ownerType = 'muzarib'; x.v.muzaribId = x.mzId;
+    /* This is the whole point of the exercise. These cars are not extra stock
+       arriving on top of what the investor is owed - they are company stock
+       being moved across to settle money already owed to him. So the car has
+       to read as bought with his money: his cash goes down by what the car
+       cost, and what he has with us in total does not move.
+
+       Left unflagged the app would read it as a car he physically handed in,
+       credit him fresh capital for it, and his position would grow by the
+       value of the stock. That is the double count. */
+    x.v.boughtWithInvestorCash = true;
   });
 
   logChange('muzarib','Allocation put onto the cars', {id:'alloc', label:'Muzaribat'},
