@@ -629,7 +629,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-27 b173</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-27 b174</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -12541,7 +12541,12 @@ function renderMzFairness(){
    ============================================================ */
 const ALLOC_19NOV = {
   'Haji Sahib':   ['VN14WCG','RRZ9816','OE16GJJ','WV18WMC','AO13UHA','VE55YDV','VU60XFV',
-                   'DU66XRD','BK12UZY','LY59FME','AK60ZHF','PN14CWP','BD13DWJ'],
+                   'DU66XRD','BK12UZY','LY59FME','AK60ZHF','PN14CWP','BD13DWJ',
+                   /* Vauxhall Mokka, already his before the allocation and the only one of his
+                      cars never flagged. It carries no capital entry either, so the app was
+                      inventing 2,414.80 of capital for it while his own cash already covered
+                      the purchase. Hamza confirmed it was paid for out of what he put in. */
+                   'DV18PBU'],
   'H Shirullah':  ['LS63SVU','SC63WCF','GV58KNN','LR61JVW','SK14YED','HY60HGL','MT12YBN',
                    'SL66JOA','NX15WNM','ST12AGZ','AV67ULS',
                    /* Sold 18 Nov. Already his before the allocation, but never flagged, so the app
