@@ -629,7 +629,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-27 b172</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-27 b173</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -12591,7 +12591,11 @@ function allocPlan(){
          look placed but are still wrong, so they must come back through here. */
       const same = company ? (v.ownerType === 'company' && !v.muzaribId && !v.boughtWithInvestorCash)
                            : (v.ownerType === 'muzarib' && v.muzaribId === mz.id
-                              && v.boughtWithInvestorCash === true);
+                              && v.boughtWithInvestorCash === true
+                              /* A capital entry alongside the flag means the car is being
+                                 counted twice - once as cash he paid in, once as a car he
+                                 handed in. Not right until that entry is gone. */
+                              && !carCapitalTx(v.id));
       const repair = !same && !company && v.ownerType === 'muzarib' && v.muzaribId === mz.id;
       plan.push({v:v, reg:v.reg, who: company ? 'Car Express' : mz.name,
                  mzId: company ? null : mz.id, company:company, same:same, repair:repair,
@@ -12709,6 +12713,14 @@ function runAllocApply(){
        credit him fresh capital for it, and his position would grow by the
        value of the stock. That is the double count. */
     x.v.boughtWithInvestorCash = true;
+    /* A car cannot be both. If it carries a capital entry saying he handed it
+       in, that entry is counting the same money twice: once in the cash he
+       paid in and again as the car. Flagging the car without clearing it
+       leaves his total exactly as wrong as before. */
+    const dup = dropCarCapital(x.v.id);
+    if(dup) logChange('muzarib', 'Duplicate capital entry removed',
+      {id:x.mzId, label:x.who}, 'Capital', fmtMoney(dup.amount), '',
+      (x.v.reg||'') + ' was bought with his cash, not handed in');
   });
 
   logChange('muzarib','Allocation put onto the cars', {id:'alloc', label:'Muzaribat'},
