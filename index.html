@@ -629,7 +629,7 @@
         <div id="userEmailLabel" style="color:#EDEFEE;font-weight:600;margin-bottom:6px;"></div>
         <div id="syncStatus" style="color:#9AA0A6;">Connecting…</div>
         <div style="margin-top:6px;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="pollForUpdates(true)">Refresh now</div>
-        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-26 b170</span></div>
+        <div style="margin-top:6px;color:#7E858C;font-size:11px;letter-spacing:.03em;">Build <span id="buildStamp">2026-11-27 b171</span></div>
         <div id="notifyToggle" style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="toggleNotifications()">🔕 Turn on reminders</div>
         <div id="storageTestLink" style="margin-top:10px;cursor:pointer;color:#C7CCD1;text-decoration:underline;display:none;" onclick="testPhotoStorage()">Test photo storage</div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #ffffff17;cursor:pointer;color:#C7CCD1;text-decoration:underline;" onclick="doLogout()">Sign out</div>
@@ -12862,12 +12862,7 @@ function renderMuzaribProfile(id){
         <a href="#" onclick="openOwedBreakdown('${id}');return false" style="float:right;font-weight:400">how?</a></div>
       <div class="value small">${fmtMoney(p.cash)}</div>
       <div class="sub">What we owe him on the cash side — the stock below is on top</div></div>
-    ${isManager() ? `<div class="card kpi"><div class="label">Cash I can spend</div>
-      <div class="value small"${p.cashInHand < 0 ? ' style="color:var(--red)"':''}>${fmtMoney(p.cashInHand)}</div>
-      <div class="sub">${p.cashInHand < 0
-          ? `Overdrawn — more of his cash has gone out than he put in`
-          : `Of his ${fmtMoney(p.capitalCash)} cash in` +
-            (p.usedByCompany > 0 ? `, ${fmtMoney(p.usedByCompany)} is out on the business` : '')}</div></div>` : ''}`}
+    `}
     <div class="card kpi"><div class="label">Value in stock</div><div class="value small">${fmtMoney(p.tiedUp)}</div>
       <div class="sub">${p.unsold.length} car${p.unsold.length===1?'':'s'}${p.tiedUpStock > 0
         ? ' — a car he handed in counts at its purchase price only' : ' at cost'}</div></div>
@@ -12929,13 +12924,8 @@ function renderMuzaribProfile(id){
         than he has put in. Check the entries below.</span></div>`;
     })()}
 
-  ${(isManager() && p.usedByCompany > 0 && !p.noCash) ? `
-  <div class="card" style="box-shadow:none;padding:13px 15px;margin-bottom:14px">
-    <b>${fmtMoney(p.usedByCompany)} of his cash has been spent on the business.</b>
-    <div class="small-muted" style="margin-top:4px">It makes no difference to what he is owed &mdash; it is only
-      where the money physically went, so it lives with the rest of the spend, under
-      <a class="link" onclick="App.go('team')">Team &amp; Pay</a>, and never on his statement.</div>
-  </div>`:''}
+  <!-- Where his cash physically went is an internal matter, not his business:
+       it changes nothing about what he is owed. It lives in Team & Pay only. -->
   <div class="section-title"><h2>Cars in stock</h2></div>
   <div class="card" style="padding:0;">
     ${p.unsold.length ? `<table><thead><tr><th>Car</th><th>Status</th><th>Purchase</th><th>Costs</th><th>Total in</th><th>Asking</th><th>Est. gross</th></tr></thead><tbody>
